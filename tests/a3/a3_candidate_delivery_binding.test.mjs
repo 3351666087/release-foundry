@@ -16,7 +16,7 @@ import { verifyAuditBundleIndex } from "../../services/report/a3_gate_cli.mjs";
 const ROOT = resolve(import.meta.dirname, "../..");
 const execFileAsync = promisify(execFile);
 const A3_IMPLEMENTATION_COMMIT = "a".repeat(40);
-const DECISION_HEAD = "sha256:bc608df9825ea316b374797ef76b4921bff4f6cee1943600d0297783e6be6303";
+const DECISION_HEAD = "sha256:93343a7920b06dc0f232aee7b3eb82b793010ca8c2061043682b4e7ebc088797";
 const GRADES_HASH = "sha256:ffeba9ab8d7a2ccfb26ca8e135448cc9a2e6c8ead5b49837f77e5e73606a5304";
 
 test("A3 binds the rc.3 A1 run and A2 authority without changing the A2 block", async () => {

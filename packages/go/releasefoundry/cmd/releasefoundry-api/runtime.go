@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"net/netip"
+	"net/url"
 	"os"
 	"strconv"
 	"strings"
@@ -21,6 +22,8 @@ const (
 	maxProductionIdentityDeliveryVaultIdentityBytes = int64(256 * 1024)
 	productionIdentityDeliveryVaultConnectTimeout   = 2 * time.Second
 	productionIdentityDeliveryVaultRequestTimeout   = 10 * time.Second
+	productionOAuthProviderDefaultTimeout           = 10 * time.Second
+	productionOAuthFirstLoginDefaultTTL             = 10 * time.Minute
 )
 
 var openIdentityDatabase = sql.Open
@@ -30,11 +33,14 @@ type identityRuntime struct {
 	unifiedIdentity            *releasefoundry.UnifiedIdentityService
 	identityLifecycle          *releasefoundry.IdentityLifecycleService
 	identitySessions           releasefoundry.IdentityHTTPSessionResolver
+	identitySecurityService    *releasefoundry.IdentitySecurityService
 	postgres                   *releasefoundry.ProductionIdentityStore
 	outbox                     releasefoundry.OAuthRevocationOutboxStore
 	verification               *releasefoundry.IdentityVerificationService
 	verificationResponsePolicy *releasefoundry.IdentityVerificationResponsePolicy
 	sessionReceiptTransport    releasefoundry.IdentitySessionReceiptTransport
+	oauthFirstLogins           map[string]*releasefoundry.OAuthFirstLoginService
+	tenancy                    releasefoundry.TenancyHTTPStore
 	close                      func() error
 }
 
@@ -85,6 +91,120 @@ func (runtime *productionIdentityDeliveryVaultRuntime) close() {
 	}
 }
 
+type productionOAuthOpaqueVaultConfig struct {
+	putURL                string
+	getURL                string
+	bindingURL            string
+	deleteURL             string
+	caBundleFile          string
+	clientCertificateFile string
+	clientPrivateKeyFile  string
+	serverName            string
+}
+
+type productionOAuthOpaqueVaultRuntime struct {
+	vault  *releasefoundry.HTTPOAuthOpaqueVault
+	client *http.Client
+}
+
+func (runtime *productionOAuthOpaqueVaultRuntime) close() {
+	if runtime != nil && runtime.client != nil {
+		runtime.client.CloseIdleConnections()
+	}
+}
+
+type productionOAuthCredentialsRuntime struct {
+	provider releasefoundry.OAuthCredentialsProvider
+	client   *http.Client
+}
+
+func (runtime *productionOAuthCredentialsRuntime) close() {
+	if runtime != nil && runtime.client != nil {
+		runtime.client.CloseIdleConnections()
+	}
+}
+
+type productionOAuthFirstLoginProvider struct {
+	adapter        releasefoundry.OAuthProviderAdapter
+	callbackURL    string
+	transactionTTL time.Duration
+	client         *http.Client
+}
+
+type productionOAuthFirstLoginDependencies struct {
+	organizationID  string
+	projectID       string
+	credentials     releasefoundry.OAuthCredentialsProvider
+	credentialVault *productionOAuthCredentialsRuntime
+	vault           *productionOAuthOpaqueVaultRuntime
+	googleEnabled   bool
+	githubEnabled   bool
+	providers       map[string]productionOAuthFirstLoginProvider
+}
+
+func (dependencies *productionOAuthFirstLoginDependencies) close() {
+	if dependencies == nil {
+		return
+	}
+	for _, provider := range dependencies.providers {
+		if provider.client != nil {
+			provider.client.CloseIdleConnections()
+		}
+	}
+	dependencies.vault.close()
+	dependencies.credentialVault.close()
+}
+
+func (dependencies *productionOAuthFirstLoginDependencies) build(
+	store *releasefoundry.ProductionIdentityStore,
+) (map[string]*releasefoundry.OAuthFirstLoginService, error) {
+	if dependencies == nil || store == nil || dependencies.vault == nil ||
+		dependencies.vault.vault == nil || len(dependencies.providers) == 0 {
+		return nil, fmt.Errorf("production OAuth first-login dependencies are incomplete")
+	}
+	firstLoginStore, err := store.NewOAuthFirstLoginStore(dependencies.vault.vault)
+	if err != nil {
+		return nil, fmt.Errorf("configure production OAuth first-login store: %w", err)
+	}
+	coordinator, err := releasefoundry.NewPostgresOAuthFirstLoginCoordinator(
+		releasefoundry.PostgresOAuthFirstLoginCoordinatorOptions{
+			Store:          store,
+			OrganizationID: dependencies.organizationID,
+			ProjectID:      dependencies.projectID,
+		},
+	)
+	if err != nil {
+		return nil, fmt.Errorf("configure production OAuth first-login coordinator: %w", err)
+	}
+	services := make(
+		map[string]*releasefoundry.OAuthFirstLoginService,
+		len(dependencies.providers),
+	)
+	for providerName, provider := range dependencies.providers {
+		service, serviceErr := releasefoundry.NewOAuthFirstLoginService(
+			releasefoundry.OAuthFirstLoginServiceOptions{
+				Provider:       provider.adapter,
+				Credentials:    dependencies.credentials,
+				Transactions:   firstLoginStore,
+				Secrets:        firstLoginStore,
+				Coordinator:    coordinator,
+				OrganizationID: dependencies.organizationID,
+				ProjectID:      dependencies.projectID,
+				CallbackURL:    provider.callbackURL,
+				TransactionTTL: provider.transactionTTL,
+			},
+		)
+		if serviceErr != nil {
+			return nil, fmt.Errorf(
+				"configure production %s OAuth first-login service",
+				providerName,
+			)
+		}
+		services[providerName] = service
+	}
+	return services, nil
+}
+
 func newIdentityRuntimeFromEnv(ctx context.Context, lookup func(string) (string, bool)) (identityRuntime, error) {
 	if lookup == nil {
 		return identityRuntime{}, fmt.Errorf("identity environment lookup is required")
@@ -101,9 +221,21 @@ func newIdentityRuntimeFromEnv(ctx context.Context, lookup func(string) (string,
 	case releasefoundry.IdentityRuntimeMemory:
 		return newDevelopmentIdentityRuntime(environment, mode, lookup)
 	case releasefoundry.IdentityRuntimePostgres:
-		dsn := firstEnv(lookup, "RELEASEFOUNDRY_POSTGRES_DSN", "DATABASE_URL")
+		dsn := firstEnv(
+			lookup,
+			"RELEASEFOUNDRY_IDENTITY_POSTGRES_DSN",
+			"RELEASEFOUNDRY_POSTGRES_DSN",
+			"DATABASE_URL",
+		)
 		if dsn == "" {
-			return identityRuntime{}, fmt.Errorf("production identity requires RELEASEFOUNDRY_POSTGRES_DSN or DATABASE_URL")
+			return identityRuntime{}, fmt.Errorf("production identity requires RELEASEFOUNDRY_POSTGRES_DSN or DATABASE_URL; RELEASEFOUNDRY_IDENTITY_POSTGRES_DSN is the preferred dedicated override")
+		}
+		securityConfig, err := productionIdentitySecurityRuntimeConfigFromEnv(
+			lookup,
+			dsn,
+		)
+		if err != nil {
+			return identityRuntime{}, err
 		}
 		store, err := openProductionIdentityStoreFromEnv(dsn, lookup)
 		if err != nil {
@@ -111,9 +243,22 @@ func newIdentityRuntimeFromEnv(ctx context.Context, lookup func(string) (string,
 		}
 		verificationEnabled := envTrue(lookup, "RELEASEFOUNDRY_IDENTITY_VERIFICATION_ENABLED")
 		var deliveryVault *productionIdentityDeliveryVaultRuntime
+		var securityRuntime *productionIdentitySecurityRuntime
+		oauthDependencies, err := productionOAuthFirstLoginDependenciesFromEnv(lookup)
+		if err != nil {
+			_ = store.Close()
+			return identityRuntime{}, err
+		}
+		var sessionReceiptTransport releasefoundry.IdentitySessionReceiptTransport
 		closeResources := func() error {
 			deliveryVault.close()
-			return store.Close()
+			oauthDependencies.close()
+			securityErr := securityRuntime.close()
+			storeErr := store.Close()
+			if securityErr != nil {
+				return securityErr
+			}
+			return storeErr
 		}
 		if verificationEnabled {
 			deliveryVault, err = productionIdentityDeliveryVaultFromEnv(lookup)
@@ -122,9 +267,33 @@ func newIdentityRuntimeFromEnv(ctx context.Context, lookup func(string) (string,
 				return identityRuntime{}, err
 			}
 		}
+		if verificationEnabled || oauthDependencies != nil {
+			sessionReceiptTransport, err = productionIdentitySessionReceiptTransportFromEnv(lookup)
+			if err != nil {
+				_ = closeResources()
+				return identityRuntime{}, err
+			}
+		}
 		readyCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 		defer cancel()
 		if err := store.Ready(readyCtx); err != nil {
+			_ = closeResources()
+			return identityRuntime{}, err
+		}
+		tenancy, err := store.NewPostgresTenancyStore()
+		if err != nil {
+			_ = closeResources()
+			return identityRuntime{}, fmt.Errorf(
+				"configure production PostgreSQL tenancy store: %w",
+				err,
+			)
+		}
+		securityRuntime, err = newProductionIdentitySecurityRuntime(
+			ctx,
+			securityConfig,
+			store,
+		)
+		if err != nil {
 			_ = closeResources()
 			return identityRuntime{}, err
 		}
@@ -142,8 +311,8 @@ func newIdentityRuntimeFromEnv(ctx context.Context, lookup func(string) (string,
 			ReceiptStore:  receiptStore,
 			Coordinator:   coordinator,
 			Environment:   environment,
-			GitHubEnabled: false,
-			GoogleEnabled: false,
+			GitHubEnabled: oauthDependencies != nil && oauthDependencies.githubEnabled,
+			GoogleEnabled: oauthDependencies != nil && oauthDependencies.googleEnabled,
 		})
 		if err != nil {
 			_ = closeResources()
@@ -154,17 +323,28 @@ func newIdentityRuntimeFromEnv(ctx context.Context, lookup func(string) (string,
 			_ = closeResources()
 			return identityRuntime{}, err
 		}
-		if envTrue(lookup, "RELEASEFOUNDRY_GITHUB_OAUTH_ENABLED") || envTrue(lookup, "RELEASEFOUNDRY_GOOGLE_OAUTH_ENABLED") {
-			_ = closeResources()
-			return identityRuntime{}, fmt.Errorf("production OAuth requires an injected external opaque vault; refusing memory or plaintext token storage")
+		oauthFirstLogins := map[string]*releasefoundry.OAuthFirstLoginService(nil)
+		if oauthDependencies != nil {
+			oauthFirstLogins, err = oauthDependencies.build(store)
+			if err != nil {
+				_ = closeResources()
+				return identityRuntime{}, err
+			}
 		}
 		runtime := identityRuntime{
-			mode:              mode,
-			identityLifecycle: lifecycle,
-			identitySessions:  store,
-			postgres:          store,
-			outbox:            outbox,
-			close:             closeResources,
+			mode:                    mode,
+			identityLifecycle:       lifecycle,
+			identitySessions:        store,
+			identitySecurityService: nil,
+			postgres:                store,
+			outbox:                  outbox,
+			sessionReceiptTransport: sessionReceiptTransport,
+			oauthFirstLogins:        oauthFirstLogins,
+			tenancy:                 tenancy,
+			close:                   closeResources,
+		}
+		if securityRuntime != nil {
+			runtime.identitySecurityService = securityRuntime.service
 		}
 		if verificationEnabled {
 			digestKey := envRaw(lookup, "RELEASEFOUNDRY_IDENTITY_VERIFICATION_HMAC_KEY")
@@ -212,16 +392,8 @@ func newIdentityRuntimeFromEnv(ctx context.Context, lookup func(string) (string,
 				_ = closeResources()
 				return identityRuntime{}, fmt.Errorf("configure production identity verification response policy: %w", policyErr)
 			}
-			sessionReceiptTransport, transportErr := productionIdentitySessionReceiptTransportFromEnv(lookup)
-			if transportErr != nil {
-				verification.Close()
-				verificationStore.Close()
-				_ = closeResources()
-				return identityRuntime{}, transportErr
-			}
 			runtime.verification = verification
 			runtime.verificationResponsePolicy = responsePolicy
-			runtime.sessionReceiptTransport = sessionReceiptTransport
 			runtime.close = func() error {
 				verification.Close()
 				verificationStore.Close()
@@ -231,6 +403,692 @@ func newIdentityRuntimeFromEnv(ctx context.Context, lookup func(string) (string,
 		return runtime, nil
 	default:
 		return identityRuntime{}, fmt.Errorf("unsupported RELEASEFOUNDRY_IDENTITY_RUNTIME %q", mode)
+	}
+}
+
+func productionOAuthFirstLoginDependenciesFromEnv(
+	lookup func(string) (string, bool),
+) (*productionOAuthFirstLoginDependencies, error) {
+	googleEnabled, err := productionOAuthBooleanEnv(
+		lookup,
+		"RELEASEFOUNDRY_GOOGLE_OAUTH_ENABLED",
+	)
+	if err != nil {
+		return nil, err
+	}
+	githubEnabled, err := productionOAuthBooleanEnv(
+		lookup,
+		"RELEASEFOUNDRY_GITHUB_OAUTH_ENABLED",
+	)
+	if err != nil {
+		return nil, err
+	}
+	for _, key := range []string{
+		"RELEASEFOUNDRY_GOOGLE_OAUTH_DEV_SESSION_ENABLED",
+		"RELEASEFOUNDRY_GITHUB_OAUTH_DEV_SESSION_ENABLED",
+	} {
+		enabled, flagErr := productionOAuthBooleanEnv(lookup, key)
+		if flagErr != nil {
+			return nil, flagErr
+		}
+		if enabled {
+			return nil, fmt.Errorf(
+				"production OAuth refuses development session configuration",
+			)
+		}
+	}
+	if !googleEnabled && !githubEnabled {
+		return nil, nil
+	}
+
+	organizationID, err := requiredProductionOAuthValue(
+		lookup,
+		"RELEASEFOUNDRY_OAUTH_FIRST_LOGIN_ORGANIZATION_ID",
+	)
+	if err != nil || !validProductionOAuthUUID(organizationID) {
+		return nil, fmt.Errorf(
+			"RELEASEFOUNDRY_OAUTH_FIRST_LOGIN_ORGANIZATION_ID must be a canonical UUID",
+		)
+	}
+	projectID, err := requiredProductionOAuthValue(
+		lookup,
+		"RELEASEFOUNDRY_OAUTH_FIRST_LOGIN_PROJECT_ID",
+	)
+	if err != nil || !validProductionOAuthUUID(projectID) {
+		return nil, fmt.Errorf(
+			"RELEASEFOUNDRY_OAUTH_FIRST_LOGIN_PROJECT_ID must be a canonical UUID",
+		)
+	}
+	references, err := productionOAuthCredentialReferencesFromEnv(
+		lookup, googleEnabled, githubEnabled,
+	)
+	if err != nil {
+		return nil, err
+	}
+	credentialVault, err := productionOAuthCredentialsRuntimeFactory(
+		lookup, googleEnabled, githubEnabled, references,
+	)
+	if err != nil || credentialVault == nil || credentialVault.provider == nil {
+		if err == nil {
+			err = fmt.Errorf(
+				"production OAuth external credential resolver is incomplete",
+			)
+		}
+		return nil, err
+	}
+	credentials := credentialVault.provider
+	vault, err := productionOAuthOpaqueVaultFromEnv(lookup)
+	if err != nil {
+		credentialVault.close()
+		return nil, err
+	}
+	dependencies := &productionOAuthFirstLoginDependencies{
+		organizationID:  organizationID,
+		projectID:       projectID,
+		credentials:     credentials,
+		credentialVault: credentialVault,
+		vault:           vault,
+		googleEnabled:   googleEnabled,
+		githubEnabled:   githubEnabled,
+		providers:       make(map[string]productionOAuthFirstLoginProvider, 2),
+	}
+	keep := false
+	defer func() {
+		if !keep {
+			dependencies.close()
+		}
+	}()
+
+	resolvedCredentials := make(map[string]releasefoundry.OAuthClientCredentials, 2)
+	if googleEnabled {
+		resolved, credentialErr := resolveProductionOAuthCredentials(
+			credentials, "google",
+		)
+		if credentialErr != nil {
+			return nil, credentialErr
+		}
+		resolvedCredentials["google"] = resolved
+		provider, providerErr := productionGoogleOAuthFirstLoginProvider(
+			lookup,
+		)
+		if providerErr != nil {
+			return nil, providerErr
+		}
+		dependencies.providers["google"] = provider
+	}
+	if githubEnabled {
+		resolved, credentialErr := resolveProductionOAuthCredentials(
+			credentials, "github",
+		)
+		if credentialErr != nil {
+			return nil, credentialErr
+		}
+		resolvedCredentials["github"] = resolved
+		provider, providerErr := productionGitHubOAuthFirstLoginProvider(
+			lookup,
+		)
+		if providerErr != nil {
+			return nil, providerErr
+		}
+		dependencies.providers["github"] = provider
+	}
+	if googleEnabled && githubEnabled {
+		googleCredentials := resolvedCredentials["google"]
+		githubCredentials := resolvedCredentials["github"]
+		if googleCredentials.ClientID == githubCredentials.ClientID ||
+			googleCredentials.ClientSecret == githubCredentials.ClientSecret {
+			return nil, fmt.Errorf(
+				"production OAuth providers must not share client material",
+			)
+		}
+	}
+	keep = true
+	return dependencies, nil
+}
+
+func productionGoogleOAuthFirstLoginProvider(
+	lookup func(string) (string, bool),
+) (productionOAuthFirstLoginProvider, error) {
+	callbackURL, err := productionOAuthCallbackURLFromEnv(
+		lookup,
+		"google",
+	)
+	if err != nil {
+		return productionOAuthFirstLoginProvider{}, err
+	}
+	transactionTTL, err := productionOAuthDurationSeconds(
+		lookup,
+		"RELEASEFOUNDRY_GOOGLE_OAUTH_TRANSACTION_TTL_SECONDS",
+		productionOAuthFirstLoginDefaultTTL,
+		30,
+		30*60,
+	)
+	if err != nil {
+		return productionOAuthFirstLoginProvider{}, err
+	}
+	upstreamTimeout, err := productionOAuthDurationSeconds(
+		lookup,
+		"RELEASEFOUNDRY_GOOGLE_OAUTH_UPSTREAM_TIMEOUT_SECONDS",
+		productionOAuthProviderDefaultTimeout,
+		1,
+		60,
+	)
+	if err != nil {
+		return productionOAuthFirstLoginProvider{}, err
+	}
+	client := newProductionOAuthProviderHTTPClient(upstreamTimeout)
+	provider, err := releasefoundry.NewGoogleOIDCProvider(
+		releasefoundry.GoogleOIDCOptions{
+			HTTPClient:      client,
+			AuthorizeURL:    env(lookup, "RELEASEFOUNDRY_GOOGLE_OAUTH_AUTHORIZE_URL"),
+			TokenURL:        env(lookup, "RELEASEFOUNDRY_GOOGLE_OAUTH_TOKEN_URL"),
+			RevokeURL:       env(lookup, "RELEASEFOUNDRY_GOOGLE_OAUTH_REVOKE_URL"),
+			JWKSURL:         env(lookup, "RELEASEFOUNDRY_GOOGLE_OAUTH_JWKS_URL"),
+			UpstreamTimeout: upstreamTimeout,
+		},
+	)
+	if err != nil {
+		client.CloseIdleConnections()
+		return productionOAuthFirstLoginProvider{}, fmt.Errorf(
+			"production Google OAuth provider configuration was rejected",
+		)
+	}
+	return productionOAuthFirstLoginProvider{
+		adapter: provider, callbackURL: callbackURL,
+		transactionTTL: transactionTTL, client: client,
+	}, nil
+}
+
+func productionGitHubOAuthFirstLoginProvider(
+	lookup func(string) (string, bool),
+) (productionOAuthFirstLoginProvider, error) {
+	callbackURL, err := productionOAuthCallbackURLFromEnv(
+		lookup,
+		"github",
+	)
+	if err != nil {
+		return productionOAuthFirstLoginProvider{}, err
+	}
+	transactionTTL, err := productionOAuthDurationSeconds(
+		lookup,
+		"RELEASEFOUNDRY_GITHUB_OAUTH_TRANSACTION_TTL_SECONDS",
+		productionOAuthFirstLoginDefaultTTL,
+		30,
+		30*60,
+	)
+	if err != nil {
+		return productionOAuthFirstLoginProvider{}, err
+	}
+	upstreamTimeout, err := productionOAuthDurationSeconds(
+		lookup,
+		"RELEASEFOUNDRY_GITHUB_OAUTH_UPSTREAM_TIMEOUT_SECONDS",
+		productionOAuthProviderDefaultTimeout,
+		1,
+		60,
+	)
+	if err != nil {
+		return productionOAuthFirstLoginProvider{}, err
+	}
+	client := newProductionOAuthProviderHTTPClient(upstreamTimeout)
+	provider, err := releasefoundry.NewGitHubOAuthProvider(
+		releasefoundry.GitHubOAuthProviderOptions{
+			HTTPClient:      client,
+			AuthorizeURL:    env(lookup, "RELEASEFOUNDRY_GITHUB_OAUTH_AUTHORIZE_URL"),
+			TokenURL:        env(lookup, "RELEASEFOUNDRY_GITHUB_OAUTH_TOKEN_URL"),
+			APIURL:          env(lookup, "RELEASEFOUNDRY_GITHUB_OAUTH_API_URL"),
+			UpstreamTimeout: upstreamTimeout,
+		},
+	)
+	if err != nil {
+		client.CloseIdleConnections()
+		return productionOAuthFirstLoginProvider{}, fmt.Errorf(
+			"production GitHub OAuth provider configuration was rejected",
+		)
+	}
+	return productionOAuthFirstLoginProvider{
+		adapter: provider, callbackURL: callbackURL,
+		transactionTTL: transactionTTL, client: client,
+	}, nil
+}
+
+var productionOAuthCredentialsRuntimeFactory = productionOAuthCredentialsRuntimeFromEnv
+
+func productionOAuthCredentialReferencesFromEnv(
+	lookup func(string) (string, bool),
+	googleEnabled bool,
+	githubEnabled bool,
+) (map[string]releasefoundry.OAuthCredentialReference, error) {
+	if lookup == nil {
+		return nil, fmt.Errorf("identity environment lookup is required")
+	}
+	enabled := map[string]bool{"google": googleEnabled, "github": githubEnabled}
+	references := make(map[string]releasefoundry.OAuthCredentialReference, 2)
+	seen := make(map[string]string, 4)
+	for _, provider := range []string{"google", "github"} {
+		if !enabled[provider] {
+			continue
+		}
+		upper := strings.ToUpper(provider)
+		for _, suffix := range []string{"CLIENT_ID", "CLIENT_SECRET"} {
+			if value, present := lookup("RELEASEFOUNDRY_" + upper + "_OAUTH_" + suffix); present {
+				if strings.TrimSpace(value) != "" ||
+					value != strings.TrimSpace(value) ||
+					strings.ContainsAny(value, "\x00\r\n\t") {
+					return nil, fmt.Errorf(
+						"production %s OAuth credentials must be delivered by the external secret manager",
+						provider,
+					)
+				}
+				return nil, fmt.Errorf(
+					"production %s OAuth credential environment variables are forbidden",
+					provider,
+				)
+			}
+		}
+		clientIDRef, err := requiredProductionOAuthValue(
+			lookup, "RELEASEFOUNDRY_"+upper+"_OAUTH_CLIENT_ID_REF",
+		)
+		if err != nil || !releasefoundry.ValidOAuthCredentialReference(clientIDRef) {
+			return nil, fmt.Errorf(
+				"production %s OAuth client ID reference is invalid",
+				provider,
+			)
+		}
+		clientSecretRef, err := requiredProductionOAuthValue(
+			lookup, "RELEASEFOUNDRY_"+upper+"_OAUTH_CLIENT_SECRET_REF",
+		)
+		if err != nil || !releasefoundry.ValidOAuthCredentialReference(clientSecretRef) ||
+			clientIDRef == clientSecretRef {
+			return nil, fmt.Errorf(
+				"production %s OAuth client secret reference is invalid",
+				provider,
+			)
+		}
+		for kind, reference := range map[string]string{
+			"client_id": clientIDRef, "client_secret": clientSecretRef,
+		} {
+			if _, exists := seen[reference]; exists {
+				return nil, fmt.Errorf(
+					"production OAuth credential references must be unique",
+				)
+			}
+			seen[reference] = provider + "." + kind
+		}
+		references[provider] = releasefoundry.OAuthCredentialReference{
+			ClientIDRef: clientIDRef, ClientSecretRef: clientSecretRef,
+		}
+	}
+	return references, nil
+}
+
+func productionOAuthCredentialsRuntimeFromEnv(
+	lookup func(string) (string, bool),
+	googleEnabled bool,
+	githubEnabled bool,
+	references map[string]releasefoundry.OAuthCredentialReference,
+) (*productionOAuthCredentialsRuntime, error) {
+	if lookup == nil || len(references) == 0 {
+		return nil, fmt.Errorf(
+			"production OAuth external credential resolver is required",
+		)
+	}
+	type binding struct {
+		key         string
+		destination *string
+	}
+	var endpoint, caBundleFile, clientCertificateFile, clientPrivateKeyFile, serverName string
+	bindings := []binding{
+		{"RELEASEFOUNDRY_OAUTH_CREDENTIALS_RESOLVE_URL", &endpoint},
+		{"RELEASEFOUNDRY_OAUTH_CREDENTIALS_MTLS_CA_FILE", &caBundleFile},
+		{"RELEASEFOUNDRY_OAUTH_CREDENTIALS_MTLS_CLIENT_CERT_FILE", &clientCertificateFile},
+		{"RELEASEFOUNDRY_OAUTH_CREDENTIALS_MTLS_CLIENT_KEY_FILE", &clientPrivateKeyFile},
+		{"RELEASEFOUNDRY_OAUTH_CREDENTIALS_MTLS_SERVER_NAME", &serverName},
+	}
+	missing := make([]string, 0, len(bindings))
+	for _, item := range bindings {
+		value, present := lookup(item.key)
+		if !present || strings.TrimSpace(value) == "" {
+			missing = append(missing, item.key)
+			continue
+		}
+		if value != strings.TrimSpace(value) ||
+			strings.ContainsAny(value, "\x00\r\n\t") {
+			return nil, fmt.Errorf(
+				"production OAuth external credential resolver configuration is invalid",
+			)
+		}
+		*item.destination = value
+	}
+	if len(missing) != 0 {
+		return nil, fmt.Errorf(
+			"production OAuth external credential resolver configuration is incomplete",
+		)
+	}
+	if !googleEnabled && !githubEnabled {
+		return nil, fmt.Errorf(
+			"production OAuth external credential resolver has no enabled provider",
+		)
+	}
+	caBundlePEM, err := readProductionIdentityDeliveryVaultPEM(
+		caBundleFile, maxProductionIdentityDeliveryVaultCABundleBytes,
+	)
+	if err != nil {
+		return nil, fmt.Errorf(
+			"production OAuth credential resolver mTLS trust material is unavailable",
+		)
+	}
+	defer zeroBytes(caBundlePEM)
+	clientCertificatePEM, err := readProductionIdentityDeliveryVaultPEM(
+		clientCertificateFile, maxProductionIdentityDeliveryVaultIdentityBytes,
+	)
+	if err != nil {
+		return nil, fmt.Errorf(
+			"production OAuth credential resolver mTLS identity material is unavailable",
+		)
+	}
+	defer zeroBytes(clientCertificatePEM)
+	clientPrivateKeyPEM, err := readProductionIdentityDeliveryVaultPEM(
+		clientPrivateKeyFile, maxProductionIdentityDeliveryVaultIdentityBytes,
+	)
+	if err != nil {
+		return nil, fmt.Errorf(
+			"production OAuth credential resolver mTLS identity material is unavailable",
+		)
+	}
+	defer zeroBytes(clientPrivateKeyPEM)
+	client, err := releasefoundry.NewIdentityDeliveryMTLSHTTPClient(
+		releasefoundry.IdentityDeliveryMTLSClientOptions{
+			CABundlePEM: caBundlePEM, ClientCertificatePEM: clientCertificatePEM,
+			ClientPrivateKeyPEM: clientPrivateKeyPEM, ServerName: serverName,
+			DialTimeout:           productionIdentityDeliveryVaultConnectTimeout,
+			TLSHandshakeTimeout:   productionIdentityDeliveryVaultConnectTimeout,
+			ResponseHeaderTimeout: productionIdentityDeliveryVaultRequestTimeout,
+			RequestTimeout:        productionIdentityDeliveryVaultRequestTimeout,
+		},
+	)
+	if err != nil {
+		return nil, fmt.Errorf(
+			"production OAuth credential resolver mTLS profile was rejected",
+		)
+	}
+	provider, err := releasefoundry.NewHTTPOAuthCredentialsProvider(
+		releasefoundry.HTTPOAuthCredentialsProviderOptions{
+			Endpoint: endpoint, Client: client,
+			Timeout:    productionIdentityDeliveryVaultRequestTimeout,
+			References: references,
+		},
+	)
+	if err != nil {
+		client.CloseIdleConnections()
+		return nil, fmt.Errorf(
+			"production OAuth credential resolver endpoints were rejected",
+		)
+	}
+	return &productionOAuthCredentialsRuntime{
+		provider: provider, client: client,
+	}, nil
+}
+
+func resolveProductionOAuthCredentials(
+	credentials releasefoundry.OAuthCredentialsProvider,
+	provider string,
+) (releasefoundry.OAuthClientCredentials, error) {
+	if credentials == nil {
+		return releasefoundry.OAuthClientCredentials{}, fmt.Errorf(
+			"production %s OAuth credentials are unavailable", provider,
+		)
+	}
+	resolved, err := credentials.OAuthCredentials(context.Background(), provider)
+	if err != nil ||
+		!validProductionOAuthClientMaterial(resolved.ClientID, 4096) ||
+		!validProductionOAuthClientMaterial(resolved.ClientSecret, 16384) ||
+		resolved.ClientID == resolved.ClientSecret {
+		return releasefoundry.OAuthClientCredentials{}, fmt.Errorf(
+			"production %s OAuth credentials are unavailable", provider,
+		)
+	}
+	return resolved, nil
+}
+
+func validProductionOAuthClientMaterial(value string, maximum int) bool {
+	return value != "" && value == strings.TrimSpace(value) &&
+		len(value) <= maximum && !strings.ContainsAny(value, "\x00\r\n\t")
+}
+
+func productionOAuthOpaqueVaultFromEnv(
+	lookup func(string) (string, bool),
+) (*productionOAuthOpaqueVaultRuntime, error) {
+	config, err := productionOAuthOpaqueVaultConfigFromEnv(lookup)
+	if err != nil {
+		return nil, err
+	}
+	caBundlePEM, err := readProductionIdentityDeliveryVaultPEM(
+		config.caBundleFile,
+		maxProductionIdentityDeliveryVaultCABundleBytes,
+	)
+	if err != nil {
+		return nil, fmt.Errorf(
+			"production OAuth opaque vault mTLS trust material is unavailable",
+		)
+	}
+	defer zeroBytes(caBundlePEM)
+	clientCertificatePEM, err := readProductionIdentityDeliveryVaultPEM(
+		config.clientCertificateFile,
+		maxProductionIdentityDeliveryVaultIdentityBytes,
+	)
+	if err != nil {
+		return nil, fmt.Errorf(
+			"production OAuth opaque vault mTLS identity material is unavailable",
+		)
+	}
+	defer zeroBytes(clientCertificatePEM)
+	clientPrivateKeyPEM, err := readProductionIdentityDeliveryVaultPEM(
+		config.clientPrivateKeyFile,
+		maxProductionIdentityDeliveryVaultIdentityBytes,
+	)
+	if err != nil {
+		return nil, fmt.Errorf(
+			"production OAuth opaque vault mTLS identity material is unavailable",
+		)
+	}
+	defer zeroBytes(clientPrivateKeyPEM)
+	client, err := releasefoundry.NewIdentityDeliveryMTLSHTTPClient(
+		releasefoundry.IdentityDeliveryMTLSClientOptions{
+			CABundlePEM:           caBundlePEM,
+			ClientCertificatePEM:  clientCertificatePEM,
+			ClientPrivateKeyPEM:   clientPrivateKeyPEM,
+			ServerName:            config.serverName,
+			DialTimeout:           productionIdentityDeliveryVaultConnectTimeout,
+			TLSHandshakeTimeout:   productionIdentityDeliveryVaultConnectTimeout,
+			ResponseHeaderTimeout: productionIdentityDeliveryVaultRequestTimeout,
+			RequestTimeout:        productionIdentityDeliveryVaultRequestTimeout,
+		},
+	)
+	if err != nil {
+		return nil, fmt.Errorf(
+			"production OAuth opaque vault mTLS profile was rejected",
+		)
+	}
+	vault, err := releasefoundry.NewHTTPOAuthOpaqueVault(
+		releasefoundry.HTTPOAuthOpaqueVaultOptions{
+			PutEndpoint:     config.putURL,
+			GetEndpoint:     config.getURL,
+			BindingEndpoint: config.bindingURL,
+			DeleteEndpoint:  config.deleteURL,
+			Client:          client,
+			Timeout:         productionIdentityDeliveryVaultRequestTimeout,
+		},
+	)
+	if err != nil {
+		client.CloseIdleConnections()
+		return nil, fmt.Errorf(
+			"production OAuth opaque vault endpoints were rejected",
+		)
+	}
+	return &productionOAuthOpaqueVaultRuntime{vault: vault, client: client}, nil
+}
+
+func productionOAuthOpaqueVaultConfigFromEnv(
+	lookup func(string) (string, bool),
+) (productionOAuthOpaqueVaultConfig, error) {
+	if lookup == nil {
+		return productionOAuthOpaqueVaultConfig{}, fmt.Errorf(
+			"identity environment lookup is required",
+		)
+	}
+	var config productionOAuthOpaqueVaultConfig
+	bindings := []struct {
+		key         string
+		destination *string
+	}{
+		{"RELEASEFOUNDRY_OAUTH_VAULT_PUT_URL", &config.putURL},
+		{"RELEASEFOUNDRY_OAUTH_VAULT_GET_URL", &config.getURL},
+		{"RELEASEFOUNDRY_OAUTH_VAULT_BINDING_URL", &config.bindingURL},
+		{"RELEASEFOUNDRY_OAUTH_VAULT_DELETE_URL", &config.deleteURL},
+		{"RELEASEFOUNDRY_OAUTH_VAULT_MTLS_CA_FILE", &config.caBundleFile},
+		{"RELEASEFOUNDRY_OAUTH_VAULT_MTLS_CLIENT_CERT_FILE", &config.clientCertificateFile},
+		{"RELEASEFOUNDRY_OAUTH_VAULT_MTLS_CLIENT_KEY_FILE", &config.clientPrivateKeyFile},
+		{"RELEASEFOUNDRY_OAUTH_VAULT_MTLS_SERVER_NAME", &config.serverName},
+	}
+	missing := make([]string, 0, len(bindings))
+	for _, binding := range bindings {
+		value, present := lookup(binding.key)
+		if !present || strings.TrimSpace(value) == "" {
+			missing = append(missing, binding.key)
+			continue
+		}
+		if value != strings.TrimSpace(value) ||
+			strings.ContainsAny(value, "\x00\r\n\t") {
+			return productionOAuthOpaqueVaultConfig{}, fmt.Errorf(
+				"production OAuth opaque vault configuration is invalid",
+			)
+		}
+		*binding.destination = value
+	}
+	if len(missing) != 0 {
+		return productionOAuthOpaqueVaultConfig{}, fmt.Errorf(
+			"production OAuth opaque vault configuration must be all-or-none; missing %s",
+			strings.Join(missing, ", "),
+		)
+	}
+	return config, nil
+}
+
+func productionOAuthCallbackURLFromEnv(
+	lookup func(string) (string, bool),
+	provider string,
+) (string, error) {
+	key := "RELEASEFOUNDRY_" + strings.ToUpper(provider) + "_OAUTH_CALLBACK_URL"
+	raw, err := requiredProductionOAuthValue(lookup, key)
+	if err != nil {
+		return "", err
+	}
+	callback, err := url.ParseRequestURI(raw)
+	if err != nil || callback.Scheme != "https" || callback.Host == "" ||
+		callback.User != nil || callback.RawQuery != "" ||
+		callback.Fragment != "" ||
+		callback.Path != "/v1/identity/oauth/"+provider+"/callback" {
+		return "", fmt.Errorf(
+			"%s must be the dedicated absolute HTTPS provider callback",
+			key,
+		)
+	}
+	return callback.String(), nil
+}
+
+func validateProductionOAuthCredentials(
+	credentials releasefoundry.OAuthCredentialsProvider,
+	provider string,
+) error {
+	_, err := resolveProductionOAuthCredentials(credentials, provider)
+	return err
+}
+
+func requiredProductionOAuthValue(
+	lookup func(string) (string, bool),
+	key string,
+) (string, error) {
+	if lookup == nil {
+		return "", fmt.Errorf("identity environment lookup is required")
+	}
+	value, present := lookup(key)
+	if !present || value == "" || value != strings.TrimSpace(value) ||
+		strings.ContainsAny(value, "\x00\r\n\t") {
+		return "", fmt.Errorf("%s is required", key)
+	}
+	return value, nil
+}
+
+func productionOAuthBooleanEnv(
+	lookup func(string) (string, bool),
+	key string,
+) (bool, error) {
+	if lookup == nil {
+		return false, fmt.Errorf("identity environment lookup is required")
+	}
+	raw, present := lookup(key)
+	if !present || strings.TrimSpace(raw) == "" {
+		return false, nil
+	}
+	if raw != strings.TrimSpace(raw) || strings.ContainsAny(raw, "\x00\r\n\t") {
+		return false, fmt.Errorf("%s must be a boolean", key)
+	}
+	value, err := strconv.ParseBool(raw)
+	if err != nil {
+		return false, fmt.Errorf("%s must be a boolean", key)
+	}
+	return value, nil
+}
+
+func productionOAuthDurationSeconds(
+	lookup func(string) (string, bool),
+	key string,
+	fallback time.Duration,
+	minimum int,
+	maximum int,
+) (time.Duration, error) {
+	raw := env(lookup, key)
+	if raw == "" {
+		return fallback, nil
+	}
+	seconds, err := strconv.Atoi(raw)
+	if err != nil || seconds < minimum || seconds > maximum {
+		return 0, fmt.Errorf(
+			"%s must be between %d and %d",
+			key,
+			minimum,
+			maximum,
+		)
+	}
+	return time.Duration(seconds) * time.Second, nil
+}
+
+func validProductionOAuthUUID(value string) bool {
+	if len(value) != 36 {
+		return false
+	}
+	for index := 0; index < len(value); index++ {
+		if index == 8 || index == 13 || index == 18 || index == 23 {
+			if value[index] != '-' {
+				return false
+			}
+			continue
+		}
+		character := value[index]
+		if (character < '0' || character > '9') &&
+			(character < 'a' || character > 'f') {
+			return false
+		}
+	}
+	return true
+}
+
+func newProductionOAuthProviderHTTPClient(timeout time.Duration) *http.Client {
+	return &http.Client{
+		Timeout: timeout,
+		CheckRedirect: func(*http.Request, []*http.Request) error {
+			return fmt.Errorf("production OAuth provider redirect refused")
+		},
 	}
 }
 
@@ -738,6 +1596,27 @@ func zeroBytes(value []byte) {
 func productionIdentitySessionReceiptTransportFromEnv(
 	lookup func(string) (string, bool),
 ) (releasefoundry.IdentitySessionReceiptTransport, error) {
+	intentKey := ""
+	if dedicatedKey, present := lookup("RELEASEFOUNDRY_IDENTITY_BROWSER_INTENT_KEY"); present {
+		if dedicatedKey == "" ||
+			dedicatedKey != strings.TrimSpace(dedicatedKey) ||
+			len(dedicatedKey) < 32 ||
+			strings.ContainsAny(dedicatedKey, "\x00\r\n\t") {
+			return nil, fmt.Errorf(
+				"RELEASEFOUNDRY_IDENTITY_BROWSER_INTENT_KEY must contain at least 32 normalized bytes",
+			)
+		}
+		intentKey = dedicatedKey
+	} else {
+		intentKey = envRaw(lookup, "RELEASEFOUNDRY_IDENTITY_VERIFICATION_HMAC_KEY")
+		if intentKey != strings.TrimSpace(intentKey) ||
+			len(intentKey) < 32 ||
+			strings.ContainsAny(intentKey, "\x00\r\n\t") {
+			return nil, fmt.Errorf(
+				"RELEASEFOUNDRY_IDENTITY_BROWSER_INTENT_KEY or RELEASEFOUNDRY_IDENTITY_VERIFICATION_HMAC_KEY must contain at least 32 normalized bytes",
+			)
+		}
+	}
 	maxLifetime := 24 * time.Hour
 	refreshMaxLifetime := 30 * 24 * time.Hour
 	if raw := env(lookup, "RELEASEFOUNDRY_IDENTITY_SESSION_COOKIE_MAX_AGE_SECONDS"); raw != "" {
@@ -775,6 +1654,7 @@ func productionIdentitySessionReceiptTransportFromEnv(
 			MaxLifetime:        maxLifetime,
 			RefreshMaxLifetime: refreshMaxLifetime,
 			TrustedProxyCIDRs:  trustedProxyCIDRs,
+			IntentKey:          []byte(intentKey),
 		},
 	)
 	if err != nil {
@@ -793,7 +1673,8 @@ func developmentIdentityVerificationSenderFromEnv(
 	portValue := env(lookup, "RELEASEFOUNDRY_SMTP_PORT")
 	from := env(lookup, "RELEASEFOUNDRY_SMTP_FROM")
 	authCode := envRaw(lookup, "RELEASEFOUNDRY_SMTP_AUTH_CODE")
-	missing := make([]string, 0, 4)
+	browserVerificationURL := env(lookup, "RELEASEFOUNDRY_IDENTITY_VERIFICATION_BROWSER_URL")
+	missing := make([]string, 0, 5)
 	if host == "" {
 		missing = append(missing, "RELEASEFOUNDRY_SMTP_HOST")
 	}
@@ -806,6 +1687,9 @@ func developmentIdentityVerificationSenderFromEnv(
 	if strings.TrimSpace(authCode) == "" {
 		missing = append(missing, "RELEASEFOUNDRY_SMTP_AUTH_CODE")
 	}
+	if browserVerificationURL == "" {
+		missing = append(missing, "RELEASEFOUNDRY_IDENTITY_VERIFICATION_BROWSER_URL")
+	}
 	if len(missing) != 0 {
 		return nil, fmt.Errorf("development identity verification SMTP requires complete configuration: %s", strings.Join(missing, ", "))
 	}
@@ -815,6 +1699,7 @@ func developmentIdentityVerificationSenderFromEnv(
 	}
 	sender, err := releasefoundry.NewSMTPIdentityVerificationSender(releasefoundry.SMTPIdentityVerificationSenderOptions{
 		Host: host, Port: port, From: from, AuthCode: authCode,
+		BrowserVerificationURL: browserVerificationURL,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("configure development identity verification SMTP sender: invalid SMTP configuration")

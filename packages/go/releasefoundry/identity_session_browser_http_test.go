@@ -383,6 +383,78 @@ func TestBrowserLoginCookieRefreshAndProtectedRouteLifecycle(t *testing.T) {
 		t.Fatalf("rotated access cookie was rejected: %d %s", newAccessResponse.Code, newAccessResponse.Body.String())
 	}
 
+	mock.ExpectQuery("FROM a1_authenticate_identity_session_digest").
+		WithArgs(newAccessDigest).
+		WillReturnRows(browserSessionRows(browserSessionNewID))
+	meRequest := httptest.NewRequest(http.MethodGet, "https://api.example.test/v1/me", nil)
+	meRequest.AddCookie(newAccess)
+	meResponse := httptest.NewRecorder()
+	handler.ServeHTTP(meResponse, meRequest)
+	if meResponse.Code != http.StatusOK ||
+		!strings.Contains(meResponse.Body.String(), browserSessionAccountID) ||
+		strings.Contains(meResponse.Body.String(), newAccess.Value) {
+		t.Fatalf("cookie identity read was unsafe: %d %s", meResponse.Code, meResponse.Body.String())
+	}
+
+	mock.ExpectQuery("FROM a1_authenticate_identity_session_digest").
+		WithArgs(newAccessDigest).
+		WillReturnRows(browserSessionRows(browserSessionNewID))
+	mock.ExpectQuery("FROM a1_authenticate_identity_session_digest").
+		WithArgs(newAccessDigest).
+		WillReturnRows(browserSessionRows(browserSessionNewID))
+	mock.ExpectBegin()
+	mock.ExpectExec("SELECT set_config\\('statement_timeout'").
+		WithArgs("5000ms", "2000ms", browserSessionOrganizationID,
+			browserSessionProjectID, browserSessionAccountID).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectQuery("FROM a1_revoke_all_identity_sessions").
+		WithArgs(
+			browserSessionOrganizationID,
+			browserSessionProjectID,
+			browserSessionAccountID,
+			newAccessDigest,
+			sqlmock.AnyArg(),
+			sqlmock.AnyArg(),
+		).
+		WillReturnRows(sqlmock.NewRows([]string{
+			"session_id", "rotation_generation", "outcome_code", "affected_count",
+		}).AddRow(browserSessionNewID, 1, "revoked_all", 1))
+	mock.ExpectCommit()
+	logoutRequest := httptest.NewRequest(
+		http.MethodPost,
+		"https://api.example.test/v1/identity/sessions/revoke",
+		strings.NewReader("{}"),
+	)
+	logoutRequest.Header.Set("Origin", "https://api.example.test")
+	logoutRequest.Header.Set("Sec-Fetch-Site", "same-origin")
+	logoutRequest.AddCookie(newAccess)
+	logoutRequest.AddCookie(newRefresh)
+	logoutResponse := httptest.NewRecorder()
+	handler.ServeHTTP(logoutResponse, logoutRequest)
+	if logoutResponse.Code != http.StatusOK ||
+		!strings.Contains(logoutResponse.Body.String(), `"status":"revoked"`) {
+		t.Fatalf("cookie logout failed: %d %s", logoutResponse.Code, logoutResponse.Body.String())
+	}
+	clearedCookies := cookiesByName(logoutResponse.Result().Cookies())
+	for _, name := range []string{IdentitySessionCookieName, IdentityRefreshCookieName} {
+		cookie := clearedCookies[name]
+		if cookie == nil || cookie.MaxAge != -1 || cookie.Value != "" ||
+			!cookie.Secure || !cookie.HttpOnly || cookie.Path != "/" {
+			t.Fatalf("logout did not securely clear %s: %#v", name, cookie)
+		}
+	}
+
+	mock.ExpectQuery("FROM a1_authenticate_identity_session_digest").
+		WithArgs(newAccessDigest).
+		WillReturnRows(sqlmock.NewRows(browserSessionColumns()))
+	revokedMeRequest := httptest.NewRequest(http.MethodGet, "https://api.example.test/v1/me", nil)
+	revokedMeRequest.AddCookie(newAccess)
+	revokedMeResponse := httptest.NewRecorder()
+	handler.ServeHTTP(revokedMeResponse, revokedMeRequest)
+	if revokedMeResponse.Code != http.StatusUnauthorized {
+		t.Fatalf("revoked cookie still authorized /v1/me: %d", revokedMeResponse.Code)
+	}
+
 	reuseIdempotencyKey := "browser-refresh-reuse-0002"
 	reuseAccessToken, reuseRefreshToken, err := store.sessionTokens.deriveRefreshRotation(
 		oldRefresh.Value,

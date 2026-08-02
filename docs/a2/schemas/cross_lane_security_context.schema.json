@@ -37,10 +37,76 @@
       },
       "additionalProperties": true
     },
-    "a1_route_scope": { "$ref": "#/$defs/source_summary" },
-    "a3_auth_rbac_boundary": { "$ref": "#/$defs/source_summary" },
-    "a3_fail_closed_rbac": { "$ref": "#/$defs/source_summary" },
-    "a3_event_outbox": { "$ref": "#/$defs/source_summary" },
+    "a1_route_scope": {
+      "allOf": [
+        { "$ref": "#/$defs/source_summary" },
+        {
+          "if": {
+            "properties": {
+              "available": { "const": true }
+            },
+            "required": ["available"]
+          },
+          "then": {
+            "required": [
+              "source_sha256",
+              "public_safe_source_verified",
+              "source_policy_verified",
+              "declared_route_counts",
+              "observed_route_counts",
+              "declared_route_counts_match",
+              "tenancy_route_parity_verified"
+            ],
+            "properties": {
+              "source_sha256": {
+                "type": "string",
+                "pattern": "^[a-f0-9]{64}$"
+              },
+              "public_safe_source_verified": { "type": "boolean" },
+              "source_policy_verified": { "type": "boolean" },
+              "declared_route_counts": { "$ref": "#/$defs/language_route_counts" },
+              "observed_route_counts": { "$ref": "#/$defs/language_route_counts" },
+              "declared_route_counts_match": { "type": "boolean" },
+              "tenancy_route_parity_verified": { "type": "boolean" }
+            }
+          }
+        }
+      ]
+    },
+    "a3_auth_rbac_boundary": {
+      "allOf": [
+        { "$ref": "#/$defs/source_summary" },
+        {
+          "if": {
+            "properties": {
+              "available": { "const": true }
+            },
+            "required": ["available"]
+          },
+          "then": {
+            "required": [
+              "source_sha256",
+              "openapi_source_sha256",
+              "documented_auth_operations",
+              "openapi_auth_operations",
+              "auth_operation_parity_verified"
+            ],
+            "properties": {
+              "source_sha256": { "$ref": "#/$defs/sha256" },
+              "openapi_source_sha256": {
+                "type": "string",
+                "pattern": "^(?:[a-f0-9]{64})?$"
+              },
+              "documented_auth_operations": { "$ref": "#/$defs/string_array" },
+              "openapi_auth_operations": { "$ref": "#/$defs/string_array" },
+              "auth_operation_parity_verified": { "type": "boolean" }
+            }
+          }
+        }
+      ]
+    },
+    "a3_fail_closed_rbac": { "$ref": "#/$defs/hashed_source_summary" },
+    "a3_event_outbox": { "$ref": "#/$defs/hashed_source_summary" },
     "a2_policy_implications": {
       "type": "object",
       "required": [
@@ -120,6 +186,29 @@
       },
       "additionalProperties": true
     },
+    "hashed_source_summary": {
+      "allOf": [
+        { "$ref": "#/$defs/source_summary" },
+        {
+          "if": {
+            "properties": {
+              "available": { "const": true }
+            },
+            "required": ["available"]
+          },
+          "then": {
+            "required": ["source_sha256"],
+            "properties": {
+              "source_sha256": { "$ref": "#/$defs/sha256" }
+            }
+          }
+        }
+      ]
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
     "followup": {
       "type": "object",
       "required": [
@@ -139,6 +228,16 @@
         "requires_user_decision": { "type": "boolean" }
       },
       "additionalProperties": true
+    },
+    "language_route_counts": {
+      "type": "object",
+      "required": ["go", "python", "typescript"],
+      "properties": {
+        "go": { "type": "integer", "minimum": 0 },
+        "python": { "type": "integer", "minimum": 0 },
+        "typescript": { "type": "integer", "minimum": 0 }
+      },
+      "additionalProperties": false
     },
     "string_array": {
       "type": "array",

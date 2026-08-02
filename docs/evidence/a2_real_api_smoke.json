@@ -7,10 +7,10 @@
     "status": "ok",
     "tenant_id_present": true,
     "tenant_name_present": true,
-    "user_email_sha256_12": "b28feb653070",
+    "user_email_present": true,
     "user_id_present": true
   },
-  "base_url": "https://api.releasefoundry.example/testing-platform-api",
+  "base_url": "https://api.releasefoundry.io/testing-platform-api",
   "calls": [
     {
       "name": "init",
@@ -46,7 +46,7 @@
       "name": "list_datasets",
       "status": "ok",
       "summary": {
-        "datasets_count": 3,
+        "datasets_count": 4,
         "datasets_item_keys": [
           "agent_details",
           "agent_id",
@@ -82,7 +82,7 @@
           "runs",
           "status"
         ],
-        "runs_count": 4,
+        "runs_count": 5,
         "runs_item_keys": [
           "created_at",
           "dataset",
@@ -135,12 +135,12 @@
       }
     }
   ],
-  "generated_at": "2026-07-09T13:35:50Z",
+  "generated_at": "2026-07-27T13:30:37Z",
   "notes": [
     "This file is a redacted real-API calibration summary.",
     "No API key, signed media URL, dataset payload, run payload, or raw private response is stored.",
     "Local deterministic unit tests must not depend on this smoke result."
   ],
   "schema_version": "a2.real_api_smoke.v1",
-  "sdk_source": "packages/sdk/releasefoundry"
+  "sdk_source": "docs/a1/_pypi_artifacts/releasefoundry-0.3.1-py3-none-any.whl"
 }

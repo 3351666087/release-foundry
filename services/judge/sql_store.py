@@ -353,6 +353,252 @@ CREATE TABLE IF NOT EXISTS a2_learning_candidates (
   UNIQUE(review_event_id, purpose)
 );
 
+CREATE TABLE IF NOT EXISTS a2_preference_review_cases (
+  review_id TEXT PRIMARY KEY,
+  pair_id TEXT NOT NULL,
+  pair_hash TEXT NOT NULL,
+  pair_scope_hash TEXT NOT NULL,
+  task_id TEXT NOT NULL,
+  sample_id TEXT NOT NULL,
+  dataset_identity_hash TEXT NOT NULL,
+  prompt_version TEXT NOT NULL,
+  prompt_hash TEXT NOT NULL,
+  media_evidence_hashes_hash TEXT NOT NULL,
+  machine_chosen_candidate_id TEXT NOT NULL,
+  machine_rejected_candidate_id TEXT NOT NULL,
+  organization_id TEXT NOT NULL, tenant_id TEXT NOT NULL, workspace_id TEXT NOT NULL,
+  project_id TEXT NOT NULL, environment_id TEXT NOT NULL,
+  reason_code TEXT NOT NULL,
+  status TEXT NOT NULL CHECK (status IN ('open', 'leased', 'arbitration', 'completed')),
+  required_approvals INTEGER NOT NULL DEFAULT 1 CHECK (required_approvals IN (1, 2)),
+  lease_owner_hash TEXT, lease_generation INTEGER NOT NULL DEFAULT 0,
+  lease_expires_at TEXT, final_event_id TEXT, created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL, public_safe INTEGER NOT NULL CHECK (public_safe = 1),
+  UNIQUE(pair_id, tenant_id, project_id, reason_code)
+);
+
+CREATE TABLE IF NOT EXISTS a2_preference_review_events (
+  event_id TEXT PRIMARY KEY,
+  review_id TEXT NOT NULL REFERENCES a2_preference_review_cases(review_id),
+  pair_id TEXT NOT NULL,
+  pair_hash TEXT NOT NULL,
+  organization_id TEXT NOT NULL, tenant_id TEXT NOT NULL, workspace_id TEXT NOT NULL,
+  project_id TEXT NOT NULL, environment_id TEXT NOT NULL,
+  reviewer_id_hash TEXT NOT NULL,
+  lease_generation INTEGER NOT NULL,
+  outcome TEXT NOT NULL CHECK (outcome IN ('confirm', 'overturn', 'abstain', 'escalate')),
+  chosen_candidate_id TEXT,
+  rejected_candidate_id TEXT,
+  reason_code TEXT NOT NULL,
+  reviewer_receipt_hash TEXT NOT NULL,
+  event_hash TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  public_safe INTEGER NOT NULL CHECK (public_safe = 1)
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_a2_preference_review_events_reviewer
+  ON a2_preference_review_events(review_id, reviewer_id_hash);
+
+CREATE TABLE IF NOT EXISTS a2_preference_review_resolutions (
+  resolution_id TEXT PRIMARY KEY,
+  review_id TEXT NOT NULL UNIQUE REFERENCES a2_preference_review_cases(review_id),
+  pair_id TEXT NOT NULL,
+  pair_hash TEXT NOT NULL,
+  organization_id TEXT NOT NULL, tenant_id TEXT NOT NULL, workspace_id TEXT NOT NULL,
+  project_id TEXT NOT NULL, environment_id TEXT NOT NULL,
+  resolution_type TEXT NOT NULL CHECK (resolution_type IN ('review_consensus', 'arbitration')),
+  final_event_id TEXT REFERENCES a2_preference_review_events(event_id),
+  final_outcome TEXT NOT NULL CHECK (final_outcome IN ('confirm', 'overturn')),
+  chosen_candidate_id TEXT NOT NULL,
+  rejected_candidate_id TEXT NOT NULL,
+  machine_chosen_candidate_id TEXT NOT NULL,
+  machine_rejected_candidate_id TEXT NOT NULL,
+  reviewer_receipt_hash TEXT NOT NULL,
+  final_reason_code TEXT NOT NULL,
+  approval_count INTEGER NOT NULL CHECK (approval_count > 0),
+  required_approvals INTEGER NOT NULL CHECK (required_approvals IN (1, 2)),
+  arbitrator_id_hash TEXT,
+  preference_authority TEXT NOT NULL CHECK (preference_authority = 'human_gold'),
+  training_eligible INTEGER NOT NULL CHECK (training_eligible = 1),
+  resolution_hash TEXT NOT NULL UNIQUE,
+  resolved_at TEXT NOT NULL,
+  public_safe INTEGER NOT NULL CHECK (public_safe = 1)
+);
+
+CREATE TABLE IF NOT EXISTS a2_preference_learning_candidates (
+  candidate_id TEXT PRIMARY KEY,
+  resolution_id TEXT NOT NULL REFERENCES a2_preference_review_resolutions(resolution_id),
+  review_event_id TEXT REFERENCES a2_preference_review_events(event_id),
+  pair_id TEXT NOT NULL,
+  organization_id TEXT NOT NULL, tenant_id TEXT NOT NULL, workspace_id TEXT NOT NULL,
+  project_id TEXT NOT NULL, environment_id TEXT NOT NULL,
+  consent_id_hash TEXT NOT NULL,
+  purpose TEXT NOT NULL CHECK (
+    purpose IN ('reward_model_training', 'preference_optimization', 'action_value_training')
+  ),
+  lineage_hash TEXT NOT NULL,
+  residency TEXT NOT NULL,
+  retention_until TEXT NOT NULL,
+  deletion_key_hash TEXT NOT NULL,
+  status TEXT NOT NULL CHECK (status IN ('eligible', 'promoted', 'revoked', 'deleted')),
+  cross_tenant_allowed INTEGER NOT NULL DEFAULT 0 CHECK (cross_tenant_allowed = 0),
+  created_at TEXT NOT NULL,
+  public_safe INTEGER NOT NULL CHECK (public_safe = 1),
+  UNIQUE(resolution_id, purpose)
+);
+
+CREATE TABLE IF NOT EXISTS a2_teacher_acquisition_queue (
+  queue_id TEXT PRIMARY KEY,
+  pair_id TEXT NOT NULL,
+  teacher_id TEXT NOT NULL,
+  request_hash TEXT NOT NULL,
+  idempotency_key_hash TEXT NOT NULL,
+  organization_id TEXT NOT NULL, tenant_id TEXT NOT NULL, workspace_id TEXT NOT NULL,
+  project_id TEXT NOT NULL, environment_id TEXT NOT NULL,
+  priority_score REAL NOT NULL CHECK (priority_score >= 0 AND priority_score <= 100),
+  max_cost_usd REAL NOT NULL CHECK (max_cost_usd >= 0),
+  actual_cost_usd REAL CHECK (actual_cost_usd IS NULL OR actual_cost_usd >= 0),
+  status TEXT NOT NULL CHECK (
+    status IN ('pending', 'leased', 'retry', 'completed', 'dead', 'blocked')
+  ),
+  max_attempts INTEGER NOT NULL CHECK (max_attempts > 0),
+  attempt_count INTEGER NOT NULL DEFAULT 0 CHECK (attempt_count >= 0),
+  lease_owner TEXT, lease_generation INTEGER NOT NULL DEFAULT 0 CHECK (lease_generation >= 0),
+  lease_expires_at TEXT, available_at TEXT NOT NULL,
+  receipt_hash TEXT, last_error_class TEXT, created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL, completed_at TEXT, public_safe INTEGER NOT NULL CHECK (public_safe = 1),
+  UNIQUE(organization_id, tenant_id, workspace_id, project_id, environment_id, idempotency_key_hash)
+);
+
+CREATE TABLE IF NOT EXISTS a2_teacher_acquisition_receipts (
+  receipt_id TEXT PRIMARY KEY,
+  queue_id TEXT NOT NULL UNIQUE REFERENCES a2_teacher_acquisition_queue(queue_id) ON DELETE CASCADE,
+  pair_id TEXT NOT NULL,
+  teacher_id TEXT NOT NULL,
+  organization_id TEXT NOT NULL, tenant_id TEXT NOT NULL, workspace_id TEXT NOT NULL,
+  project_id TEXT NOT NULL, environment_id TEXT NOT NULL,
+  request_hash TEXT NOT NULL,
+  receipt_hash TEXT NOT NULL,
+  receipt_schema_version TEXT NOT NULL,
+  verification_state TEXT NOT NULL CHECK (verification_state IN ('verified', 'blocked')),
+  public_receipt_json TEXT NOT NULL,
+  public_receipt_hash TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  public_safe INTEGER NOT NULL CHECK (public_safe = 1),
+  UNIQUE(
+    organization_id, tenant_id, workspace_id, project_id, environment_id,
+    queue_id, receipt_hash
+  )
+);
+
+CREATE TABLE IF NOT EXISTS a2_teacher_review_dispatches (
+  dispatch_id TEXT PRIMARY KEY,
+  queue_id TEXT NOT NULL UNIQUE REFERENCES a2_teacher_acquisition_queue(queue_id) ON DELETE CASCADE,
+  receipt_id TEXT NOT NULL UNIQUE REFERENCES a2_teacher_acquisition_receipts(receipt_id) ON DELETE CASCADE,
+  review_id TEXT NOT NULL REFERENCES a2_preference_review_cases(review_id) ON DELETE CASCADE,
+  pair_id TEXT NOT NULL,
+  pair_hash TEXT NOT NULL,
+  teacher_id TEXT NOT NULL,
+  organization_id TEXT NOT NULL, tenant_id TEXT NOT NULL, workspace_id TEXT NOT NULL,
+  project_id TEXT NOT NULL, environment_id TEXT NOT NULL,
+  request_hash TEXT NOT NULL,
+  receipt_hash TEXT NOT NULL,
+  reason_code TEXT NOT NULL,
+  required_approvals INTEGER NOT NULL CHECK (required_approvals IN (1, 2)),
+  dispatch_hash TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  public_safe INTEGER NOT NULL CHECK (public_safe = 1),
+  UNIQUE(
+    organization_id, tenant_id, workspace_id, project_id, environment_id,
+    queue_id, receipt_id
+  )
+);
+
+CREATE TABLE IF NOT EXISTS a2_production_feedback_events (
+  feedback_id TEXT PRIMARY KEY,
+  event_type TEXT NOT NULL CHECK (
+    event_type IN (
+      'retry', 'abandonment', 'correction', 'complaint',
+      'misclassification', 'incident', 'successful_completion'
+    )
+  ),
+  source_event_hash TEXT NOT NULL,
+  subject_hash TEXT NOT NULL,
+  idempotency_key_hash TEXT NOT NULL,
+  organization_id TEXT NOT NULL, tenant_id TEXT NOT NULL, workspace_id TEXT NOT NULL,
+  project_id TEXT NOT NULL, environment_id TEXT NOT NULL,
+  case_id TEXT, scenario_id TEXT, fixture_ref TEXT,
+  public_summary_json TEXT NOT NULL,
+  public_summary_hash TEXT NOT NULL,
+  private_evidence_ref_hash TEXT NOT NULL,
+  review_priority INTEGER NOT NULL CHECK (review_priority >= 0 AND review_priority <= 100),
+  status TEXT NOT NULL CHECK (
+    status IN (
+      'pending_review', 'reviewed_accept', 'reviewed_reject',
+      'reviewed_abstain', 'reviewed_escalate'
+    )
+  ),
+  training_eligible INTEGER NOT NULL DEFAULT 0 CHECK (training_eligible = 0),
+  human_gold INTEGER NOT NULL DEFAULT 0 CHECK (human_gold = 0),
+  permanent_regression INTEGER NOT NULL DEFAULT 0 CHECK (permanent_regression = 0),
+  event_hash TEXT NOT NULL UNIQUE,
+  occurred_at TEXT NOT NULL, received_at TEXT NOT NULL, updated_at TEXT NOT NULL,
+  public_safe INTEGER NOT NULL CHECK (public_safe = 1),
+  UNIQUE(
+    organization_id, tenant_id, workspace_id, project_id, environment_id,
+    idempotency_key_hash
+  ),
+  UNIQUE(
+    organization_id, tenant_id, workspace_id, project_id, environment_id,
+    source_event_hash
+  )
+);
+
+CREATE TABLE IF NOT EXISTS a2_production_feedback_private_refs (
+  feedback_id TEXT PRIMARY KEY REFERENCES a2_production_feedback_events(feedback_id) ON DELETE CASCADE,
+  organization_id TEXT NOT NULL, tenant_id TEXT NOT NULL, workspace_id TEXT NOT NULL,
+  project_id TEXT NOT NULL, environment_id TEXT NOT NULL,
+  private_evidence_ref TEXT NOT NULL,
+  private_evidence_ref_hash TEXT NOT NULL,
+  created_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS a2_production_feedback_reviews (
+  review_id TEXT PRIMARY KEY,
+  feedback_id TEXT NOT NULL UNIQUE REFERENCES a2_production_feedback_events(feedback_id) ON DELETE CASCADE,
+  organization_id TEXT NOT NULL, tenant_id TEXT NOT NULL, workspace_id TEXT NOT NULL,
+  project_id TEXT NOT NULL, environment_id TEXT NOT NULL,
+  event_hash TEXT NOT NULL,
+  decision TEXT NOT NULL CHECK (
+    decision IN ('accept', 'reject', 'abstain', 'escalate')
+  ),
+  reason_code TEXT NOT NULL,
+  reviewer_id_hash TEXT NOT NULL,
+  reviewer_receipt_hash TEXT NOT NULL,
+  decision_hash TEXT NOT NULL UNIQUE,
+  reviewed_at TEXT NOT NULL,
+  public_safe INTEGER NOT NULL CHECK (public_safe = 1)
+);
+
+CREATE TABLE IF NOT EXISTS a2_production_feedback_regression_candidates (
+  candidate_id TEXT PRIMARY KEY,
+  feedback_id TEXT NOT NULL UNIQUE REFERENCES a2_production_feedback_events(feedback_id) ON DELETE CASCADE,
+  review_id TEXT NOT NULL UNIQUE REFERENCES a2_production_feedback_reviews(review_id) ON DELETE CASCADE,
+  organization_id TEXT NOT NULL, tenant_id TEXT NOT NULL, workspace_id TEXT NOT NULL,
+  project_id TEXT NOT NULL, environment_id TEXT NOT NULL,
+  event_hash TEXT NOT NULL,
+  decision_hash TEXT NOT NULL,
+  case_id TEXT NOT NULL,
+  candidate_json TEXT NOT NULL,
+  candidate_hash TEXT NOT NULL UNIQUE,
+  status TEXT NOT NULL CHECK (status = 'pending_owner_review'),
+  owner_review_required INTEGER NOT NULL CHECK (owner_review_required = 1),
+  training_eligible INTEGER NOT NULL DEFAULT 0 CHECK (training_eligible = 0),
+  human_gold INTEGER NOT NULL DEFAULT 0 CHECK (human_gold = 0),
+  permanent_regression INTEGER NOT NULL DEFAULT 0 CHECK (permanent_regression = 0),
+  created_at TEXT NOT NULL,
+  public_safe INTEGER NOT NULL CHECK (public_safe = 1)
+);
+
 CREATE TABLE IF NOT EXISTS a2_decision_outbox (
   event_id TEXT PRIMARY KEY,
   event_type TEXT NOT NULL,
@@ -466,6 +712,31 @@ CREATE INDEX IF NOT EXISTS idx_a2_decision_outbox_delivery
   ON a2_decision_outbox(delivery_status, available_at);
 CREATE INDEX IF NOT EXISTS idx_a2_review_resolution_outbox_delivery
   ON a2_review_resolution_outbox(delivery_status, available_at);
+CREATE INDEX IF NOT EXISTS idx_a2_teacher_acquisition_queue_claim
+  ON a2_teacher_acquisition_queue(
+    organization_id, tenant_id, workspace_id, project_id, environment_id,
+    status, available_at, priority_score, created_at
+  );
+CREATE INDEX IF NOT EXISTS idx_a2_teacher_acquisition_receipts_scope
+  ON a2_teacher_acquisition_receipts(
+    organization_id, tenant_id, workspace_id, project_id, environment_id,
+    created_at
+  );
+CREATE INDEX IF NOT EXISTS idx_a2_teacher_review_dispatches_review
+  ON a2_teacher_review_dispatches(
+    organization_id, tenant_id, workspace_id, project_id, environment_id,
+    review_id, created_at
+  );
+CREATE INDEX IF NOT EXISTS idx_a2_production_feedback_pending
+  ON a2_production_feedback_events(
+    organization_id, tenant_id, workspace_id, project_id, environment_id,
+    status, review_priority, occurred_at
+  );
+CREATE INDEX IF NOT EXISTS idx_a2_production_feedback_candidates_scope
+  ON a2_production_feedback_regression_candidates(
+    organization_id, tenant_id, workspace_id, project_id, environment_id,
+    status, created_at
+  );
 CREATE INDEX IF NOT EXISTS idx_a2_artifact_reference_consumptions_scope
   ON a2_artifact_reference_consumptions(tenant_id, project_id, status, reserved_at);
 CREATE INDEX IF NOT EXISTS idx_a2_artifact_reference_consumptions_lease

@@ -103,6 +103,8 @@ def build_releasefoundry_grading_collection_packet(
             "scanner": "scripts/a2_scan_releasefoundry_grading_evidence.py",
             "importer": "scripts/a2_import_releasefoundry_grading.py",
             "review_status_required": "reviewed",
+            "reviewer_receipt_required": "sha256:<64 lowercase hex>",
+            "reviewed_at_unix_ms_required": "positive integer",
         },
         "private_evidence_policy": {
             "raw_private_path": "docs/evidence/private_refs/",
@@ -123,8 +125,8 @@ def build_releasefoundry_grading_collection_packet(
         },
         "recommended_commands": [
             "python scripts/a2_scan_releasefoundry_grading_evidence.py --input docs/evidence/private_refs/a2_releasefoundry_get_run.redacted.json --case-map fixtures/a2/calibration/releasefoundry_grading_batch_case_map.json",
-            "python scripts/a2_import_releasefoundry_grading.py --input docs/evidence/private_refs/a2_releasefoundry_get_run.redacted.json --case-map fixtures/a2/calibration/releasefoundry_grading_batch_case_map.json --evidence-ref docs/evidence/private_refs/a2_releasefoundry_get_run.redacted.json --review-status reviewed --output docs/evidence/private_refs/a2_releasefoundry_grading_import.review.json",
-            "python scripts/a2_merge_calibration_observations.py --incoming docs/evidence/private_refs/a2_releasefoundry_grading_import.review.json --source releasefoundry_grading --min-count 6 --output fixtures/a2/calibration/a2_g3_calibration_observations.json",
+            "python scripts/a2_import_releasefoundry_grading.py --input docs/evidence/private_refs/a2_releasefoundry_get_run.redacted.json --case-map fixtures/a2/calibration/releasefoundry_grading_batch_case_map.json --identity-file docs/evidence/private_refs/a2_releasefoundry_dataset_identity.private.json --identity-receipt docs/evidence/a2_releasefoundry_dataset_identity_receipt.json --evidence-ref docs/evidence/private_refs/a2_releasefoundry_get_run.redacted.json --review-status reviewed --reviewer-receipt \"$A2_REVIEWER_RECEIPT\" --reviewed-at-unix-ms \"$A2_REVIEWED_AT_UNIX_MS\" --require-reviewed --require-complete --output docs/evidence/private_refs/a2_releasefoundry_grading_import.review.json",
+            "python scripts/a2_merge_calibration_observations.py --incoming docs/evidence/private_refs/a2_releasefoundry_grading_import.review.json --source releasefoundry_grading --min-count 6 --require-reviewed --require-complete --output fixtures/a2/calibration/a2_g3_calibration_observations.json",
             "python -B scripts/a2_regenerate_fixtures.py --write",
         ],
         "cases": cases,

@@ -4,7 +4,7 @@
 
 .docsLink {
   display: inline-flex;
-  min-height: 32px;
+  min-height: 44px;
   align-items: center;
   gap: 6px;
   margin-right: 8px;
@@ -13,7 +13,7 @@
   background: #fff;
   border: 1px solid var(--line-strong);
   border-radius: 3px;
-  font-size: 8px;
+  font-size: 13px;
   font-weight: 700;
 }
 
@@ -28,7 +28,7 @@
 }
 
 .heading h2 { font-family: var(--font-display); font-size: 34px; line-height: 1.05; text-transform: uppercase; }
-.heading p { max-width: 470px; color: var(--muted); font-size: 10px; }
+.heading p { max-width: 470px; color: var(--muted); font-size: 15px; line-height: 1.65; }
 
 .modeSwitch {
   display: grid;
@@ -40,12 +40,12 @@
 }
 
 .modeSwitch button {
-  min-height: 35px;
+  min-height: 44px;
   background: transparent;
   border: 0;
   border-radius: 2px;
   cursor: pointer;
-  font-size: 10px;
+  font-size: 14px;
   font-weight: 750;
 }
 
@@ -64,8 +64,8 @@
 }
 
 .runtimeState[data-ready="true"] { color: var(--moss); background: var(--moss-soft); border-color: #86af9c; }
-.runtimeState span { color: inherit; font-size: 9px; font-weight: 750; }
-.runtimeState small { font-family: var(--font-mono); font-size: 7px; }
+.runtimeState span { color: inherit; font-size: 13px; font-weight: 750; }
+.runtimeState small { font-family: var(--font-mono); font-size: 11px; }
 
 .signInFlow,
 .signUpFlow,
@@ -89,8 +89,8 @@
 
 .providerButton:hover:not(:disabled) { color: #fff; background: var(--ink); border-color: var(--ink); transform: translateY(-1px); }
 .providerButton > span:nth-child(2) { display: grid; min-width: 0; gap: 2px; }
-.providerButton strong { font-size: 10px; }
-.providerButton small { color: var(--muted); font-family: var(--font-mono); font-size: 7px; }
+.providerButton strong { font-size: 14px; }
+.providerButton small { color: var(--muted); font-family: var(--font-mono); font-size: 11px; line-height: 1.45; }
 .providerButton:hover:not(:disabled) small { color: #bbb8b0; }
 .providerButton > svg:last-child { justify-self: end; }
 .googleMark { display: grid; width: 20px; height: 20px; place-items: center; color: var(--cobalt); border: 1px solid var(--line-strong); border-radius: 50%; font-family: Arial, sans-serif; font-size: 11px; font-weight: 800; }
@@ -107,32 +107,32 @@
 }
 
 .boundaryNote p,
-.contractBlocker p { font-size: 8px; line-height: 1.65; }
+.contractBlocker p { font-size: 13px; line-height: 1.65; }
 .contractBlocker { color: #7c302b; background: var(--ember-soft); border-color: var(--danger); }
 
 .previewEntry { border-top: 1px solid var(--line); }
 .previewEntry summary { display: flex; min-height: 46px; align-items: center; justify-content: space-between; gap: 12px; cursor: pointer; list-style: none; }
 .previewEntry summary::-webkit-details-marker { display: none; }
 .previewEntry summary > span { display: grid; gap: 2px; }
-.previewEntry summary strong { font-family: var(--font-mono); font-size: 8px; }
-.previewEntry summary small { color: var(--muted); font-size: 8px; }
+.previewEntry summary strong { font-family: var(--font-mono); font-size: 12px; }
+.previewEntry summary small { color: var(--muted); font-size: 12px; }
 .previewEntry[open] summary > svg { transform: rotate(90deg); }
 .previewEntry form { display: grid; gap: 12px; padding-top: 7px; }
 
 .signUpFlow label,
 .previewEntry label { display: grid; gap: 6px; }
 .signUpFlow label > span,
-.previewEntry label > span { color: var(--muted); font-family: var(--font-mono); font-size: 8px; font-weight: 700; text-transform: uppercase; }
+.previewEntry label > span { color: var(--muted); font-family: var(--font-mono); font-size: 12px; font-weight: 700; text-transform: uppercase; }
 
 .consent { grid-template-columns: 17px minmax(0, 1fr); align-items: start; cursor: pointer; }
 .consent input { width: 15px; height: 15px; margin: 1px 0 0; accent-color: var(--ember); }
-.consent span { color: var(--ink-soft) !important; font-family: var(--font-body) !important; font-size: 8px !important; font-weight: 500 !important; text-transform: none !important; }
+.consent span { color: var(--ink-soft) !important; font-family: var(--font-body) !important; font-size: 13px !important; font-weight: 500 !important; line-height: 1.55; text-transform: none !important; }
 
 .codeHeading { display: grid; grid-template-columns: 40px minmax(0, 1fr); align-items: center; gap: 10px; }
 .codeHeading > span { display: grid; width: 38px; height: 38px; place-items: center; color: #fff; background: var(--moss); }
 .codeHeading > div { display: grid; gap: 2px; }
 .codeHeading strong { font-family: var(--font-display); font-size: 18px; }
-.codeHeading small { color: var(--muted); font-size: 8px; }
+.codeHeading small { color: var(--muted); font-size: 12px; }
 
 .codeInput {
   width: 100%;
@@ -149,19 +149,19 @@
 }
 
 .codeInput:focus { border-color: var(--ember); box-shadow: inset 0 -3px 0 var(--ember); }
-.textButton { width: fit-content; padding: 2px 0; color: var(--ink-soft); background: transparent; border: 0; border-bottom: 1px solid var(--line-strong); cursor: pointer; font-size: 8px; }
+.textButton { width: fit-content; min-height: 44px; padding: 8px 0; color: var(--ink-soft); background: transparent; border: 0; border-bottom: 1px solid var(--line-strong); cursor: pointer; font-size: 13px; }
 
 .verifiedState { display: grid; justify-items: center; gap: 8px; padding: 26px 18px; text-align: center; border: 1px solid var(--moss); }
 .verifiedState > span { display: grid; width: 44px; height: 44px; place-items: center; color: #fff; background: var(--moss); }
 .verifiedState h3 { font-family: var(--font-display); font-size: 24px; }
-.verifiedState p { max-width: 380px; color: var(--muted); font-size: 9px; }
+.verifiedState p { max-width: 380px; color: var(--muted); font-size: 13px; line-height: 1.6; }
 
 .emailPreview { border-top: 1px solid var(--line); }
-.emailPreview > summary { padding: 11px 0; color: var(--ink-soft); cursor: pointer; font-size: 9px; font-weight: 700; }
+.emailPreview > summary { min-height: 44px; padding: 11px 0; color: var(--ink-soft); cursor: pointer; font-size: 13px; font-weight: 700; }
 .emailPreview > div { padding: 8px 9px 17px; }
-.emailPreview > p { padding: 0 9px 10px; color: var(--muted); font-size: 7px; }
+.emailPreview > p { padding: 0 9px 10px; color: var(--muted); font-size: 12px; }
 
-.notice { padding: 10px 12px; color: #2d568e; background: var(--cobalt-soft); border-left: 3px solid var(--cobalt); font-size: 8px; }
+.notice { padding: 10px 12px; color: #2d568e; background: var(--cobalt-soft); border-left: 3px solid var(--cobalt); font-size: 13px; line-height: 1.55; }
 .notice[data-tone="success"] { color: var(--moss); background: var(--moss-soft); border-color: var(--moss); }
 .notice[data-tone="warning"] { color: #6c5b16; background: var(--sulfur-soft); border-color: var(--sulfur); }
 .notice[data-tone="error"] { color: #7c302b; background: var(--ember-soft); border-color: var(--danger); }

@@ -3,6 +3,8 @@ import test from "node:test";
 
 import {
   A3_IDENTITY_CONTRACT_SCHEMA_VERSION,
+  IDENTITY_SECURITY_HTTP_SCHEMA_VERSION,
+  IDENTITY_SECURITY_SERVICE_SCHEMA_VERSION,
   IdentityLifecycleHttpClient,
   IdentityLifecycleHttpError,
   IdentityLifecycleHTTPClient,
@@ -26,8 +28,16 @@ import {
   identityLinkRoute,
   identityMembershipsRoute,
   identityMergeRoute,
+  identityPasswordBeginRoute,
   identityRecoveryCompleteRoute,
   identityRecoveryStartRoute,
+  identitySecurityRoute,
+  identityTwoFactorEnrollBeginRoute,
+  identityTwoFactorEnrollConfirmRoute,
+  identityTwoFactorDisableRoute,
+  identityTwoFactorRecoveryConsumeRoute,
+  identityTwoFactorRecoveryRotateRoute,
+  identityTwoFactorRoute,
   identityUnlinkRoute,
   normalizeUnifiedIdentityProvider,
   parseIdentityCredential,
@@ -38,6 +48,10 @@ import {
   parseIdentityMembership,
   parseIdentityMerge,
   parseIdentityRecovery,
+  parseIdentitySecurityBeginResult,
+  parseIdentitySecurityConfirmResult,
+  parseIdentitySecurityPosture,
+  parseIdentityTwoFactorRecoveryMutationResult,
   parseIdentityRegistrationCompleteRequest,
   parseIdentityRegistrationStartRequest,
   parseA3IdentityProviderCapability,
@@ -338,12 +352,17 @@ test("A3 registration and login contract is explicit and fail closed", () => {
     assert.equal(["active", "proposed", "non_routable", "unavailable"].includes(route.lifecycle), true);
     assert.equal(route.client_callable, route.lifecycle === "active");
   }
-  for (const operation of [
-    "link_start", "link_complete", "unlink", "password_set", "password_change",
-    "two_factor_enroll", "two_factor_verify", "two_factor_recovery", "two_factor_disable",
-  ]) {
+  for (const operation of ["link_start", "link_complete", "unlink"]) {
     assert.equal(routes.get(operation).lifecycle, "proposed");
     assert.equal(routes.get(operation).client_callable, false);
+  }
+  for (const operation of [
+    "security_posture", "password_set", "password_change", "password_recover",
+    "two_factor_enroll", "two_factor_verify", "two_factor_recovery_consume",
+    "two_factor_recovery_rotate", "two_factor_disable",
+  ]) {
+    assert.equal(routes.get(operation).lifecycle, "active");
+    assert.equal(routes.get(operation).client_callable, true);
   }
   assert.equal(contract.preferred_registration_provider, "email");
   assert.equal(providers.get("email").preferred_registration, true);
@@ -648,11 +667,12 @@ test("public DTO guard rejects normalized private reference aliases", () => {
   }
 });
 
-test("route manifest and builders exactly match Python routes", () => {
-  assert.equal(UNIFIED_IDENTITY_ROUTES.length, 12);
-  assert.equal(identityAccountRoute("account_01"), "/v1/accounts/account_01");
-  assert.equal(identityCredentialsRoute("account_01"), "/v1/accounts/account_01/credentials");
-  assert.equal(identityMembershipsRoute("account_01"), "/v1/accounts/account_01/memberships");
+  test("route manifest and builders exactly match Python routes", () => {
+    assert.equal(UNIFIED_IDENTITY_ROUTES.length, 18);
+    assert.equal(identityAccountRoute("account_01"), "/v1/accounts/account_01");
+    assert.equal(identitySecurityRoute("account_01"), "/v1/accounts/account_01/security");
+    assert.equal(identityCredentialsRoute("account_01"), "/v1/accounts/account_01/credentials");
+    assert.equal(identityMembershipsRoute("account_01"), "/v1/accounts/account_01/memberships");
   assert.equal(
     identityLinkRoute("account_01", "google"),
     "/v1/accounts/account_01/credentials/google/link",
@@ -663,11 +683,55 @@ test("route manifest and builders exactly match Python routes", () => {
   );
   assert.equal(identityMergeRoute("account_01"), "/v1/accounts/account_01/merge");
   assert.equal(identityRecoveryStartRoute("account_01"), "/v1/accounts/account_01/recovery/start");
-  assert.equal(
-    identityRecoveryCompleteRoute("account_01", "recovery_01"),
-    "/v1/accounts/account_01/recovery/recovery_01/complete",
-  );
-});
+    assert.equal(
+      identityRecoveryCompleteRoute("account_01", "recovery_01"),
+      "/v1/accounts/account_01/recovery/recovery_01/complete",
+    );
+    assert.equal(
+      identityPasswordBeginRoute("account_01", "set"),
+      "/v1/accounts/account_01/password/enroll/begin",
+    );
+    assert.equal(
+      identityPasswordBeginRoute("account_01", "change"),
+      "/v1/accounts/account_01/password/change/begin",
+    );
+    assert.equal(
+      identityPasswordBeginRoute("account_01", "recover"),
+      "/v1/accounts/account_01/password/recover/begin",
+    );
+    assert.equal(
+      identityTwoFactorEnrollBeginRoute("account_01"),
+      "/v1/accounts/account_01/two-factor/enroll/begin",
+    );
+    assert.equal(
+      identityTwoFactorEnrollConfirmRoute("account_01"),
+      "/v1/accounts/account_01/two-factor/enroll/confirm",
+    );
+    assert.equal(
+      identityTwoFactorRecoveryConsumeRoute("account_01"),
+      "/v1/accounts/account_01/two-factor/recovery-codes/consume",
+    );
+    assert.equal(
+      identityTwoFactorRecoveryRotateRoute("account_01"),
+      "/v1/accounts/account_01/two-factor/recovery-codes/rotate",
+    );
+    assert.equal(
+      identityTwoFactorDisableRoute("account_01"),
+      "/v1/accounts/account_01/two-factor/disable",
+    );
+    assert.equal(
+      identityTwoFactorRoute("account_01", "verify"),
+      "/v1/accounts/account_01/two-factor/enroll/confirm",
+    );
+    assert.throws(
+      () => identityTwoFactorRoute("account_01", "disable"),
+      UnifiedIdentityContractError,
+    );
+    assert.throws(
+      () => identityTwoFactorRoute("account_01", "recovery"),
+      UnifiedIdentityContractError,
+    );
+  });
 
 for (const provider of UNIFIED_IDENTITY_PROVIDERS) {
   test(`parses ${provider} as a credential of one canonical account`, () => {
@@ -996,6 +1060,428 @@ test("recovery start and completion exactly match Python receipt contract", asyn
     },
   ]);
   assert.equal(recovered.account_id, "account_01");
+});
+
+function identitySecurityPosture(overrides = {}) {
+  return {
+    schema_version: IDENTITY_SECURITY_HTTP_SCHEMA_VERSION,
+    password_status: "set",
+    password_change_available: true,
+    password_recovery_available: true,
+    two_factor_status: "enabled",
+    two_factor_optional: true,
+    two_factor_recommended: true,
+    recovery_codes_remaining: 6,
+    security_version: 4,
+    active_sessions: 2,
+    ...overrides,
+  };
+}
+
+function identitySecurityBegin(operation, overrides = {}) {
+  const isMfa = operation === "mfa_enroll";
+  return {
+    schema_version: IDENTITY_SECURITY_SERVICE_SCHEMA_VERSION,
+    operation,
+    password_status: isMfa ? null : "set",
+    two_factor_status: isMfa ? "pending" : null,
+    two_factor_optional: true,
+    two_factor_recommended: true,
+    confirmation_required: true,
+    confirmation_challenge_id: isMfa ? "challenge_mfa_01" : "challenge_password_01",
+    provisioning_uri: isMfa
+      ? "otpauth://totp/ReleaseFoundry:test-only?issuer=ReleaseFoundry&secret=SYNTHETICONLY"
+      : null,
+    security_version: 5,
+    sessions_revoked: isMfa ? 0 : 2,
+    reauthentication_required: !isMfa,
+    ...overrides,
+  };
+}
+
+function identitySecurityConfirm(overrides = {}) {
+  return {
+    schema_version: IDENTITY_SECURITY_SERVICE_SCHEMA_VERSION,
+    operation: "mfa_confirm",
+    two_factor_status: "enabled",
+    two_factor_optional: true,
+    two_factor_recommended: true,
+    recovery_codes: ["recovery-test-01", "recovery-test-02"],
+    recovery_codes_remaining: 2,
+    security_version: 6,
+    sessions_revoked: 1,
+    reauthentication_required: true,
+    ...overrides,
+  };
+}
+
+function identitySecurityTwoFactorMutation(operation, overrides = {}) {
+  const recoveryCodes = [
+    "A1BCD-EFGHJ",
+    "B2CDE-FGHJK",
+    "C3DEF-GHJKL",
+    "D4EFG-HJKLM",
+    "E5FGH-JKLMN",
+    "F6GHJ-KLMNP",
+  ];
+  return {
+    schema_version: IDENTITY_SECURITY_SERVICE_SCHEMA_VERSION,
+    operation,
+    two_factor_status: operation === "mfa_disable" ? "disabled" : "enabled",
+    two_factor_optional: true,
+    two_factor_recommended: true,
+    ...(operation === "mfa_recovery_rotate" ? { recovery_codes: recoveryCodes } : {}),
+    recovery_codes_remaining: operation === "mfa_disable"
+      ? 0
+      : (operation === "mfa_recovery_rotate" ? recoveryCodes.length : 5),
+    security_version: 7,
+    sessions_revoked: 1,
+    reauthentication_required: true,
+    ...overrides,
+  };
+}
+
+test("identity security parsers preserve flat optional and recommended posture", () => {
+  assert.deepEqual(parseIdentitySecurityPosture(identitySecurityPosture()), {
+    schema_version: IDENTITY_SECURITY_HTTP_SCHEMA_VERSION,
+    password_status: "set",
+    password_change_available: true,
+    password_recovery_available: true,
+    two_factor_status: "enabled",
+    two_factor_optional: true,
+    two_factor_recommended: true,
+    recovery_codes_remaining: 6,
+    security_version: 4,
+    active_sessions: 2,
+  });
+  const begun = parseIdentitySecurityBeginResult(identitySecurityBegin("mfa_enroll"));
+  assert.equal(begun.challenge_id, "challenge_mfa_01");
+  assert.equal(begun.two_factor_optional, true);
+  assert.equal(begun.two_factor_recommended, true);
+  assert.match(begun.provisioning_uri, /^otpauth:\/\/totp\//u);
+  assert.equal("confirmation_challenge_id" in begun, false);
+  const confirmed = parseIdentitySecurityConfirmResult(identitySecurityConfirm());
+  assert.deepEqual(confirmed.recovery_codes, ["recovery-test-01", "recovery-test-02"]);
+  assert.equal(confirmed.two_factor_optional, true);
+  assert.equal(confirmed.two_factor_recommended, true);
+  assert.equal("challenge_id" in confirmed, false);
+  const consumed = parseIdentityTwoFactorRecoveryMutationResult(
+    identitySecurityTwoFactorMutation("mfa_recovery_consume"),
+    "mfa_recovery_consume",
+  );
+  assert.equal(consumed.two_factor_optional, true);
+  assert.equal(consumed.two_factor_recommended, true);
+  assert.equal("recovery_codes" in consumed, false);
+  const rotated = parseIdentityTwoFactorRecoveryMutationResult(
+    identitySecurityTwoFactorMutation("mfa_recovery_rotate"),
+    "mfa_recovery_rotate",
+  );
+  assert.equal(rotated.recovery_codes.length, 6);
+  const disabled = parseIdentityTwoFactorRecoveryMutationResult(
+    identitySecurityTwoFactorMutation("mfa_disable"),
+    "mfa_disable",
+  );
+  assert.equal(disabled.two_factor_status, "disabled");
+  assert.equal(disabled.recovery_codes_remaining, 0);
+  assert.throws(
+    () => parseIdentitySecurityPosture({
+      ...identitySecurityPosture(),
+      two_factor_optional: "true",
+    }),
+    UnifiedIdentityContractError,
+  );
+});
+
+test("identity two-factor mutation parser rejects leaks, mismatches, and invalid counts", () => {
+  assert.throws(
+    () => parseIdentityTwoFactorRecoveryMutationResult(
+      identitySecurityTwoFactorMutation("mfa_recovery_consume", {
+        recovery_codes: ["A1BCD-EFGHJ"],
+      }),
+      "mfa_recovery_consume",
+    ),
+    UnifiedIdentityContractError,
+  );
+  assert.throws(
+    () => parseIdentityTwoFactorRecoveryMutationResult(
+      identitySecurityTwoFactorMutation("mfa_disable", { recovery_codes: [] }),
+      "mfa_disable",
+    ),
+    UnifiedIdentityContractError,
+  );
+  assert.throws(
+    () => parseIdentityTwoFactorRecoveryMutationResult(
+      identitySecurityTwoFactorMutation("mfa_disable"),
+      "mfa_recovery_rotate",
+    ),
+    UnifiedIdentityContractError,
+  );
+  assert.throws(
+    () => parseIdentityTwoFactorRecoveryMutationResult(
+      identitySecurityTwoFactorMutation("mfa_recovery_rotate", {
+        schema_version: "releasefoundry.identity_security_service.v0",
+      }),
+      "mfa_recovery_rotate",
+    ),
+    UnifiedIdentityContractError,
+  );
+  assert.throws(
+    () => parseIdentityTwoFactorRecoveryMutationResult(
+      identitySecurityTwoFactorMutation("mfa_recovery_rotate", {
+        security_version: -1,
+      }),
+      "mfa_recovery_rotate",
+    ),
+    UnifiedIdentityContractError,
+  );
+  for (const leaked of [
+    { nested: { secret_ref: "isr_private" } },
+    { nested: { digest: "digest_private" } },
+    { nested: { ticket: "ticket_private" } },
+    { nested: { processor_token: "processor_private" } },
+    { nested: { handoff_token: "handoff_private" } },
+    { nested: { finalize_token: "finalize_private" } },
+    { nested: { cleanup_token: "cleanup_private" } },
+    { nested: { raw_code: "A1BCD-EFGHJ" } },
+  ]) {
+    assert.throws(
+      () => parseIdentityTwoFactorRecoveryMutationResult(
+        identitySecurityTwoFactorMutation("mfa_recovery_rotate", leaked),
+        "mfa_recovery_rotate",
+      ),
+      UnifiedIdentityContractError,
+    );
+  }
+});
+
+test("identity security client uses exact password begin routes and idempotency headers", async () => {
+  const rawPassword = `test-only-${"A".repeat(12)}1!`;
+  const calls = [];
+  const operations = ["password_enroll", "password_change", "password_recovery"];
+  const client = new UnifiedIdentityHttpClient({
+    baseUrl: "http://127.0.0.1:8787",
+    fetch: async (url, init) => {
+      const index = calls.length;
+      calls.push({
+        path: new URL(String(url)).pathname,
+        method: init.method,
+        headers: new Headers(init.headers),
+        body: JSON.parse(init.body),
+      });
+      return response({ result: identitySecurityBegin(operations[index]) });
+    },
+  });
+
+  const results = [
+    await client.beginPasswordEnroll({
+      accountId: "account_01",
+      password: rawPassword,
+      idempotencyKey: "idem-password-enroll-01",
+    }),
+    await client.beginPasswordChange({
+      accountId: "account_01",
+      password: rawPassword,
+      idempotencyKey: "idem-password-change-01",
+    }),
+    await client.beginPasswordRecovery({
+      accountId: "account_01",
+      password: rawPassword,
+      idempotencyKey: "idem-password-recover-01",
+    }),
+  ];
+
+  assert.deepEqual(calls.map(({ method, path }) => [method, path]), [
+    ["POST", "/v1/accounts/account_01/password/enroll/begin"],
+    ["POST", "/v1/accounts/account_01/password/change/begin"],
+    ["POST", "/v1/accounts/account_01/password/recover/begin"],
+  ]);
+  assert.deepEqual(
+    calls.map(({ body }) => body),
+    [
+      { password: rawPassword, idempotency_key: "idem-password-enroll-01" },
+      { password: rawPassword, idempotency_key: "idem-password-change-01" },
+      { password: rawPassword, idempotency_key: "idem-password-recover-01" },
+    ],
+  );
+  assert.deepEqual(
+    calls.map(({ headers }) => headers.get("Idempotency-Key")),
+    ["idem-password-enroll-01", "idem-password-change-01", "idem-password-recover-01"],
+  );
+  for (const result of results) {
+    assert.equal(result.challenge_id, "challenge_password_01");
+    assert.equal(result.two_factor_optional, true);
+    assert.equal(result.two_factor_recommended, true);
+    assert.equal("password" in result, false);
+  }
+});
+
+test("identity security client completes TOTP enrollment without retaining raw code", async () => {
+  const calls = [];
+  const client = new UnifiedIdentityHttpClient({
+    baseUrl: "http://127.0.0.1:8787",
+    fetch: async (url, init) => {
+      calls.push({
+        path: new URL(String(url)).pathname,
+        method: init.method,
+        headers: new Headers(init.headers),
+        body: JSON.parse(init.body),
+      });
+      return calls.length === 1
+        ? response({ result: identitySecurityBegin("mfa_enroll") })
+        : response({ result: identitySecurityConfirm() });
+    },
+  });
+
+  const begun = await client.beginTwoFactorEnroll({
+    accountId: "account_01",
+    idempotencyKey: "idem-mfa-enroll-01",
+  });
+  const confirmed = await client.confirmTwoFactorEnroll({
+    accountId: "account_01",
+    challengeId: begun.challenge_id,
+    code: "123456",
+    idempotencyKey: "idem-mfa-confirm-01",
+  });
+
+  assert.deepEqual(calls.map(({ method, path }) => [method, path]), [
+    ["POST", "/v1/accounts/account_01/two-factor/enroll/begin"],
+    ["POST", "/v1/accounts/account_01/two-factor/enroll/confirm"],
+  ]);
+  assert.deepEqual(calls[0].body, { idempotency_key: "idem-mfa-enroll-01" });
+  assert.deepEqual(calls[1].body, {
+    challenge_id: "challenge_mfa_01",
+    code: "123456",
+    idempotency_key: "idem-mfa-confirm-01",
+  });
+  assert.equal(calls[0].headers.get("Idempotency-Key"), "idem-mfa-enroll-01");
+  assert.equal(calls[1].headers.get("Idempotency-Key"), "idem-mfa-confirm-01");
+  assert.equal(confirmed.challenge_id, "challenge_mfa_01");
+  assert.deepEqual(confirmed.recovery_codes, ["recovery-test-01", "recovery-test-02"]);
+  assert.equal(confirmed.two_factor_status, "enabled");
+  assert.equal("code" in confirmed, false);
+});
+
+test("identity security client exposes explicit recovery consume rotate and disable", async () => {
+  const calls = [];
+  const operations = [
+    "mfa_recovery_consume",
+    "mfa_recovery_rotate",
+    "mfa_disable",
+  ];
+  const client = new UnifiedIdentityHttpClient({
+    baseUrl: "http://127.0.0.1:8787",
+    fetch: async (url, init) => {
+      const operation = operations[calls.length];
+      calls.push({
+        path: new URL(String(url)).pathname,
+        method: init.method,
+        headers: new Headers(init.headers),
+        body: JSON.parse(init.body),
+      });
+      return response({
+        result: identitySecurityTwoFactorMutation(operation),
+      });
+    },
+  });
+  const recoveryCode = "ABCDE-FGHJK";
+  const consumed = await client.consumeTwoFactorRecoveryCode({
+    accountId: "account_01",
+    recoveryCode,
+    idempotencyKey: "idem-mfa-consume-01",
+  });
+  const rotated = await client.rotateTwoFactorRecoveryCodes({
+    accountId: "account_01",
+    idempotencyKey: "idem-mfa-rotate-01",
+  });
+  const disabled = await client.disableTwoFactor({
+    accountId: "account_01",
+    idempotencyKey: "idem-mfa-disable-01",
+  });
+
+  assert.deepEqual(calls.map(({ method, path }) => [method, path]), [
+    ["POST", "/v1/accounts/account_01/two-factor/recovery-codes/consume"],
+    ["POST", "/v1/accounts/account_01/two-factor/recovery-codes/rotate"],
+    ["POST", "/v1/accounts/account_01/two-factor/disable"],
+  ]);
+  assert.deepEqual(calls.map(({ body }) => body), [
+    {
+      recovery_code: recoveryCode,
+      idempotency_key: "idem-mfa-consume-01",
+    },
+    { idempotency_key: "idem-mfa-rotate-01" },
+    { idempotency_key: "idem-mfa-disable-01" },
+  ]);
+  assert.deepEqual(
+    calls.map(({ headers }) => headers.get("Idempotency-Key")),
+    ["idem-mfa-consume-01", "idem-mfa-rotate-01", "idem-mfa-disable-01"],
+  );
+  assert.equal(consumed.operation, "mfa_recovery_consume");
+  assert.equal("recovery_codes" in consumed, false);
+  assert.equal(rotated.recovery_codes.length, 6);
+  assert.equal(disabled.operation, "mfa_disable");
+  assert.equal(disabled.two_factor_status, "disabled");
+  assert.equal(
+    JSON.stringify({ consumed, rotated, disabled }).includes(recoveryCode),
+    false,
+  );
+});
+
+test("identity security posture client consumes the exact flat Go response", async () => {
+  let captured;
+  const client = new UnifiedIdentityHttpClient({
+    baseUrl: "http://127.0.0.1:8787",
+    fetch: async (url, init) => {
+      captured = { path: new URL(String(url)).pathname, method: init.method };
+      return response(identitySecurityPosture());
+    },
+  });
+  const posture = await client.getSecurityPosture("account_01");
+  assert.deepEqual(captured, {
+    path: "/v1/accounts/account_01/security",
+    method: "GET",
+  });
+  assert.equal(posture.two_factor_optional, true);
+  assert.equal(posture.two_factor_recommended, true);
+});
+
+test("legacy and unsupported identity security mutations fail closed before fetch", async () => {
+  let fetchCalls = 0;
+  const client = new UnifiedIdentityHttpClient({
+    baseUrl: "http://127.0.0.1:8787",
+    fetch: async () => {
+      fetchCalls += 1;
+      return response({});
+    },
+  });
+  await assert.rejects(
+    client.mutatePassword({
+      accountId: "account_01",
+      operation: "change",
+      mutationTicketId: "ticket_01",
+      stepUpReceiptId: "stepup_01",
+      idempotencyKey: "idem-legacy-password-01",
+    }),
+    UnifiedIdentityContractError,
+  );
+  await assert.rejects(
+    client.mutateTwoFactor({
+      accountId: "account_01",
+      operation: "disable",
+      mutationTicketId: "ticket_01",
+      stepUpReceiptId: "stepup_01",
+      idempotencyKey: "idem-legacy-mfa-01",
+    }),
+    UnifiedIdentityContractError,
+  );
+  assert.throws(
+    () => identityTwoFactorRoute("account_01", "recovery"),
+    UnifiedIdentityContractError,
+  );
+  assert.throws(
+    () => identityTwoFactorRoute("account_01", "disable"),
+    UnifiedIdentityContractError,
+  );
+  assert.equal(fetchCalls, 0);
 });
 
 test("HTTP error becomes a stable redacted contract error", async () => {

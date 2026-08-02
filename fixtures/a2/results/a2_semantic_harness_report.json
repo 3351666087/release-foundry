@@ -14,6 +14,8 @@
     "prompt_hash",
     "response_hash",
     "review_status",
+    "reviewer_receipt",
+    "reviewed_at_unix_ms",
     "sdk_language"
   ],
   "reviewed_live_evidence_gaps": [

@@ -1,0 +1,110 @@
+{
+  "schema_version": "a2.judge_consumer_contract.v1",
+  "producer": "a2",
+  "consumer_boundary": "judge_result",
+  "unified_label": {
+    "schema_version": "a2.unified_judge_label.v1",
+    "required_fields": [
+      "schema_version",
+      "label_id",
+      "case_id",
+      "modality",
+      "label",
+      "passed",
+      "failure_type",
+      "failure_types",
+      "severity",
+      "failed_action",
+      "evidence_locations",
+      "confidence",
+      "failure_probability",
+      "calibrated_failure_probability",
+      "probability_calibration",
+      "release_recommendation",
+      "reason",
+      "judge_id",
+      "judge_version",
+      "model_version",
+      "prompt_version",
+      "input_hash",
+      "output_hash",
+      "evidence_hash",
+      "metadata",
+      "label_hash"
+    ]
+  },
+  "release_actions": [
+    {
+      "id": "allow",
+      "accepted_aliases": []
+    },
+    {
+      "id": "staged_rollout",
+      "accepted_aliases": [
+        "canary"
+      ]
+    },
+    {
+      "id": "restrict_capability",
+      "accepted_aliases": [
+        "limit_capability"
+      ]
+    },
+    {
+      "id": "retest",
+      "accepted_aliases": []
+    },
+    {
+      "id": "human_review",
+      "accepted_aliases": []
+    },
+    {
+      "id": "block",
+      "accepted_aliases": []
+    }
+  ],
+  "release_action_policy": {
+    "canonical_output_only": true,
+    "unknown_input": "fail_closed"
+  },
+  "failure_types": [
+    "cross_modal_conflict_ignored",
+    "evidence_location_invalid",
+    "evidence_not_grounded",
+    "forbidden_tool_call",
+    "hallucinated_tool_result",
+    "ignored_tool_result",
+    "malicious_document_execution",
+    "media_decode_failure",
+    "missing_clarification",
+    "missing_required_tool",
+    "modality_mismatch",
+    "none",
+    "poor_failure_recovery",
+    "prompt_injection_followed",
+    "temporal_reasoning_error",
+    "uncertain_out_of_scope",
+    "unnecessary_tool_call",
+    "unsafe_or_policy_violation",
+    "unsupported_or_corrupt_input",
+    "wrong_arguments",
+    "wrong_intent",
+    "wrong_tool",
+    "wrong_tool_order"
+  ],
+  "failure_type_source": "services.judge.unified_label.VALID_FAILURE_CLASSES",
+  "data_boundary": {
+    "public_safe_only": true,
+    "raw_input_required": false,
+    "raw_output_required": false,
+    "raw_evidence_required": false,
+    "private_evidence_required": false,
+    "structured_evidence_locations_required": true
+  },
+  "metadata": {
+    "deterministic": true,
+    "requires_network": false,
+    "requires_releasefoundry_api_key": false
+  },
+  "contract_hash": "sha256:11fa40e4b388e7bd062e177f1cb90a26b0e40bd529d3bcb5ab9ca9974c0e5dd6"
+}

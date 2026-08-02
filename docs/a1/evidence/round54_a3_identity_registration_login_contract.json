@@ -95,7 +95,16 @@
       {"operation": "register_start", "method": "POST", "path": "/v1/identity/registration/start"},
       {"operation": "register_complete", "method": "POST", "path": "/v1/identity/registration/complete"},
       {"operation": "login_start", "method": "POST", "path": "/v1/identity/login/start"},
-      {"operation": "login_complete", "method": "POST", "path": "/v1/identity/login/complete"}
+      {"operation": "login_complete", "method": "POST", "path": "/v1/identity/login/complete"},
+      {"operation": "security_posture", "method": "GET", "path": "/v1/accounts/{account_id}/security"},
+      {"operation": "password_set", "method": "POST", "path": "/v1/accounts/{account_id}/password/enroll/begin"},
+      {"operation": "password_change", "method": "POST", "path": "/v1/accounts/{account_id}/password/change/begin"},
+      {"operation": "password_recover", "method": "POST", "path": "/v1/accounts/{account_id}/password/recover/begin"},
+      {"operation": "two_factor_enroll", "method": "POST", "path": "/v1/accounts/{account_id}/two-factor/enroll/begin"},
+      {"operation": "two_factor_verify", "method": "POST", "path": "/v1/accounts/{account_id}/two-factor/enroll/confirm"},
+      {"operation": "two_factor_recovery_consume", "method": "POST", "path": "/v1/accounts/{account_id}/two-factor/recovery-codes/consume"},
+      {"operation": "two_factor_recovery_rotate", "method": "POST", "path": "/v1/accounts/{account_id}/two-factor/recovery-codes/rotate"},
+      {"operation": "two_factor_disable", "method": "POST", "path": "/v1/accounts/{account_id}/two-factor/disable"}
     ],
     "status": "implemented_in_go_route_manifest"
   },
@@ -109,15 +118,7 @@
     "operations": [
       "link_start",
       "link_complete",
-      "unlink",
-      "security_posture",
-      "password_set",
-      "password_change",
-      "password_recover",
-      "two_factor_enroll",
-      "two_factor_verify",
-      "two_factor_recovery",
-      "two_factor_disable"
+      "unlink"
     ],
     "client_callable": false,
     "missing_lifecycle_never_implies_active": true
@@ -194,7 +195,8 @@
       "password_recover",
       "two_factor_enroll",
       "two_factor_verify",
-      "two_factor_recovery",
+      "two_factor_recovery_consume",
+      "two_factor_recovery_rotate",
       "two_factor_disable"
     ],
     "required_route_fields": ["operation", "method", "path", "lifecycle", "client_callable"],
@@ -237,9 +239,9 @@
       "detail": "The HTTP boundary already rejects caller-asserted verification and consumes server-owned opaque single-use receipts; production provider resolver deployment and live runtime attestation remain pending."
     },
     {
-      "code": "link_password_two_factor_routes_proposed",
+      "code": "existing_account_link_routes_proposed",
       "severity": "expected",
-      "detail": "Direct A3 account-mutation routes remain non-routable until their HTTP boundaries invoke the existing trusted binding authority with matching actor, recent reauthentication, CSRF, and verified assertion enforcement."
+      "detail": "Existing-account credential linking remains non-routable. Security posture, password enroll/change/recovery begin, TOTP enroll begin/confirm, recovery-code consume/rotate, and two-factor disable are active only through the authenticated ticket, idempotency, PostgreSQL coordinator, and external secret-processor boundaries represented in the Go manifest."
     },
     {
       "code": "domestic_provider_qualification_unavailable",

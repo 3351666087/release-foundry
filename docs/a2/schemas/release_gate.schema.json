@@ -16,9 +16,21 @@
     "evidence_blocker_count",
     "scenario_selection_blocker_count",
     "a1_output_policy_blocker_count",
+    "judge_registry_blocker_count",
     "warning_count",
     "scenario_selection_gate",
     "a1_output_policy_gate",
+    "judge_registry_binding",
+    "judge_registry_hash",
+    "source_commercial_readiness_hash",
+    "source_evidence_readiness_hash",
+    "source_calibration_matrix_hash",
+    "source_case_book_hash",
+    "source_regression_replay_hash",
+    "source_scenario_selection_hash",
+    "source_a1_evidence_index_hash",
+    "source_judge_registry_hash",
+    "artifact_hash",
     "blockers",
     "warnings",
     "required_evidence",
@@ -42,9 +54,21 @@
     "evidence_blocker_count": { "type": "integer", "minimum": 0 },
     "scenario_selection_blocker_count": { "type": "integer", "minimum": 0 },
     "a1_output_policy_blocker_count": { "type": "integer", "minimum": 0 },
+    "judge_registry_blocker_count": { "type": "integer", "minimum": 0 },
     "warning_count": { "type": "integer", "minimum": 0 },
     "scenario_selection_gate": { "$ref": "#/$defs/scenario_selection_gate" },
     "a1_output_policy_gate": { "$ref": "#/$defs/a1_output_policy_gate" },
+    "judge_registry_binding": { "$ref": "#/$defs/judge_registry_binding" },
+    "judge_registry_hash": { "$ref": "#/$defs/hash_ref" },
+    "source_commercial_readiness_hash": { "$ref": "#/$defs/hash_ref" },
+    "source_evidence_readiness_hash": { "$ref": "#/$defs/hash_ref" },
+    "source_calibration_matrix_hash": { "$ref": "#/$defs/hash_ref" },
+    "source_case_book_hash": { "$ref": "#/$defs/hash_ref" },
+    "source_regression_replay_hash": { "$ref": "#/$defs/hash_ref" },
+    "source_scenario_selection_hash": { "$ref": "#/$defs/hash_ref" },
+    "source_a1_evidence_index_hash": { "$ref": "#/$defs/hash_ref" },
+    "source_judge_registry_hash": { "$ref": "#/$defs/hash_ref" },
+    "artifact_hash": { "$ref": "#/$defs/hash_ref" },
     "blockers": {
       "type": "array",
       "items": { "$ref": "#/$defs/release_item" }
@@ -67,6 +91,10 @@
     "metadata": { "type": "object" }
   },
   "$defs": {
+    "hash_ref": {
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$"
+    },
     "string_array": {
       "type": "array",
       "items": { "type": "string" }
@@ -146,6 +174,32 @@
           "additionalProperties": true
         },
         "safe_counts": { "type": "object" },
+        "evidence_refs": { "$ref": "#/$defs/string_array" }
+      },
+      "additionalProperties": true
+    },
+    "judge_registry_binding": {
+      "type": "object",
+      "required": [
+        "status",
+        "ready",
+        "registry_id",
+        "registry_hash",
+        "active_release_id",
+        "default_version",
+        "all_declared_judges_observed",
+        "gaps",
+        "evidence_refs"
+      ],
+      "properties": {
+        "status": { "enum": ["verified", "blocked"] },
+        "ready": { "type": "boolean" },
+        "registry_id": { "type": "string" },
+        "registry_hash": { "$ref": "#/$defs/hash_ref" },
+        "active_release_id": { "type": "string" },
+        "default_version": { "type": "string" },
+        "all_declared_judges_observed": { "type": "boolean" },
+        "gaps": { "$ref": "#/$defs/string_array" },
         "evidence_refs": { "$ref": "#/$defs/string_array" }
       },
       "additionalProperties": true

@@ -24,38 +24,38 @@
     },
     "a2_trusted_spine": {
       "path": "evidence/a2_trusted_spine_handoff.snapshot.json",
-      "sha256": "9fd305038728b4f8e1797c343ed7cd2cf899157a0e8875f5214e1edb093f7270"
+      "sha256": "b959176378cc66f714d5631a6b721f037e6f4649dde90d235b17741a3dde453d"
     },
     "a3_audit_archive_manifest": {
       "path": "evidence/audit-archive-manifest.json",
-      "sha256": "dd331807a1ef14ee90181f0fd12974e208bac82893f610a3be0e0cfcfc4e7094"
+      "sha256": "de1e15a8750c90d79fb531265f3b71b0e5ec84d97ea52d625b7a88caee6e65e8"
     },
     "a3_audit_bundle_index": {
       "path": "evidence/audit-bundle-index.json",
-      "sha256": "20c71b3c3cd8d8984f36febd63a8109f04d19fe30ae42a8d167bc11cf99ea132"
+      "sha256": "e63892417c4368b0a2915f645284d48565e7fa74fed880cc069ff1264dccfd60"
     },
     "a3_candidate_delivery_binding": {
       "path": "evidence/a3_candidate_delivery_binding.json",
-      "sha256": "029ba279fe2cef9442d7406949fa659501bc9e59961909561bc8b12d3f04ffec"
+      "sha256": "fa0826fd28978d3374206f82a6340192be68dede773d17b204e9c391d56a32b2"
     },
     "a3_gate_report": {
       "path": "evidence/gate-report.json",
-      "sha256": "472f0675e079319959ff5201c2a0d6e29797556afffa3d40a567521a55575332"
+      "sha256": "2143b6964df2c6e8d0495d3415be0b602d92a6c5f1f3abf92b796f1a955de5e7"
     },
     "a3_release_artifact_verification": {
       "path": "evidence/release-artifact-verification.json",
-      "sha256": "1c224921afa9c273dd9829d95c443a3c0ada150748d83165bd1a638d120dcf13"
+      "sha256": "1a372f5487cc1d965dd092d92ab225d0515a02cb0c4cd96497807701c21631f6"
     },
     "a3_release_delivery_index": {
       "path": "evidence/release-delivery-index.json",
-      "sha256": "b53d20de52b35c68d8f2bc3f54c873d960559cfc6bce7dbd6a61a800ee70d8ee"
+      "sha256": "98ad9b1e88d59a755cefc1674d3bc92f1e8f0b9461165f83ae6dec534e58fe51"
     },
     "a3_shared_candidate_identity": {
       "path": "evidence/a3_shared_candidate_identity.json",
-      "sha256": "ca7faa1ad582d626ee930d1d5a2e20bdd5b15209f002951e86e1dc6240e7f386"
+      "sha256": "3bc7044b0936f5a4cdca9c60220b11a17553d71066eede515ffa7048911df27b"
     }
   },
-  "generated_at": "2026-07-21T05:22:47.937318Z",
+  "generated_at": "2026-08-02T15:52:44.736888Z",
   "human_review": {
     "approval_receipt": null,
     "status": "not_approved"
@@ -63,22 +63,22 @@
   "lane_bindings": {
     "a1_candidate_source_commit": "1d292047e991995fdf52f0545ffff410ee19a171",
     "a1_evidence_bundle_hash": "sha256:3240e097cc4e793520d9bbb0b2a600081a5440c751bf842cbe3b8cc9e495cd9f",
-    "a2_authority_commit": "d3529c356e49ce8502c050f0dad44020031ee0dd",
-    "a2_decision_ledger_head_hash": "sha256:bc608df9825ea316b374797ef76b4921bff4f6cee1943600d0297783e6be6303",
+    "a2_authority_commit": "e21ebcb1b09b2a709f5381e02f89933477453d82",
+    "a2_decision_ledger_head_hash": "sha256:93343a7920b06dc0f232aee7b3eb82b793010ca8c2061043682b4e7ebc088797",
     "a2_grades_hash": "sha256:ffeba9ab8d7a2ccfb26ca8e135448cc9a2e6c8ead5b49837f77e5e73606a5304",
-    "a3_implementation_commit": "a0b427257c5cd80fbe3394b4a406fa21f50bae37",
-    "release_package_commit": "ba805e7e087b0e4b8c79a0dd6fbcdc6f923aee01"
+    "a3_implementation_commit": "e21ebcb1b09b2a709f5381e02f89933477453d82",
+    "release_package_commit": "665fa6487a76702f286a3c67f187627bb242b27b"
   },
   "product_binding": {
     "manifest": {
       "path": "product-binding/manifest.json",
-      "sha256": "4fb073e247e98d4a6c2331ed04cf10d29b71a5469aa80de91aab41d722e251a2"
+      "sha256": "552643ffa2f0110c1deeba3ba86fab9ed46a3848d457d9977ec9199616f828a4"
     },
     "product_release_id": "releasefoundry-product@1.0.0-rc.1",
-    "product_release_manifest_sha256": "4fb073e247e98d4a6c2331ed04cf10d29b71a5469aa80de91aab41d722e251a2",
+    "product_release_manifest_sha256": "552643ffa2f0110c1deeba3ba86fab9ed46a3848d457d9977ec9199616f828a4",
     "verification": {
       "path": "product-binding/verification.json",
-      "sha256": "72d4b6a0c3a8364f399179151231bfabc022cc42949b39cd8bea1f91dbb7d426"
+      "sha256": "eeb4c1a0755f95eed09bdfeb7c8009fb8f3a2b5db8a41dbe2384827e81768f84"
     }
   },
   "safety": {
@@ -90,7 +90,7 @@
   },
   "schema_version": "releasefoundry.customer_agent_release_manifest.v1",
   "source": {
-    "commit_sha": "ba805e7e087b0e4b8c79a0dd6fbcdc6f923aee01",
+    "commit_sha": "665fa6487a76702f286a3c67f187627bb242b27b",
     "dirty": false,
     "repository": "https://github.com/3351666087/release-foundry"
   },

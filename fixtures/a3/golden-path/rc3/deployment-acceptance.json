@@ -1,7 +1,7 @@
 {
   "schema_version": "a3.deployment_acceptance.v1",
-  "acceptance_id": "dpa_c50a3969d31c4b0d6daf",
-  "generated_at": "2026-07-20T14:39:32.963Z",
+  "acceptance_id": "dpa_bfeff4619f31e54bae51",
+  "generated_at": "2026-08-02T16:27:53.916Z",
   "status": "blocked",
   "production_accepted": false,
   "release_identity": {
@@ -52,7 +52,7 @@
       "required": true,
       "status": "blocked",
       "evidence_class": "local_authoritative",
-      "evidence_ref": "sha256:bc608df9825ea316b374797ef76b4921bff4f6cee1943600d0297783e6be6303",
+      "evidence_ref": "sha256:93343a7920b06dc0f232aee7b3eb82b793010ca8c2061043682b4e7ebc088797",
       "blocked_reason": "a2_decision_blocks_release",
       "details": {
         "integrity_verified": true,
@@ -232,7 +232,7 @@
       "required": true,
       "status": "passed",
       "evidence_class": "local_verification",
-      "evidence_ref": "a3-bundle-0-2-0-rc-3-a3-golden-20260720-003-60c1e04d61b0",
+      "evidence_ref": "a3-bundle-0-2-0-rc-3-a3-golden-20260720-003-3de1d402fa46",
       "blocked_reason": null,
       "details": {},
       "production_proof": false
@@ -244,7 +244,7 @@
       "required": true,
       "status": "passed",
       "evidence_class": "local_verification",
-      "evidence_ref": "a3-archive-a3-bundle-0-2-0-rc-3-a3-golden-20260720-003-60c1e04d61-576f45dd557c",
+      "evidence_ref": "a3-archive-a3-bundle-0-2-0-rc-3-a3-golden-20260720-003-3de1d402fa-b8e4742a1bc7",
       "blocked_reason": null,
       "details": {},
       "production_proof": false
@@ -256,7 +256,7 @@
       "required": true,
       "status": "passed",
       "evidence_class": "local_verification",
-      "evidence_ref": "56a816cbca8ea43a337b53568073eb055e3dac44e360fc5aa3e305351464855f",
+      "evidence_ref": "b18b6755ec1358cbc43d4875d92f9bd79a68193ca39389b2e9f4fe0877668881",
       "blocked_reason": null,
       "details": {},
       "production_proof": false

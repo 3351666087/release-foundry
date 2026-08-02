@@ -74,6 +74,144 @@ class ReleaseGateMultimodalTests(unittest.TestCase):
             )
         )
 
+    def test_malformed_modality_scope_is_blocked(self):
+        malformed_scopes = (
+            [],
+            "image",
+            {"image": True},
+            [None],
+            ["text", None],
+        )
+        for modality_scope in malformed_scopes:
+            with self.subTest(modality_scope=modality_scope):
+                report = build_release_gate_report(
+                    *self._inputs(), modality_scope=modality_scope
+                )
+                blocker = next(
+                    item
+                    for item in report["blockers"]
+                    if item["type"] == "multimodal_scope_gate"
+                )
+                self.assertEqual(report["decision"], "block")
+                self.assertEqual(blocker["gate"], "MM0")
+                self.assertEqual(blocker["severity"], "critical")
+
+    def test_modalities_without_qualification_gates_are_blocked(self):
+        for modality_scope in (
+            ["audio"],
+            ["video"],
+            ["file"],
+            ["text", "audio"],
+        ):
+            with self.subTest(modality_scope=modality_scope):
+                report = build_release_gate_report(
+                    *self._inputs(), modality_scope=modality_scope
+                )
+                blocker = next(
+                    item
+                    for item in report["blockers"]
+                    if item["type"] == "multimodal_scope_gate"
+                )
+                self.assertEqual(report["decision"], "block")
+                self.assertIn(
+                    "modality scope has no implemented qualification gate",
+                    blocker["gaps"][0],
+                )
+
+    def test_duplicate_or_non_canonical_modality_scope_is_blocked(self):
+        expected_gap = {
+            ("text", "text"): "modality scope contains duplicate entries: text",
+            ("Image",): (
+                "modality scope contains unknown or non-canonical entries: Image"
+            ),
+            (" image ",): (
+                "modality scope contains unknown or non-canonical entries:  image "
+            ),
+        }
+        for modality_scope, gap in expected_gap.items():
+            with self.subTest(modality_scope=modality_scope):
+                report = build_release_gate_report(
+                    *self._inputs(), modality_scope=list(modality_scope)
+                )
+                blocker = next(
+                    item
+                    for item in report["blockers"]
+                    if item["type"] == "multimodal_scope_gate"
+                )
+                self.assertEqual(report["decision"], "block")
+                self.assertIn(gap, blocker["gaps"])
+
+    def test_audio_and_file_generated_artifacts_do_not_unlock_release(self):
+        report = build_release_gate_report(
+            *self._inputs(), modality_scope=["audio", "file"]
+        )
+        blocker = next(
+            item
+            for item in report["blockers"]
+            if item["type"] == "multimodal_scope_gate"
+        )
+        boundaries = {
+            item["modality"]: item
+            for item in blocker["modality_boundaries"]
+        }
+        self.assertEqual(report["decision"], "block")
+        self.assertIn(
+            "ReleaseFoundry generated-artifact verification does not prove caller-native "
+            "input or release qualification: audio, file",
+            blocker["gaps"],
+        )
+        for modality in ("audio", "file"):
+            with self.subTest(modality=modality):
+                self.assertEqual(
+                    boundaries[modality]["releasefoundry_generated_artifact_state"],
+                    "verified_non_qualifying",
+                )
+                self.assertEqual(
+                    boundaries[modality][
+                        "releasefoundry_caller_native_submission_state"
+                    ],
+                    "provider_surface_missing",
+                )
+                self.assertEqual(
+                    boundaries[modality]["a2_release_qualification_state"],
+                    "not_implemented",
+                )
+                self.assertEqual(
+                    boundaries[modality]["required_disposition"], "retest"
+                )
+
+    def test_video_provider_unverified_boundary_requires_retest_or_review(self):
+        report = build_release_gate_report(
+            *self._inputs(), modality_scope=["video"]
+        )
+        blocker = next(
+            item
+            for item in report["blockers"]
+            if item["type"] == "multimodal_scope_gate"
+        )
+        boundary = blocker["modality_boundaries"][0]
+        self.assertEqual(report["decision"], "block")
+        self.assertIn(
+            "ReleaseFoundry video remains provider_unverified/unreliable and requires "
+            "retest or human review",
+            blocker["gaps"],
+        )
+        self.assertEqual(boundary["modality"], "video")
+        self.assertEqual(
+            boundary["releasefoundry_generated_artifact_state"], "provider_unverified"
+        )
+        self.assertEqual(
+            boundary["releasefoundry_caller_native_submission_state"],
+            "provider_unverified",
+        )
+        self.assertEqual(
+            boundary["required_disposition"], "retest_or_human_review"
+        )
+        self.assertEqual(
+            blocker["evidence_refs"],
+            ["docs/evidence/a2_releasefoundry_native_media_surface.json"],
+        )
+
     def test_qualified_image_artifact_must_match_expected_bindings(self):
         artifact = {
             "qualification_state": "qualified_for_review",
@@ -82,6 +220,11 @@ class ReleaseGateMultimodalTests(unittest.TestCase):
             "manifest_hash": "sha256:" + "a" * 64,
             "review_conservation_hash": "sha256:" + "c" * 64,
             "model_id": "qwen-vl-plus",
+            "usage_cost_receipt": {
+                "usage_accounting_state": "complete",
+                "pricing_state": "configured",
+                "within_cost_budget": True,
+            },
             "release_authority": False,
         }
         report = build_release_gate_report(
@@ -115,6 +258,11 @@ class ReleaseGateMultimodalTests(unittest.TestCase):
             "manifest_hash": "sha256:" + "a" * 64,
             "review_conservation_hash": "sha256:" + "c" * 64,
             "model_id": "qwen-vl-plus",
+            "usage_cost_receipt": {
+                "usage_accounting_state": "complete",
+                "pricing_state": "configured",
+                "within_cost_budget": True,
+            },
             "release_authority": False,
         }
         report = build_release_gate_report(
@@ -144,6 +292,11 @@ class ReleaseGateMultimodalTests(unittest.TestCase):
             "candidate_sha": "a" * 40,
             "manifest_hash": "sha256:" + "a" * 64,
             "review_conservation_hash": "sha256:" + "b" * 64,
+            "usage_cost_receipt": {
+                "usage_accounting_state": "complete",
+                "pricing_state": "configured",
+                "within_cost_budget": True,
+            },
             "release_authority": False,
         }
         report = build_release_gate_report(
@@ -174,6 +327,11 @@ class ReleaseGateMultimodalTests(unittest.TestCase):
             "candidate_sha": "a" * 40,
             "manifest_hash": "sha256:" + "b" * 64,
             "review_conservation_hash": "sha256:" + "d" * 64,
+            "usage_cost_receipt": {
+                "usage_accounting_state": "complete",
+                "pricing_state": "configured",
+                "within_cost_budget": True,
+            },
             "release_authority": False,
         }
         report = build_release_gate_report(
@@ -245,6 +403,11 @@ class ReleaseGateMultimodalTests(unittest.TestCase):
             "manifest_hash": "sha256:" + "a" * 64,
             "review_conservation_hash": "sha256:" + "b" * 64,
             "designated_reference_review_pending": True,
+            "usage_cost_receipt": {
+                "usage_accounting_state": "complete",
+                "pricing_state": "configured",
+                "within_cost_budget": True,
+            },
             "release_authority": False,
         }
         report = build_release_gate_report(
@@ -280,6 +443,11 @@ class ReleaseGateMultimodalTests(unittest.TestCase):
             "review_conservation_hash": "sha256:" + "b" * 64,
             "designated_reference_review_pending": True,
             "latest_human_review_receipt_hash": latest,
+            "usage_cost_receipt": {
+                "usage_accounting_state": "complete",
+                "pricing_state": "configured",
+                "within_cost_budget": True,
+            },
             "release_authority": False,
         }
         report = build_release_gate_report(
@@ -302,4 +470,110 @@ class ReleaseGateMultimodalTests(unittest.TestCase):
                 if blocker["type"] == "multimodal_qualification_gate"
                 for gap in blocker["gaps"]
             )
+        )
+
+    def test_qualified_image_artifact_missing_usage_receipt_is_blocked(self):
+        artifact = {
+            "qualification_state": "qualified_for_review",
+            "blockers": [],
+            "candidate_sha": "a" * 40,
+            "manifest_hash": "sha256:" + "a" * 64,
+            "review_conservation_hash": "sha256:" + "b" * 64,
+            "release_authority": False,
+        }
+        report = build_release_gate_report(
+            *self._inputs(),
+            modality_scope=["image"],
+            multimodal_qualification=artifact,
+            multimodal_expected_bindings={
+                "candidate_sha": artifact["candidate_sha"],
+                "manifest_hash": artifact["manifest_hash"],
+                "review_conservation_hash": artifact[
+                    "review_conservation_hash"
+                ],
+            },
+        )
+        blocker = next(
+            item
+            for item in report["blockers"]
+            if item["type"] == "multimodal_qualification_gate"
+        )
+        self.assertIn(
+            "multimodal usage or pricing qualification is incomplete",
+            blocker["gaps"],
+        )
+
+    def test_malformed_designated_reference_review_state_is_blocked(self):
+        artifact = {
+            "qualification_state": "qualified_for_review",
+            "blockers": [],
+            "candidate_sha": "a" * 40,
+            "manifest_hash": "sha256:" + "a" * 64,
+            "review_conservation_hash": "sha256:" + "b" * 64,
+            "designated_reference_review_pending": "false",
+            "usage_cost_receipt": {
+                "usage_accounting_state": "complete",
+                "pricing_state": "configured",
+                "within_cost_budget": True,
+            },
+            "release_authority": False,
+        }
+        report = build_release_gate_report(
+            *self._inputs(),
+            modality_scope=["image"],
+            multimodal_qualification=artifact,
+            multimodal_expected_bindings={
+                "candidate_sha": artifact["candidate_sha"],
+                "manifest_hash": artifact["manifest_hash"],
+                "review_conservation_hash": artifact[
+                    "review_conservation_hash"
+                ],
+            },
+        )
+        blocker = next(
+            item
+            for item in report["blockers"]
+            if item["type"] == "multimodal_qualification_gate"
+        )
+        self.assertIn(
+            "multimodal designated-reference review state is malformed",
+            blocker["gaps"],
+        )
+
+    def test_mixed_type_expected_binding_keys_are_blocked_without_crashing(self):
+        artifact = {
+            "qualification_state": "qualified_for_review",
+            "blockers": [],
+            "candidate_sha": "a" * 40,
+            "manifest_hash": "sha256:" + "a" * 64,
+            "review_conservation_hash": "sha256:" + "b" * 64,
+            "usage_cost_receipt": {
+                "usage_accounting_state": "complete",
+                "pricing_state": "configured",
+                "within_cost_budget": True,
+            },
+            "release_authority": False,
+        }
+        report = build_release_gate_report(
+            *self._inputs(),
+            modality_scope=["image"],
+            multimodal_qualification=artifact,
+            multimodal_expected_bindings={
+                "candidate_sha": artifact["candidate_sha"],
+                "manifest_hash": artifact["manifest_hash"],
+                "review_conservation_hash": artifact[
+                    "review_conservation_hash"
+                ],
+                1: "invalid",
+            },
+        )
+        blocker = next(
+            item
+            for item in report["blockers"]
+            if item["type"] == "multimodal_qualification_gate"
+        )
+        self.assertEqual(report["decision"], "block")
+        self.assertIn(
+            "multimodal expected bindings are malformed",
+            blocker["gaps"],
         )

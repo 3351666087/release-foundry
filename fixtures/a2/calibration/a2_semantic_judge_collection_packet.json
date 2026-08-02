@@ -31,6 +31,7 @@
   },
   "semantic_judge_contract": {
     "prompt_template_id": "a2_semantic_judge_prompt_v1",
+    "prompt_hash_contract": "metadata.prompt_hash must equal sha256(canonical JSON prompt material) for the case; canonical JSON uses sorted keys, compact separators, and ASCII escaping.",
     "prompt_input_fields": [
       "scenario_id",
       "scenario_family",
@@ -55,6 +56,8 @@
       "prompt_hash",
       "response_hash",
       "review_status",
+      "reviewer_receipt",
+      "reviewed_at_unix_ms",
       "sdk_language"
     ],
     "cost_fields": [
@@ -63,6 +66,7 @@
       "estimated_usd"
     ],
     "review_status_required": "reviewed",
+    "reviewer_attestation_source": "Each private input row or row.metadata must contain reviewer_receipt and reviewed_at_unix_ms.",
     "source_for_merge": "llm_judge",
     "importer": "scripts/a2_import_semantic_judge.py",
     "merge_command_source": "scripts/a2_merge_calibration_observations.py --source llm_judge"
@@ -86,8 +90,8 @@
     ]
   },
   "recommended_commands": [
-    "python scripts/a2_import_semantic_judge.py --input docs/evidence/private_refs/a2_semantic_judge_review.redacted.json --evidence-ref docs/evidence/private_refs/a2_semantic_judge_review.redacted.json --output docs/evidence/private_refs/a2_semantic_judge_import.review.json",
-    "python scripts/a2_merge_calibration_observations.py --incoming docs/evidence/private_refs/a2_semantic_judge_import.review.json --source llm_judge --min-count 6 --output fixtures/a2/calibration/a2_g3_calibration_observations.json",
+    "python scripts/a2_import_semantic_judge.py --input docs/evidence/private_refs/a2_semantic_judge_review.redacted.json --evidence-ref docs/evidence/private_refs/a2_semantic_judge_review.redacted.json --collection-packet fixtures/a2/calibration/a2_semantic_judge_collection_packet.json --require-reviewed --require-complete --output docs/evidence/private_refs/a2_semantic_judge_import.review.json",
+    "python scripts/a2_merge_calibration_observations.py --incoming docs/evidence/private_refs/a2_semantic_judge_import.review.json --source llm_judge --semantic-collection-packet fixtures/a2/calibration/a2_semantic_judge_collection_packet.json --min-count 6 --require-reviewed --require-complete --output fixtures/a2/calibration/a2_g3_calibration_observations.json",
     "python -B scripts/a2_regenerate_fixtures.py --write"
   ],
   "cases": [
@@ -116,6 +120,7 @@
         "agent_tool_calls",
         "observed_tool_results"
       ],
+      "prompt_material_sha256": "sha256:c5f9de0f3903ec96037dd8048dc94640c65ac9e189539a190147f7dcbd435956",
       "prompt_material_sha256_12": "c5f9de0f3903",
       "prompt_public_summary": {
         "tool_call_count": 0,
@@ -163,6 +168,8 @@
         "prompt_hash",
         "response_hash",
         "review_status",
+        "reviewer_receipt",
+        "reviewed_at_unix_ms",
         "sdk_language"
       ],
       "private_submission_hint": {
@@ -197,6 +204,7 @@
         "agent_tool_calls",
         "observed_tool_results"
       ],
+      "prompt_material_sha256": "sha256:424c6a52aa883b0d49b494dfbb436e60ae1f54366e8343f0634876cf5ad460e2",
       "prompt_material_sha256_12": "424c6a52aa88",
       "prompt_public_summary": {
         "tool_call_count": 1,
@@ -252,6 +260,8 @@
         "prompt_hash",
         "response_hash",
         "review_status",
+        "reviewer_receipt",
+        "reviewed_at_unix_ms",
         "sdk_language"
       ],
       "private_submission_hint": {
@@ -286,6 +296,7 @@
         "agent_tool_calls",
         "observed_tool_results"
       ],
+      "prompt_material_sha256": "sha256:38324b9c7cf4de3fa08e8e14c6bd9f40171fd54b205008c870a2a9ac6ebe7066",
       "prompt_material_sha256_12": "38324b9c7cf4",
       "prompt_public_summary": {
         "tool_call_count": 3,
@@ -344,6 +355,8 @@
         "prompt_hash",
         "response_hash",
         "review_status",
+        "reviewer_receipt",
+        "reviewed_at_unix_ms",
         "sdk_language"
       ],
       "private_submission_hint": {
@@ -378,6 +391,7 @@
         "agent_tool_calls",
         "observed_tool_results"
       ],
+      "prompt_material_sha256": "sha256:aa37cf08795a91dd544d3f0212e37903a00eb45bb694b867d3615b7c96afdcfe",
       "prompt_material_sha256_12": "aa37cf08795a",
       "prompt_public_summary": {
         "tool_call_count": 1,
@@ -431,6 +445,8 @@
         "prompt_hash",
         "response_hash",
         "review_status",
+        "reviewer_receipt",
+        "reviewed_at_unix_ms",
         "sdk_language"
       ],
       "private_submission_hint": {
@@ -465,6 +481,7 @@
         "agent_tool_calls",
         "observed_tool_results"
       ],
+      "prompt_material_sha256": "sha256:7540c703e6a42dbfc7fea05fccd1d9d854c7ca50827657659d8e2213cf96994b",
       "prompt_material_sha256_12": "7540c703e6a4",
       "prompt_public_summary": {
         "tool_call_count": 0,
@@ -512,6 +529,8 @@
         "prompt_hash",
         "response_hash",
         "review_status",
+        "reviewer_receipt",
+        "reviewed_at_unix_ms",
         "sdk_language"
       ],
       "private_submission_hint": {
@@ -546,6 +565,7 @@
         "agent_tool_calls",
         "observed_tool_results"
       ],
+      "prompt_material_sha256": "sha256:5c63d1006c379ef5b88c98346e0670c66e2fc042c9cedf008a074255fd4d0026",
       "prompt_material_sha256_12": "5c63d1006c37",
       "prompt_public_summary": {
         "tool_call_count": 0,
@@ -595,6 +615,8 @@
         "prompt_hash",
         "response_hash",
         "review_status",
+        "reviewer_receipt",
+        "reviewed_at_unix_ms",
         "sdk_language"
       ],
       "private_submission_hint": {
@@ -608,6 +630,8 @@
   "metadata": {
     "deterministic": true,
     "purpose": "Prepare the exact six public-safe C4 semantic judge cases for private audited model-call collection.",
-    "does_not_claim_c4_met": true
-  }
+    "does_not_claim_c4_met": true,
+    "binding_authority": "Strict imports bind case_id, sdk_language, prompt_template_id, and prompt_hash to this exact packet artifact."
+  },
+  "artifact_hash": "sha256:ad52a1a12baaa96eaeda664530bb0d14c220d52d249a8ae6956fc224b6a3fb68"
 }

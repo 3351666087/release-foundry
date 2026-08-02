@@ -310,6 +310,14 @@ func (server *HTTPServer) completeIdentityOAuthLink(writer http.ResponseWriter, 
 }
 
 func (server *HTTPServer) handleIdentityRegistrationBegin(writer http.ResponseWriter, request *http.Request) {
+	if server.identityVerification != nil {
+		server.handleIdentityBrowserEmailBegin(
+			writer,
+			request,
+			IdentityVerificationRegistration,
+		)
+		return
+	}
 	if !requireIdentityMethod(writer, request, http.MethodPost) {
 		return
 	}
@@ -340,6 +348,14 @@ func (server *HTTPServer) handleIdentityRegistrationBegin(writer http.ResponseWr
 }
 
 func (server *HTTPServer) handleIdentityRegistrationComplete(writer http.ResponseWriter, request *http.Request) {
+	if server.identityVerification != nil {
+		server.handleIdentityBrowserEmailComplete(
+			writer,
+			request,
+			IdentityVerificationRegistration,
+		)
+		return
+	}
 	if !requireIdentityMethod(writer, request, http.MethodPost) {
 		return
 	}
@@ -371,6 +387,14 @@ func (server *HTTPServer) handleIdentityRegistrationComplete(writer http.Respons
 }
 
 func (server *HTTPServer) handleIdentityLoginBegin(writer http.ResponseWriter, request *http.Request) {
+	if server.identityVerification != nil {
+		server.handleIdentityBrowserEmailBegin(
+			writer,
+			request,
+			IdentityVerificationLogin,
+		)
+		return
+	}
 	if !requireIdentityMethod(writer, request, http.MethodPost) {
 		return
 	}
@@ -401,6 +425,14 @@ func (server *HTTPServer) handleIdentityLoginBegin(writer http.ResponseWriter, r
 }
 
 func (server *HTTPServer) handleIdentityLoginComplete(writer http.ResponseWriter, request *http.Request) {
+	if server.identityVerification != nil {
+		server.handleIdentityBrowserEmailComplete(
+			writer,
+			request,
+			IdentityVerificationLogin,
+		)
+		return
+	}
 	if !requireIdentityMethod(writer, request, http.MethodPost) {
 		return
 	}
@@ -470,6 +502,21 @@ func (server *HTTPServer) handleIdentityMe(writer http.ResponseWriter, request *
 	if !requireIdentityMethod(writer, request, http.MethodGet) {
 		return
 	}
+	if server.identitySessions != nil && server.unifiedIdentityHTTPStore() != nil {
+		session, ok := server.resolveTrustedIdentityHTTPSession(writer, request)
+		if !ok {
+			return
+		}
+		account, err := server.unifiedIdentityHTTPStore().GetIdentityAccount(
+			request.Context(), session.AccountID,
+		)
+		if err != nil {
+			writeIdentityHTTPError(writer, err)
+			return
+		}
+		writeJSON(writer, http.StatusOK, publicIdentityAccount(account))
+		return
+	}
 	accountID, _, _, ok := server.authenticateIdentityRequest(request, false)
 	if !ok {
 		writeIdentityError(writer, http.StatusUnauthorized, "authentication_required", "authentication required")
@@ -520,6 +567,26 @@ func (server *HTTPServer) handleIdentityCredentialBind(writer http.ResponseWrite
 
 func (server *HTTPServer) handleIdentitySessionRevoke(writer http.ResponseWriter, request *http.Request) {
 	if !requireIdentityMethod(writer, request, http.MethodPost) {
+		return
+	}
+	if identitySessionCookiePresent(request, IdentitySessionCookieName) {
+		if validateIdentitySessionRefreshBrowserRequest(request) != nil {
+			writeIdentityError(writer, http.StatusForbidden, "identity_session_origin_rejected", "identity session origin was rejected")
+			return
+		}
+		session, ok := server.resolveTrustedIdentityHTTPSession(writer, request)
+		if !ok {
+			clearIdentitySessionCookies(writer)
+			return
+		}
+		revoker, ok := server.identitySessions.(IdentityHTTPSessionRevoker)
+		if !ok || revoker.RevokeIdentityHTTPSession(request.Context(), request) != nil {
+			writeIdentityError(writer, http.StatusServiceUnavailable, "identity_session_revoke_unavailable", "identity session could not be revoked")
+			return
+		}
+		clearIdentitySessionCookies(writer)
+		server.recordIdentityAudit("session.revoke", "succeeded", session.AccountID, "")
+		writeJSON(writer, http.StatusOK, JSONMap{"schema_version": IdentitySchemaVersion, "status": "revoked"})
 		return
 	}
 	accountID, sessionID, _, ok := server.authenticateIdentityRequest(request, false)

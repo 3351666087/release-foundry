@@ -28,6 +28,8 @@ func TestProviderDispatchSchemaContract(t *testing.T) {
 		"ALTER TABLE releasefoundry_provider_dispatches FORCE ROW LEVEL SECURITY",
 		"app.a1_organization_id",
 		"app.a1_project_id",
+		"tenant_id::text = NULLIF(current_setting('app.a1_organization_id', true), '')",
+		"project_id::text = NULLIF(current_setting('app.a1_project_id', true), '')",
 		"USING (",
 		"WITH CHECK (",
 	} {

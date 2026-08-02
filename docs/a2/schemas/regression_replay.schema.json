@@ -6,7 +6,9 @@
     "schema_version",
     "replay_id",
     "source_case_book",
+    "source_case_book_hash",
     "source_matrix",
+    "source_matrix_hash",
     "dataset_id",
     "replay_case_count",
     "passed_count",
@@ -16,13 +18,22 @@
     "maturity_gate",
     "release_gate_summary",
     "cases",
-    "metadata"
+    "metadata",
+    "artifact_hash"
   ],
   "properties": {
     "schema_version": { "const": "a2.regression_replay.v1" },
     "replay_id": { "type": "string" },
     "source_case_book": { "type": "string" },
+    "source_case_book_hash": {
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$"
+    },
     "source_matrix": { "type": "string" },
+    "source_matrix_hash": {
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$"
+    },
     "dataset_id": { "type": "string" },
     "replay_case_count": { "type": "integer", "minimum": 0 },
     "passed_count": { "type": "integer", "minimum": 0 },
@@ -35,7 +46,11 @@
       "type": "array",
       "items": { "$ref": "#/$defs/replay_case" }
     },
-    "metadata": { "type": "object" }
+    "metadata": { "type": "object" },
+    "artifact_hash": {
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$"
+    }
   },
   "$defs": {
     "replay_case": {

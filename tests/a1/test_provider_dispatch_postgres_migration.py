@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import re
+import shutil
 import subprocess
 import uuid
 from pathlib import Path
@@ -44,8 +45,11 @@ def _docker(
     input_text: str | None = None,
     check: bool = True,
 ) -> subprocess.CompletedProcess[str]:
+    docker = shutil.which("docker")
+    if docker is None:
+        pytest.skip("Docker CLI is unavailable for live PostgreSQL tests")
     return subprocess.run(
-        ["docker", *args],
+        [docker, *args],
         input=input_text,
         text=True,
         capture_output=True,

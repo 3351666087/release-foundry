@@ -171,6 +171,65 @@ class A2TrustedSpineTests(unittest.TestCase):
                 created_at="2026-07-11T00:00:00Z",
             )
 
+    def test_required_modalities_reject_malformed_or_unknown_values(self):
+        for required_modalities in (
+            [],
+            "image",
+            {"image": True},
+            [None],
+            ["text", None],
+            [""],
+            ["text", "unknown"],
+        ):
+            with self.subTest(required_modalities=required_modalities):
+                with self.assertRaisesRegex(ValueError, "required_modalities"):
+                    build_evidence_snapshot(
+                        {"final_response": "text only", "tool_calls": []},
+                        organization_id="org-a",
+                        tenant_id="tenant-a",
+                        workspace_id="workspace-a",
+                        project_id="project-a",
+                        environment_id="test",
+                        run_id="run-a",
+                        case_id="case-a",
+                        scenario_id="A2-S001",
+                        created_at="2026-07-11T00:00:00Z",
+                        required_modalities=required_modalities,
+                    )
+
+    def test_trace_completeness_malformed_values_fail_closed_without_crashing(self):
+        for trace_completeness in (
+            True,
+            "1",
+            float("nan"),
+            float("inf"),
+            -0.1,
+            1.1,
+            {},
+        ):
+            with self.subTest(trace_completeness=trace_completeness):
+                snapshot = build_evidence_snapshot(
+                    {
+                        "final_response": "text only",
+                        "tool_calls": [],
+                        "trace_completeness": trace_completeness,
+                    },
+                    organization_id="org-a",
+                    tenant_id="tenant-a",
+                    workspace_id="workspace-a",
+                    project_id="project-a",
+                    environment_id="test",
+                    run_id="run-a",
+                    case_id="case-a",
+                    scenario_id="A2-S001",
+                    created_at="2026-07-11T00:00:00Z",
+                )
+                self.assertEqual(snapshot["completeness"], "invalid")
+                self.assertIn(
+                    "trace_completeness_invalid",
+                    snapshot["validation_errors"],
+                )
+
     def test_a1_native_run_result_is_selected_and_validated(self):
         native_run = {
             "run_id": "run-native",

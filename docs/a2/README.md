@@ -16,6 +16,16 @@ independent, multimodal evaluation decision platform are defined in the
 repository's single strategy source:
 `docs/strategy/large-saas-a1-a2-a3-full-plan.md`.
 
+The durable 40-item A2 completion source, including the real-ReleaseFoundry candidate
+ranking, preference-pair, Reward Model, DPO/action-value, uncertainty-routing,
+active-learning, native-multimodal, and final acceptance requirements, is:
+`docs/a2/a2_endgame_acceptance_checklist.md`.
+
+The evidence-bound final presentation, including the two customer views,
+verified effects, real-ReleaseFoundry/native-multimodal boundaries, current gate state,
+and meeting speaking outline, is:
+`docs/a2/a2_final_presentation.md`.
+
 ## Current Deliverables
 
 - 20 G2 seed scenarios: `packages/scenarios/a2_g2_seed_pack.json`
@@ -31,6 +41,7 @@ repository's single strategy source:
 - Coverage report helper: `services/judge/coverage.py`
 - Calibration matrix helper: `services/judge/calibration.py`
 - Case book helper: `services/judge/casebook.py`
+- Auditable incident-candidate promotion: `promote_incident_candidates_to_case_book(...)`
 - Regression replay helper: `services/judge/regression_replay.py`
 - SDK parity helper: `services/judge/sdk_parity.py`
 - Semantic judge harness helper: `services/judge/semantic_harness.py`
@@ -169,8 +180,8 @@ The ReleaseFoundry docs expose both Python and TypeScript SDK entrypoints, so A2
 
 In plain terms, these are two official ways to reach the same Testing Platform workflow:
 
-- Python chain: `pip install releasefoundry` -> `ReleaseFoundryClient` -> `EvalRunner.from_dataset(...)` -> `run_and_deploy(...)` -> A2 consumes `AgentTurn` / `AgentResult.to_dict()` output.
-- TypeScript chain: `npm install releasefoundry` -> `new ReleaseFoundryClient(...)` -> `EvalRunner.fromDataset(...)` -> `runAndDeploy(...)` -> A2 consumes `CaseResult.agent_output` output.
+- Python chain: `pip install releasefoundry` -> `ReleaseFoundryLabsClient` -> `EvalRunner.from_dataset(...)` -> `run_and_deploy(...)` -> A2 consumes `AgentTurn` / `AgentResult.to_dict()` output.
+- TypeScript chain: `npm install releasefoundry` -> `new ReleaseFoundryLabsClient(...)` -> `EvalRunner.fromDataset(...)` -> `runAndDeploy(...)` -> A2 consumes `CaseResult.agent_output` output.
 
 A2 now generates `fixtures/a2/results/a2_sdk_parity_report.json` from `services/judge/sdk_parity.py`. The report grades the same scenario through:
 
@@ -218,7 +229,7 @@ The public-safe C4 collection packet is generated at `fixtures/a2/calibration/a2
 
 The packet intentionally does not contain raw prompts, raw model responses, API keys, or reviewer-private notes. It is readiness evidence for C4 collection, not proof that C4 is met.
 
-`scripts/a2_import_semantic_judge.py` is the bridge from reviewed private model-call summaries into the calibration matrix. It preserves provider/model, prompt and response hashes, prompt template id, cost, confidence, review status, and SDK language while redacting token-like or email-like text. The checked-in sample fixture is only an importer test shape; it is not counted as C4 live evidence.
+`scripts/a2_import_semantic_judge.py` is the bridge from reviewed private model-call summaries into the calibration matrix. It preserves provider/model, prompt and response hashes, prompt template id, cost, confidence, review status, pseudonymous reviewer receipt, review timestamp, and SDK language while redacting token-like or email-like text. Every strict input row, or its `metadata` object, must carry `reviewer_receipt: sha256:<64 lowercase hex>` and a positive integer `reviewed_at_unix_ms`. The checked-in sample fixture is only an importer test shape; it is not counted as C4 live evidence.
 
 ## Batch Plan
 
@@ -258,7 +269,7 @@ A2 now generates `fixtures/a2/results/a2_evidence_readiness_report.json` from `s
 - the public-safe evidence index contract pinned by `docs/a2/schemas/evidence_index.schema.json`,
 - the reviewed ReleaseFoundry grading import/merge commands,
 - an `releasefoundry_public_merge_gate` that says whether the reviewed ReleaseFoundry grading column is actually present in the public calibration matrix,
-- the required semantic judge review fields, including provider/model, prompt/response hashes, cost, confidence, review status, and SDK language,
+- the required semantic judge review fields, including provider/model, prompt/response hashes, cost, confidence, review status, pseudonymous reviewer receipt, positive review timestamp, and SDK language,
 - the private evidence boundary: raw prompts, raw responses, account payloads, and API keys stay under `docs/evidence/private_refs/` and are not committed.
 
 This report is readiness evidence only. It intentionally keeps C3/C4 partial until reviewed ReleaseFoundry grading observations and audited live semantic judge observations are imported. `ready_for_external_collection: true` means the workflow is ready; it does not mean C3 is met. C3 is safe to mark met only when `releasefoundry_public_merge_gate.safe_to_mark_c3_met` is true.
@@ -299,6 +310,11 @@ python scripts/a2_local_lite_check.py
 
 This profile runs only deterministic A2 fixture reproducibility and A2 unit/contract tests. It does not require `node_modules`, a browser, network access, or an ReleaseFoundry API key. Use `python scripts/a2_local_lite_check.py --plan` to print the exact checks without running them.
 
+The local-lite test step intentionally targets `tests/a2/test_contracts.py`, the
+write-free contract suite. The broader A2 test tree includes integration-style
+calibration tests that may refresh generated modality assets, so it is not part
+of this no-write profile.
+
 ## Commercial Calibration Matrix
 
 G3 also keeps a calibration matrix for comparing:
@@ -329,22 +345,28 @@ python scripts/a2_import_releasefoundry_grading.py \
   --case-map fixtures/a2/calibration/releasefoundry_grading_batch_case_map.json \
   --evidence-ref docs/evidence/private_refs/a2_releasefoundry_get_run.redacted.json \
   --review-status reviewed \
+  --reviewer-receipt "$A2_REVIEWER_RECEIPT" \
+  --reviewed-at-unix-ms "$A2_REVIEWED_AT_UNIX_MS" \
+  --require-reviewed \
+  --require-complete \
   --output docs/evidence/private_refs/a2_releasefoundry_grading_import.review.json
 ```
 
-After review, merge the imported summaries into a calibration payload:
+After review, merge the imported summaries into a calibration payload. The strict flags revalidate `review_status`, reviewer receipt, review timestamp, duplicate cases, partial coverage, extra cases, and evidence refs outside the canonical repository-relative `docs/evidence/private_refs/<file>[#case-id]` boundary:
 
 ```bash
 python scripts/a2_merge_calibration_observations.py \
   --incoming docs/evidence/private_refs/a2_releasefoundry_grading_import.review.json \
   --source releasefoundry_grading \
   --min-count 6 \
+  --require-reviewed \
+  --require-complete \
   --output fixtures/a2/calibration/a2_g3_calibration_observations.json
 ```
 
 Then refresh deterministic outputs with `python scripts/a2_regenerate_fixtures.py --write`.
 
-The import and merge commands never need the raw API key in their arguments. Raw/private API records stay under `docs/evidence/private_refs`; committed A2 fixtures should only contain reviewed summaries and evidence refs. C3 remains unsafe unless all six public `releasefoundry_grading` rows include `metadata.review_status: reviewed` and a non-empty `evidence_ref`.
+The import and merge commands never need the raw API key in their arguments. Raw/private API records stay under `docs/evidence/private_refs`; committed A2 fixtures should only contain reviewed summaries and evidence refs. C3 remains unsafe unless all six public `releasefoundry_grading` rows include `metadata.review_status: reviewed`, a canonical pseudonymous `metadata.reviewer_receipt`, a positive integer `metadata.reviewed_at_unix_ms`, and a canonical repository-relative `evidence_ref` below `docs/evidence/private_refs/`. Readiness recomputes these checks from the public matrix, so directly editing a row to say `reviewed` or inserting an uncontrolled evidence path cannot unlock C3.
 
 Reviewed semantic judge summaries use the same merge gate. Convert redacted model-call summaries into `llm_judge` observations with:
 
@@ -352,8 +374,26 @@ Reviewed semantic judge summaries use the same merge gate. Convert redacted mode
 python scripts/a2_import_semantic_judge.py \
   --input docs/evidence/private_refs/a2_semantic_judge_review.redacted.json \
   --evidence-ref docs/evidence/private_refs/a2_semantic_judge_review.redacted.json \
+  --require-reviewed \
+  --require-complete \
   --output docs/evidence/private_refs/a2_semantic_judge_import.review.json
 ```
+
+Each redacted semantic input row, or its `metadata` object, must already contain:
+
+```json
+{
+  "review_status": "reviewed",
+  "reviewer_receipt": "sha256:<64 lowercase hex>",
+  "reviewed_at_unix_ms": 1784700000000
+}
+```
+
+The importer and strict merge validate these fields again, and the C4 readiness
+gate independently rejects missing or malformed attestations, self-declared
+`unreviewed` status, boolean/non-positive timestamps, and evidence refs outside
+the canonical repository-relative `docs/evidence/private_refs/<file>[#case-id]`
+boundary.
 
 Then merge reviewed rows with:
 
@@ -362,10 +402,12 @@ python scripts/a2_merge_calibration_observations.py \
   --incoming docs/evidence/private_refs/a2_semantic_judge_import.review.json \
   --source llm_judge \
   --min-count 6 \
+  --require-reviewed \
+  --require-complete \
   --output fixtures/a2/calibration/a2_g3_calibration_observations.json
 ```
 
-The importer expects reviewed summaries, not raw prompts or raw responses. Raw/private model payloads stay under `docs/evidence/private_refs`.
+The strict importer and merge commands require exact six-case coverage, reviewed live-model metadata, both SDK languages, canonical repository-relative `docs/evidence/private_refs/<file>[#case-id]` refs, non-empty hashes, and valid cost fields. URLs, absolute paths, traversal segments, secret-like refs, and non-string refs fail closed. Raw/private model payloads stay under `docs/evidence/private_refs`.
 
 ## Case Book
 
@@ -384,6 +426,52 @@ The current seed is `sample-a2-s010-wrong-arguments`, where local A2 identifies 
 The case book now exposes a `candidate_pool` and `maturity_gate` so reviewers can see why C5 is still partial: the current calibration batch has 6 local-vs-LLM comparable cases, 1 mismatch promoted into the case book, and 6 missing ReleaseFoundry grading observations. The maturity target is 3 reviewed disagreement regressions.
 
 The replay report re-runs the seed through `grade_run` and checks that the local failure class, pass/fail status, matrix disagreement, and regression assertion are still visible. It currently reports `replay_ready: true` and `maturity_status: seed`, while `maturity_gate.ready: false` explains that 2 more reviewed replay cases are needed before C5 can be called mature.
+
+Production incident candidates follow a separate, explicit promotion path. They are
+not automatically counted as case-book regressions:
+
+1. `services.judge.incident_regression.build_incident_regression_candidate_report(...)`
+   creates a public-safe, replayable candidate.
+2. An owner submits a decision with `decision: approved | rejected | pending`,
+   a pseudonymous `reviewer_receipt: sha256:<64 lowercase hex>`, and a positive
+   `reviewed_at_unix_ms`.
+3. `services.judge.casebook.promote_incident_candidates_to_case_book(...)` adds
+   only explicitly approved, public-safe candidates to the case book.
+4. `services.judge.regression_replay.build_regression_replay_report(...)` replays
+   approved candidates. Missing or invalid fixtures produce a failed replay
+   record and keep the C5 release gate blocked; they do not disappear or make the
+   process pass by omission.
+
+The checked-in fixture pipeline exposes the same path as an explicit opt-in:
+
+```text
+python scripts/a2_regenerate_fixtures.py \
+  --case-book-owner-review docs/evidence/private_refs/a2_case_book_owner_review.redacted.json \
+  --write
+```
+
+The owner-review file may be either a JSON list of decisions or
+`{"decisions": [...]}`. Omitting `--case-book-owner-review` preserves the default
+seed fixtures and performs no promotion.
+
+Owner approval is an admission decision, not external quality evidence. An approved
+incident candidate may be executable in replay while C5 remains `seed` until the
+case has reviewed ReleaseFoundry grading or audited live semantic-judge evidence.
+
+### Evidence boundary
+
+| Evidence | What it can establish | What it cannot establish |
+| --- | --- | --- |
+| Deterministic local judge | A2 contract behavior, canonical failure classification, and reproducible replay of committed fixtures | ReleaseFoundry server-side grading parity, live-model semantic quality, or production availability |
+| Reviewed ReleaseFoundry grading | The reviewed server-side grading observations for the imported cases | Unobserved cases, live LLM quality, or production worker/storage reliability |
+| Audited live LLM evidence | The reviewed semantic-judge result for the recorded provider/model, prompt/response hashes, cost, confidence, and SDK-language path | ReleaseFoundry grading parity, broad production readiness, or unrecorded calls |
+| Offline/reference LLM samples | A deterministic semantic comparison fixture and a disagreement seed | Live model evidence or C4 completion |
+| Owner-review receipt | That an authorized review decision was recorded for a public-safe candidate | Correctness of the decision, external evidence, or maturity by itself |
+
+Accordingly, A2 may say that local replay is executable, that an incident candidate
+is public-safe, or that an evidence collection path is ready. It must not call the
+system commercial-ready or production-ready while the corresponding C3/C4/C5
+reviewed-evidence and operational gates remain blocked.
 
 ## Commercial Readiness Gate
 
@@ -423,7 +511,7 @@ This exits with `2` when the gate blocks release. It reads committed public fixt
 
 G1-G2 is deterministic and local. It should not depend on real ReleaseFoundry API access, LLM judge calls, or live external tools.
 
-G3 can add ReleaseFoundry server-side grading calibration after the local contract is stable. The current repo keeps deterministic tests local, while `scripts/a2_real_api_smoke.py` can run authenticated read/list API calls and write a redacted evidence summary when `RELEASEFOUNDRY_API_KEY` is provided. The committed smoke summary uses `docs/a2/schemas/real_api_smoke.schema.json`.
+G3 can add ReleaseFoundry server-side grading calibration after the local contract is stable. The current repo keeps deterministic tests local, while `scripts/a2_real_api_smoke.py` can run authenticated read/list API calls and write a redacted evidence summary when `RELEASEFOUNDRY_LABS_API_KEY` is provided. The committed smoke summary uses `docs/a2/schemas/real_api_smoke.schema.json`.
 
 After private A1/A2 API probes are recorded under ignored `docs/evidence/private_refs/`, refresh the public-safe evidence index with:
 

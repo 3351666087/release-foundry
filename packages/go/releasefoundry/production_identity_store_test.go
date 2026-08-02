@@ -882,8 +882,9 @@ func TestProductionIdentityReadinessRequiresSessionAndDeliveryReplacementContrac
 		"a1_rotate_identity_session_refresh_from_digest",
 		"a1_revoke_identity_session",
 		"a1_revoke_all_identity_sessions",
-		"a1_login_with_verified_identity_with_refresh",
-		"a1_recover_verified_identity_with_refresh",
+		"a1_register_with_verified_identity_with_refresh",
+		"a1_login_with_verified_identity_with_refresh_result",
+		"a1_recover_verified_identity_with_refresh_result",
 		"a1_claim_identity_delivery_outbox",
 		"a1_heartbeat_identity_delivery_outbox",
 		"a1_complete_identity_delivery_outbox",
@@ -905,20 +906,119 @@ func TestProductionIdentityReadinessRequiresSessionAndDeliveryReplacementContrac
 			t.Fatalf("readiness still depends on revoked runtime entrypoint %s", revoked)
 		}
 	}
+	for _, revokedExistenceCheck := range []string{
+		"AND to_regprocedure(\n      'public.a1_login_with_verified_identity_with_refresh(",
+		"AND to_regprocedure(\n      'public.a1_recover_verified_identity_with_refresh(",
+	} {
+		if strings.Contains(productionIdentityReadinessQuery, revokedExistenceCheck) {
+			t.Fatalf("readiness still depends on revoked wrapper existence %s", revokedExistenceCheck)
+		}
+	}
+}
+
+func TestProductionIdentityReadinessRequiresOAuthFirstLoginAuthority(t *testing.T) {
+	arrayAuthority := "public.a1_complete_oauth_first_login_with_refresh(" +
+		"uuid,uuid,text,text[],text[],text,text,text,text,text,text," +
+		"timestamp with time zone,timestamp with time zone,text,text,text,jsonb)"
+	scalarCompatibility := "public.a1_complete_oauth_first_login_with_refresh(" +
+		"uuid,uuid,text,text,text,text,text,text,text,text,text," +
+		"timestamp with time zone,timestamp with time zone,text,text,text,jsonb)"
+	createRuntimeTransaction := "public.a1_create_oauth_runtime_transaction(" +
+		"uuid,uuid,text,text,text,text,timestamp with time zone,timestamp with time zone)"
+
+	for _, required := range []string{
+		"to_regclass('public.oauth_first_login_operations') IS NOT NULL",
+		"to_regprocedure(\n     '" + createRuntimeTransaction + "'\n   ) IS NOT NULL",
+		"to_regprocedure(\n     '" + arrayAuthority + "'\n   ) IS NOT NULL",
+		"has_function_privilege(\n      current_user,\n      '" + arrayAuthority + "'",
+		"has_function_privilege(\n      current_user,\n      '" + createRuntimeTransaction + "'",
+		"NOT has_function_privilege(\n      'public',\n      '" + createRuntimeTransaction + "'",
+		"NOT has_function_privilege(\n      'public',\n      '" + arrayAuthority + "'",
+		"NOT has_function_privilege(\n      'public',\n      '" + scalarCompatibility + "'",
+		"NOT has_table_privilege(\n      current_user,\n      'public.oauth_runtime_transactions'",
+		"NOT has_any_column_privilege(\n      current_user,\n      'public.oauth_runtime_transactions'",
+		"NOT has_table_privilege(\n      'public',\n      'public.oauth_runtime_transactions'",
+		"NOT has_any_column_privilege(\n      'public',\n      'public.oauth_runtime_transactions'",
+		"NOT has_table_privilege(\n      current_user,\n      'public.oauth_first_login_operations'",
+		"NOT has_any_column_privilege(\n      current_user,\n      'public.oauth_first_login_operations'",
+		"NOT has_table_privilege(\n      'public',\n      'public.oauth_first_login_operations'",
+		"NOT has_any_column_privilege(\n      'public',\n      'public.oauth_first_login_operations'",
+		"c.relrowsecurity AND c.relforcerowsecurity",
+		"c.oid = to_regclass('public.oauth_runtime_transactions')",
+		"c.oid = to_regclass('public.oauth_first_login_operations')",
+		"p.oid = to_regprocedure(\n         '" + createRuntimeTransaction + "'",
+		"p.oid = to_regprocedure(\n         '" + arrayAuthority + "'",
+		"p.prosecdef",
+		"pg_get_userbyid(p.proowner) <> current_user",
+		"NOT pg_catalog.pg_has_role(current_user, p.proowner, 'MEMBER')",
+		"search_path=pg_catalog,public,pg_temp",
+	} {
+		if !strings.Contains(productionIdentityReadinessQuery, required) {
+			t.Fatalf("OAuth first-login readiness omitted %s", required)
+		}
+	}
+	if strings.Contains(
+		productionIdentityReadinessQuery,
+		"has_function_privilege(\n      current_user,\n      '"+scalarCompatibility+"'",
+	) {
+		t.Fatal("production readiness must not depend on the scalar compatibility wrapper")
+	}
 }
 
 func TestProductionIdentityReadinessEnforcesSecurityAuthorityLeastPrivilege(t *testing.T) {
+	newCoreIssuer := "public.a1_issue_identity_security_mutation_ticket(" +
+		"text,text,uuid,uuid,text,text,text,text,text,integer,text,integer," +
+		"timestamp with time zone)"
+	oldCoreIssuer := "public.a1_issue_identity_security_mutation_ticket(" +
+		"text,text,uuid,uuid,text,text,text,text,text,integer," +
+		"timestamp with time zone)"
+	newScopedIssuer := "public.a1_issue_scoped_identity_security_mutation_ticket(" +
+		"uuid,uuid,uuid,uuid,uuid,text,text,text,text,text,text,text,integer," +
+		"text,integer,timestamp with time zone)"
+	oldScopedIssuer := "public.a1_issue_scoped_identity_security_mutation_ticket(" +
+		"uuid,uuid,uuid,uuid,uuid,text,text,text,text,text,text,text,integer," +
+		"timestamp with time zone)"
+
 	for _, required := range []string{
 		"NOT has_function_privilege",
-		"a1_issue_identity_security_mutation_ticket",
+		newCoreIssuer,
+		newScopedIssuer,
+		oldCoreIssuer + "'\n   ) IS NULL",
+		oldScopedIssuer + "'\n   ) IS NULL",
+		"a1_cancel_scoped_identity_security_mutation_ticket",
 		"a1_consume_identity_security_receipt",
 		"a1_mutate_account_password",
 		"a1_begin_totp_enrollment",
 		"a1_confirm_totp_enrollment",
 		"a1_set_account_two_factor",
+		"a1_mutate_totp_recovery_lifecycle",
+		"a1_project_identity_security_processor_state",
+		"a1_project_identity_security_mutation_replay",
+		"has_function_privilege(\n      current_user,\n      " +
+			"'public.a1_project_identity_security_processor_state(uuid)'",
+		"has_function_privilege(\n      current_user,\n      " +
+			"'public.a1_project_identity_security_mutation_replay(uuid,text,text)'",
+		"NOT has_function_privilege(\n      'a1_security_ticket_issuer',\n      " +
+			"'public.a1_project_identity_security_processor_state(uuid)'",
+		"NOT has_function_privilege(\n      'a1_security_ticket_issuer',\n      " +
+			"'public.a1_project_identity_security_mutation_replay(uuid,text,text)'",
 		"NOT has_table_privilege",
 		"NOT has_any_column_privilege",
 		"identity_account_security",
+		"identity_security_receipts",
+		"identity_security_mutation_tickets",
+		"identity_security_mutation_idempotency",
+		"identity_security_ticket_issuance",
+		"'a1_security_ticket_issuer',\n               security_table.table_oid",
+		"expected_recovery_batch_digest",
+		"expected_recovery_code_count",
+		"identity_recovery_code_count_check",
+		"identity_totp_posture_check",
+		"identity_security_mutation_tickets_operation_check",
+		"identity_security_mutation_ticket_payload_check",
+		"%mfa_recovery_consume%",
+		"%mfa_recovery_rotate%",
+		"%mfa_disable%",
 		"NOT has_schema_privilege(current_user, 'public', 'CREATE')",
 		"NOT has_schema_privilege('public', 'public', 'CREATE')",
 		"NOT r.rolsuper",
@@ -935,9 +1035,17 @@ func TestProductionIdentityReadinessEnforcesSecurityAuthorityLeastPrivilege(t *t
 		"timestamp with time zone,timestamp with time zone)'",
 		"a1_execute_identity_security_mutation(text,text,text,timestamp with time zone)'",
 		"a1_bind_verified_identity_credential_authorized",
+		"a1_register_with_verified_identity_with_refresh",
+		"a1_login_with_verified_identity_with_refresh_result",
+		"a1_recover_verified_identity_with_refresh_result",
+		"identity_verification_challenges",
+		"identity_verification_receipts",
+		"identity_verification_delivery_outbox",
 		"AND NOT has_function_privilege(\n     current_user,\n     'public.a1_bind_verified_identity_credential(",
 		"OR has_function_privilege('public', function_oid, 'EXECUTE')",
-		"count(*) = 5",
+		"SELECT count(*) = 5\n        FROM pg_catalog.pg_class",
+		") = 5\n        FROM pg_catalog.pg_policies",
+		"SELECT count(*) = 7\n         FROM pg_catalog.pg_proc",
 	} {
 		if !strings.Contains(productionIdentityReadinessQuery, required) {
 			t.Fatalf("security readiness omitted %s", required)
@@ -983,6 +1091,49 @@ func TestProductionIdentityStoreResolvesOneTrustedSessionForAllInterfaces(t *tes
 	githubSession, err := store.ResolveGitHubOAuthSession(context.Background(), request)
 	if err != nil || githubSession.TenantID != "tenant-1" || githubSession.AccountID != "principal-1" {
 		t.Fatalf("GitHub session: %#v, %v", githubSession, err)
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestProductionIdentityStoreRevokesCookieSessionInsideTenantScope(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	key := []byte("01234567890123456789012345678901")
+	store, err := NewProductionIdentityStore(ProductionIdentityStoreOptions{DB: db, SessionKey: key})
+	if err != nil {
+		t.Fatal(err)
+	}
+	token := "opaque-cookie-session-token"
+	digest := store.sessionDigest(token)
+	accountID := "01c735e2-1296-4b21-86aa-57afe21da18f"
+	sessionID := "d30e4fd3-dda2-4af8-8c05-b04a1d187fcd"
+	tenantID := "11111111-1111-4111-8111-111111111111"
+	projectID := "33333333-3333-4333-8333-333333333333"
+	mock.ExpectQuery("FROM a1_authenticate_identity_session_digest").
+		WithArgs(digest).
+		WillReturnRows(sqlmock.NewRows(
+			[]string{"account", "actor", "session", "tenant", "project", "user"},
+		).AddRow(accountID, accountID, sessionID, tenantID, projectID, accountID))
+	mock.ExpectBegin()
+	mock.ExpectExec("SELECT set_config\\('statement_timeout'").
+		WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg(), tenantID, projectID, accountID).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectQuery("FROM a1_revoke_all_identity_sessions").
+		WithArgs(tenantID, projectID, accountID, digest, sqlmock.AnyArg(), sqlmock.AnyArg()).
+		WillReturnRows(sqlmock.NewRows(
+			[]string{"session_id", "rotation_generation", "outcome_code", "affected_count"},
+		).AddRow(sessionID, int64(0), "revoked_all", 1))
+	mock.ExpectCommit()
+
+	request, _ := http.NewRequest(http.MethodPost, "https://api.example.test/v1/identity/sessions/revoke", nil)
+	request.AddCookie(&http.Cookie{Name: IdentitySessionCookieName, Value: token})
+	if err := store.RevokeIdentityHTTPSession(context.Background(), request); err != nil {
+		t.Fatalf("revoke cookie session: %v", err)
 	}
 	if err := mock.ExpectationsWereMet(); err != nil {
 		t.Fatal(err)

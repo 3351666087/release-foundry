@@ -14,11 +14,15 @@ sys.path.insert(0, str(ROOT))
 from services.judge.batch_plan import build_batch_plan_report  # noqa: E402
 from services.judge.releasefoundry_collection import build_releasefoundry_grading_collection_packet  # noqa: E402
 from services.judge.calibration import build_calibration_matrix  # noqa: E402
-from services.judge.casebook import build_case_book_report  # noqa: E402
+from services.judge.casebook import (  # noqa: E402
+    build_case_book_report,
+    promote_incident_candidates_to_case_book,
+)
 from services.judge.coverage import build_coverage_report  # noqa: E402
 from services.judge.cross_lane_security import build_cross_lane_security_context  # noqa: E402
 from services.judge.evidence_readiness import build_evidence_readiness_report  # noqa: E402
 from services.judge.incident_regression import build_incident_regression_candidate_report  # noqa: E402
+from services.judge.judge_consumer_contract import build_judge_consumer_contract  # noqa: E402
 from services.judge.readiness import build_commercial_readiness_report  # noqa: E402
 from services.judge.release_gate import build_release_gate_report  # noqa: E402
 from services.judge.regression_promotion import build_regression_promotion_queue_report  # noqa: E402
@@ -44,6 +48,9 @@ DEFAULT_RESULT_DIR = Path("fixtures/a2/results")
 DEFAULT_GRADE_REPORT = DEFAULT_RESULT_DIR / "a2_g3_grade_results.json"
 DEFAULT_COVERAGE_REPORT = DEFAULT_RESULT_DIR / "a2_g3_coverage_report.json"
 DEFAULT_CALIBRATION_OBSERVATIONS = Path("fixtures/a2/calibration/a2_g3_calibration_observations.json")
+DEFAULT_RELEASEFOUNDRY_CASE_MAP = Path(
+    "fixtures/a2/calibration/releasefoundry_grading_batch_case_map.json"
+)
 DEFAULT_RELEASEFOUNDRY_GRADING_COLLECTION_PACKET = Path("fixtures/a2/calibration/a2_releasefoundry_grading_collection_packet.json")
 DEFAULT_SEMANTIC_JUDGE_COLLECTION_PACKET = Path("fixtures/a2/calibration/a2_semantic_judge_collection_packet.json")
 DEFAULT_CALIBRATION_MATRIX = DEFAULT_RESULT_DIR / "a2_g3_calibration_matrix.json"
@@ -70,6 +77,7 @@ DEFAULT_SQL_STORE = DEFAULT_RESULT_DIR / "a2_sql_store_report.json"
 DEFAULT_SCENARIO_GENERATION_BACKLOG = DEFAULT_RESULT_DIR / "a2_scenario_generation_backlog.json"
 DEFAULT_CROSS_LANE_SECURITY = DEFAULT_RESULT_DIR / "a2_cross_lane_security_context.json"
 DEFAULT_TRUSTED_SPINE_HANDOFF = DEFAULT_RESULT_DIR / "a2_trusted_spine_handoff.json"
+DEFAULT_JUDGE_CONSUMER_CONTRACT = DEFAULT_RESULT_DIR / "a2_judge_consumer_contract.json"
 
 
 def main() -> int:
@@ -90,6 +98,15 @@ def main() -> int:
     parser.add_argument("--calibration-matrix", default=DEFAULT_CALIBRATION_MATRIX.as_posix())
     parser.add_argument("--commercial-readiness", default=DEFAULT_COMMERCIAL_READINESS.as_posix())
     parser.add_argument("--case-book", default=DEFAULT_CASE_BOOK.as_posix())
+    parser.add_argument(
+        "--case-book-owner-review",
+        default=None,
+        help=(
+            "Optional JSON file containing owner review decisions. The file may "
+            "be a list or an object with a 'decisions' list. Promotion is "
+            "opt-in and does not provide external ReleaseFoundry/LLM evidence."
+        ),
+    )
     parser.add_argument("--sdk-parity", default=DEFAULT_SDK_PARITY.as_posix())
     parser.add_argument("--batch-plan", default=DEFAULT_BATCH_PLAN.as_posix())
     parser.add_argument("--semantic-harness", default=DEFAULT_SEMANTIC_HARNESS.as_posix())
@@ -111,6 +128,7 @@ def main() -> int:
     parser.add_argument("--scenario-generation-backlog", default=DEFAULT_SCENARIO_GENERATION_BACKLOG.as_posix())
     parser.add_argument("--cross-lane-security", default=DEFAULT_CROSS_LANE_SECURITY.as_posix())
     parser.add_argument("--trusted-spine-handoff", default=DEFAULT_TRUSTED_SPINE_HANDOFF.as_posix())
+    parser.add_argument("--judge-consumer-contract", default=DEFAULT_JUDGE_CONSUMER_CONTRACT.as_posix())
     args = parser.parse_args()
 
     if args.check and args.write:
@@ -130,6 +148,11 @@ def main() -> int:
         calibration_matrix_path=Path(args.calibration_matrix),
         commercial_readiness_path=Path(args.commercial_readiness),
         case_book_path=Path(args.case_book),
+        owner_review_decisions_path=(
+            Path(args.case_book_owner_review)
+            if args.case_book_owner_review
+            else None
+        ),
         sdk_parity_path=Path(args.sdk_parity),
         batch_plan_path=Path(args.batch_plan),
         semantic_harness_path=Path(args.semantic_harness),
@@ -151,6 +174,7 @@ def main() -> int:
         scenario_generation_backlog_path=Path(args.scenario_generation_backlog),
         cross_lane_security_path=Path(args.cross_lane_security),
         trusted_spine_handoff_path=Path(args.trusted_spine_handoff),
+        judge_consumer_contract_path=Path(args.judge_consumer_contract),
     )
 
     if args.check:
@@ -175,6 +199,7 @@ def generate_outputs(
     calibration_matrix_path: Path,
     commercial_readiness_path: Path,
     case_book_path: Path,
+    owner_review_decisions_path: Path | None,
     sdk_parity_path: Path,
     batch_plan_path: Path,
     semantic_harness_path: Path,
@@ -196,6 +221,7 @@ def generate_outputs(
     scenario_generation_backlog_path: Path,
     cross_lane_security_path: Path,
     trusted_spine_handoff_path: Path,
+    judge_consumer_contract_path: Path,
 ) -> dict[Path, dict[str, Any]]:
     run_fixtures = load_run_fixtures(run_dir)
     outputs: dict[Path, dict[str, Any]] = {}
@@ -215,6 +241,12 @@ def generate_outputs(
         report_id="a2_g3_grade_results",
         dataset_id="a2-g3-calibration",
     )
+    scenario_pack = json.loads(pack_path.read_text(encoding="utf-8"))
+    judge_version_registry = build_judge_version_registry(
+        scenario_pack=scenario_pack,
+        grade_report=outputs[grade_report_path],
+    )
+    outputs[judge_versions_path] = judge_version_registry
     coverage_report = build_coverage_report(
         pack_path=pack_path,
         golden_path=golden_path,
@@ -226,18 +258,34 @@ def generate_outputs(
         run_dir=run_dir,
         observations_path=calibration_observations_path,
     )
-    outputs[semantic_judge_collection_packet_path] = build_semantic_judge_collection_packet(
+    semantic_collection_packet = build_semantic_judge_collection_packet(
         pack_path=pack_path,
         run_dir=run_dir,
         observations_path=calibration_observations_path,
     )
+    releasefoundry_case_map = json.loads(
+        DEFAULT_RELEASEFOUNDRY_CASE_MAP.read_text(encoding="utf-8")
+    )
+    outputs[semantic_judge_collection_packet_path] = semantic_collection_packet
     calibration_matrix = build_calibration_matrix(
         pack_path=pack_path,
         run_dir=run_dir,
         observations_path=calibration_observations_path,
     )
     outputs[calibration_matrix_path] = calibration_matrix
+    incident_regression_candidates = build_incident_regression_candidate_report(
+        incident_summary_path,
+        pack_path=pack_path,
+    )
+    outputs[incident_regression_candidates_path] = incident_regression_candidates
     case_book = build_case_book_report(calibration_matrix)
+    if owner_review_decisions_path is not None:
+        owner_review_decisions = _load_owner_review_decisions(owner_review_decisions_path)
+        case_book = promote_incident_candidates_to_case_book(
+            case_book,
+            incident_regression_candidates,
+            owner_review_decisions,
+        )
     outputs[case_book_path] = case_book
     regression_replay = build_regression_replay_report(
         calibration_matrix,
@@ -245,11 +293,6 @@ def generate_outputs(
         pack_path=pack_path,
     )
     outputs[regression_replay_path] = regression_replay
-    incident_regression_candidates = build_incident_regression_candidate_report(
-        incident_summary_path,
-        pack_path=pack_path,
-    )
-    outputs[incident_regression_candidates_path] = incident_regression_candidates
     outputs[regression_promotion_queue_path] = build_regression_promotion_queue_report(
         case_book,
         incident_regression_candidates,
@@ -272,6 +315,7 @@ def generate_outputs(
         calibration_matrix=calibration_matrix,
         batch_plan_report=batch_plan,
         semantic_harness_report=semantic_harness,
+        semantic_collection_packet=semantic_collection_packet,
     )
     outputs[evidence_readiness_path] = evidence_readiness
     commercial_readiness = build_commercial_readiness_report(
@@ -283,6 +327,8 @@ def generate_outputs(
         semantic_harness_report=semantic_harness,
         regression_replay_report=regression_replay,
         evidence_readiness_report=evidence_readiness,
+        releasefoundry_case_map=releasefoundry_case_map,
+        semantic_collection_packet=semantic_collection_packet,
     )
     outputs[commercial_readiness_path] = commercial_readiness
     scenario_selection_profile = json.loads(scenario_selection_profile_path.read_text(encoding="utf-8"))
@@ -291,13 +337,16 @@ def generate_outputs(
         pack_path=pack_path,
     )
     outputs[scenario_selection_path] = scenario_selection
+    a1_evidence_index = _load_optional_object(a1_evidence_index_path)
     release_gate = build_release_gate_report(
         commercial_readiness,
         evidence_readiness,
         calibration_matrix,
         regression_replay,
         scenario_selection,
-        _load_optional_object(a1_evidence_index_path),
+        a1_evidence_index,
+        judge_version_registry=judge_version_registry,
+        case_book_report=case_book,
     )
     outputs[release_gate_path] = release_gate
     outputs[release_unblock_checklist_path] = build_release_unblock_checklist(
@@ -305,8 +354,21 @@ def generate_outputs(
         evidence_readiness,
         regression_replay,
         outputs[regression_promotion_queue_path],
+        release_gate_sources={
+            "commercial_readiness_report": commercial_readiness,
+            "evidence_readiness_report": evidence_readiness,
+            "calibration_matrix": calibration_matrix,
+            "batch_plan_report": batch_plan,
+            "semantic_harness_report": semantic_harness,
+            "releasefoundry_case_map": releasefoundry_case_map,
+            "semantic_collection_packet": semantic_collection_packet,
+            "regression_replay_report": regression_replay,
+            "case_book_report": case_book,
+            "scenario_selection_report": scenario_selection,
+            "a1_evidence_index": a1_evidence_index,
+            "judge_version_registry": judge_version_registry,
+        },
     )
-    scenario_pack = json.loads(pack_path.read_text(encoding="utf-8"))
     golden_payload = json.loads(golden_path.read_text(encoding="utf-8"))
     result_persistence_manifest = build_result_persistence_manifest(
         outputs[grade_report_path],
@@ -325,11 +387,6 @@ def generate_outputs(
         },
     )
     outputs[result_persistence_manifest_path] = result_persistence_manifest
-    judge_version_registry = build_judge_version_registry(
-        scenario_pack=scenario_pack,
-        grade_report=outputs[grade_report_path],
-    )
-    outputs[judge_versions_path] = judge_version_registry
     sql_store_report = build_sql_store_report(
         outputs[grade_report_path],
         calibration_matrix,
@@ -358,6 +415,7 @@ def generate_outputs(
         media_grade,
         release_gate,
     )
+    outputs[judge_consumer_contract_path] = build_judge_consumer_contract()
     release_policy_config = json.loads(release_policy_config_path.read_text(encoding="utf-8"))
     outputs[saas_control_plane_path] = build_saas_control_plane_report(
         grade_report=outputs[grade_report_path],
@@ -400,6 +458,21 @@ def _load_optional_object(path: Path) -> dict[str, Any] | None:
         return None
     value = json.loads(path.read_text(encoding="utf-8"))
     return value if isinstance(value, dict) else None
+
+
+def _load_owner_review_decisions(path: Path) -> list[dict[str, Any]]:
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    if isinstance(payload, list):
+        decisions = payload
+    elif isinstance(payload, dict) and isinstance(payload.get("decisions"), list):
+        decisions = payload["decisions"]
+    else:
+        raise ValueError(
+            "owner review file must be a JSON list or an object with a 'decisions' list"
+        )
+    if any(not isinstance(decision, dict) for decision in decisions):
+        raise TypeError("owner review decisions must be JSON objects")
+    return decisions
 
 
 def check_outputs(outputs: dict[Path, dict[str, Any]]) -> int:

@@ -126,6 +126,59 @@ class HumanReviewStoreTests(unittest.TestCase):
                 now="2026-07-12T00:00:20Z",
             )
 
+    def test_preference_learning_purposes_require_completed_human_review(self):
+        purposes_and_outcomes = (
+            ("reward_model_training", "confirm", None),
+            ("preference_optimization", "overturn", "human"),
+            ("action_value_training", "confirm", None),
+        )
+
+        for index, (purpose, outcome, superseding_record_id) in enumerate(
+            purposes_and_outcomes, start=1
+        ):
+            with self.subTest(purpose=purpose):
+                review = open_review_case(
+                    self.db,
+                    scope=SCOPE,
+                    record_id="machine",
+                    reason_code=f"learning_{purpose}",
+                    created_at=f"2026-07-12T00:0{index}:00Z",
+                )
+                lease = claim_review_case(
+                    self.db,
+                    review_id=review["review_id"],
+                    scope=SCOPE,
+                    reviewer_id_hash=f"reviewer-{index}",
+                    now=f"2026-07-12T00:1{index}:00Z",
+                )
+                result = submit_review(
+                    self.db,
+                    lease=lease,
+                    scope=SCOPE,
+                    outcome=outcome,
+                    reason_code="human_reviewed",
+                    superseding_record_id=superseding_record_id,
+                    submitted_at=f"2026-07-12T00:1{index}:30Z",
+                    learning={
+                        "consent_id_hash": f"consent-{purpose}",
+                        "purpose": purpose,
+                        "lineage_hash": f"lineage-{purpose}",
+                        "residency": "cn",
+                        "retention_until": "2027-01-01T00:00:00Z",
+                        "deletion_key_hash": f"delete-{purpose}",
+                    },
+                )
+
+                self.assertEqual(result["status"], "completed")
+                self.assertIsNotNone(result["learning_candidate"])
+                candidate = self.db.execute(
+                    "SELECT * FROM a2_learning_candidates WHERE candidate_id = ?",
+                    (result["learning_candidate"]["candidate_id"],),
+                ).fetchone()
+                self.assertEqual(candidate["purpose"], purpose)
+                self.assertEqual(candidate["status"], "eligible")
+                self.assertEqual(candidate["cross_tenant_allowed"], 0)
+
     def test_escalation_cannot_be_used_as_learning_label(self):
         review = self._open()
         lease = claim_review_case(
@@ -236,6 +289,104 @@ class HumanReviewStoreTests(unittest.TestCase):
             build_review_resolution_handoff(
                 self.db, event_id=retry["event_id"], scope=wrong_scope
             )
+
+    def test_review_resolution_outbox_compares_timezone_offsets_by_instant(self):
+        review = self._open()
+        lease = claim_review_case(
+            self.db,
+            review_id=review["review_id"],
+            scope=SCOPE,
+            reviewer_id_hash="reviewer",
+            now="2026-07-12T00:00:00Z",
+        )
+        submit_review(
+            self.db,
+            lease=lease,
+            scope=SCOPE,
+            outcome="confirm",
+            reason_code="agreed",
+            submitted_at="2026-07-12T00:00:10Z",
+        )
+        event_id = self.db.execute(
+            "SELECT event_id FROM a2_review_resolution_outbox WHERE review_id = ?",
+            (review["review_id"],),
+        ).fetchone()["event_id"]
+        self.db.execute(
+            """
+            UPDATE a2_review_resolution_outbox
+            SET available_at = ?, created_at = ?
+            WHERE event_id = ?
+            """,
+            (
+                "2026-07-12T00:01:00-05:00",
+                "2026-07-12T00:00:00-05:00",
+                event_id,
+            ),
+        )
+        self.db.commit()
+
+        self.assertIsNone(
+            claim_review_resolution_outbox(
+                self.db,
+                worker_id="dispatcher",
+                now="2026-07-12T05:00:59Z",
+            )
+        )
+        claimed = claim_review_resolution_outbox(
+            self.db,
+            worker_id="dispatcher",
+            now="2026-07-12T05:01:00Z",
+        )
+        self.assertEqual(claimed["event_id"], event_id)
+
+    def test_review_resolution_outbox_rejects_invalid_or_past_retry_time(self):
+        review = self._open()
+        lease = claim_review_case(
+            self.db,
+            review_id=review["review_id"],
+            scope=SCOPE,
+            reviewer_id_hash="reviewer",
+            now="2026-07-12T00:00:00Z",
+        )
+        submit_review(
+            self.db,
+            lease=lease,
+            scope=SCOPE,
+            outcome="confirm",
+            reason_code="agreed",
+            submitted_at="2026-07-12T00:00:10Z",
+        )
+        claimed = claim_review_resolution_outbox(
+            self.db,
+            worker_id="dispatcher",
+            now="2026-07-12T00:00:20Z",
+        )
+        with self.assertRaisesRegex(ValueError, "timezone-aware"):
+            settle_review_resolution_outbox(
+                self.db,
+                event_id=claimed["event_id"],
+                worker_id="dispatcher",
+                lease_generation=claimed["lease_generation"],
+                settled_at="2026-07-12T00:00:30Z",
+                outcome="retry",
+                retry_at="2026-07-12T00:01:00",
+            )
+        with self.assertRaisesRegex(ValueError, "later"):
+            settle_review_resolution_outbox(
+                self.db,
+                event_id=claimed["event_id"],
+                worker_id="dispatcher",
+                lease_generation=claimed["lease_generation"],
+                settled_at="2026-07-12T00:00:30Z",
+                outcome="retry",
+                retry_at="2026-07-12T00:00:29Z",
+            )
+        row = self.db.execute(
+            "SELECT delivery_status, lease_owner FROM a2_review_resolution_outbox WHERE event_id = ?",
+            (claimed["event_id"],),
+        ).fetchone()
+        self.assertEqual(row["delivery_status"], "leased")
+        self.assertEqual(row["lease_owner"], "dispatcher")
 
     def test_dead_letter_tamper_and_arbitration_handoff_fail_closed(self):
         review = open_review_case(
@@ -498,6 +649,97 @@ class HumanReviewStoreTests(unittest.TestCase):
                 arbitrator_id_hash="other-arb", arbitrator_role="release_arbitrator",
                 final_outcome="confirm", resolved_at="2026-07-12T00:07:00Z",
             )
+
+    def test_review_timestamps_are_timezone_aware_and_canonical(self):
+        with self.assertRaisesRegex(ValueError, "timezone-aware"):
+            open_review_case(
+                self.db,
+                scope=SCOPE,
+                record_id="machine",
+                reason_code="timestamp_validation",
+                created_at="2026-07-12T00:00:00",
+            )
+        self.assertEqual(
+            self.db.execute("SELECT COUNT(*) FROM a2_review_cases").fetchone()[0],
+            0,
+        )
+
+        review = open_review_case(
+            self.db,
+            scope=SCOPE,
+            record_id="machine",
+            reason_code="timestamp_validation",
+            created_at="2026-07-12T08:00:00+08:00",
+        )
+        stored = self.db.execute(
+            """
+            SELECT status, created_at, updated_at
+            FROM a2_review_cases
+            WHERE review_id = ?
+            """,
+            (review["review_id"],),
+        ).fetchone()
+        self.assertEqual(stored["created_at"], "2026-07-12T00:00:00Z")
+        self.assertEqual(stored["updated_at"], "2026-07-12T00:00:00Z")
+
+        with self.assertRaisesRegex(ValueError, "timezone-aware"):
+            claim_review_case(
+                self.db,
+                review_id=review["review_id"],
+                scope=SCOPE,
+                reviewer_id_hash="reviewer",
+                now="2026-07-12T00:01:00",
+            )
+        self.assertEqual(
+            self.db.execute(
+                "SELECT status FROM a2_review_cases WHERE review_id = ?",
+                (review["review_id"],),
+            ).fetchone()["status"],
+            "open",
+        )
+
+        lease = claim_review_case(
+            self.db,
+            review_id=review["review_id"],
+            scope=SCOPE,
+            reviewer_id_hash="reviewer",
+            now="2026-07-12T08:01:00+08:00",
+        )
+        self.assertEqual(lease["lease_expires_at"], "2026-07-12T00:06:00Z")
+        with self.assertRaisesRegex(ValueError, "timezone-aware"):
+            submit_review(
+                self.db,
+                lease=lease,
+                scope=SCOPE,
+                outcome="confirm",
+                reason_code="agree",
+                submitted_at="2026-07-12T00:02:00",
+            )
+        self.assertEqual(
+            self.db.execute("SELECT COUNT(*) FROM a2_review_events").fetchone()[0],
+            0,
+        )
+        self.assertEqual(
+            self.db.execute(
+                "SELECT status FROM a2_review_cases WHERE review_id = ?",
+                (review["review_id"],),
+            ).fetchone()["status"],
+            "leased",
+        )
+
+        result = submit_review(
+            self.db,
+            lease=lease,
+            scope=SCOPE,
+            outcome="confirm",
+            reason_code="agree",
+            submitted_at="2026-07-12T08:02:00+08:00",
+        )
+        self.assertEqual(result["status"], "completed")
+        resolution = get_authoritative_review_resolution(
+            self.db, review_id=review["review_id"], scope=SCOPE
+        )
+        self.assertEqual(resolution["resolved_at"], "2026-07-12T00:02:00Z")
 
     def _copy_decisions(self, connection):
         for record_id, decision in (("machine", "block"), ("human", "allow")):

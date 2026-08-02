@@ -4,7 +4,7 @@
 
 - Candidate: `a3-golden-agent@0.2.0-rc.3`
 - A1 source commit: `1d292047e991995fdf52f0545ffff410ee19a171`
-- A2 authority implementation: `d3529c356e49ce8502c050f0dad44020031ee0dd`
+- A2 authority implementation: `e21ebcb1b09b2a709f5381e02f89933477453d82`
 - A1 run: `a3-golden-20260720-003`
 - Evidence release version: `0.2.0-rc.3`
 - A1 evidence bundle: `sha256:3240e097cc4e793520d9bbb0b2a600081a5440c751bf842cbe3b8cc9e495cd9f`
@@ -37,9 +37,9 @@ Decision Records into one append-only ledger.
 - Direct-answer snapshot: `complete`
 - Required-web-tool snapshot: `complete`
 - Media-pipeline snapshot: `evidence_missing`
-- Decision Ledger head: `sha256:bc608df9825ea316b374797ef76b4921bff4f6cee1943600d0297783e6be6303`
-- Decision Ledger hash: `sha256:5755f8f1dc03b1b09e43acac60a38a6b5f629cf1b8ba830c54b77e994bca9672`
-- Trusted Spine bundle hash: `sha256:48bba3c6a956fa4d771e69667f2b75597f828ea96fe036a18671b158c4bbc9d6`
+- Decision Ledger head: `sha256:93343a7920b06dc0f232aee7b3eb82b793010ca8c2061043682b4e7ebc088797`
+- Decision Ledger hash: `sha256:a6506f2f703a469bb4396c34ffe9a4dd840ebb2c63d810702811a8d0cdfd88eb`
+- Trusted Spine bundle hash: `sha256:b1cbc58868a5450b140668d0729b5b46a7882470c05f3e172a1e1c086d122b40`
 - Authoritative A2 decision: `block`
 
 The media case contains hashed image artifacts and the expected Tool Calls,
@@ -75,7 +75,7 @@ A3 must consume these exact A2 values without recalculating them:
 | --- | --- |
 | `candidate_id` | `a3-golden-agent@0.2.0-rc.3` |
 | `run_id` | `a3-golden-20260720-003` |
-| `consumed_decision_hash` | `sha256:bc608df9825ea316b374797ef76b4921bff4f6cee1943600d0297783e6be6303` |
+| `consumed_decision_hash` | `sha256:93343a7920b06dc0f232aee7b3eb82b793010ca8c2061043682b4e7ebc088797` |
 | `consumed_grades_hash` | `sha256:ffeba9ab8d7a2ccfb26ca8e135448cc9a2e6c8ead5b49837f77e5e73606a5304` |
 
 The current shared identity intentionally remains `blocked` with

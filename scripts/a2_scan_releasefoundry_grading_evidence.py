@@ -183,14 +183,14 @@ def _recommended_commands(
     if not complete_files:
         return [
             "Combine the matched private run records into one reviewed JSON payload before importing.",
-            "python scripts/a2_import_releasefoundry_grading.py --input docs/evidence/private_refs/a2_releasefoundry_get_run.redacted.json --case-map fixtures/a2/calibration/releasefoundry_grading_batch_case_map.json --evidence-ref docs/evidence/private_refs/a2_releasefoundry_get_run.redacted.json --review-status reviewed --output docs/evidence/private_refs/a2_releasefoundry_grading_import.review.json",
-            f"python scripts/a2_merge_calibration_observations.py --incoming docs/evidence/private_refs/a2_releasefoundry_grading_import.review.json --source releasefoundry_grading --min-count {expected_count} --output fixtures/a2/calibration/a2_g3_calibration_observations.json",
+            "python scripts/a2_import_releasefoundry_grading.py --input docs/evidence/private_refs/a2_releasefoundry_get_run.redacted.json --case-map fixtures/a2/calibration/releasefoundry_grading_batch_case_map.json --identity-file docs/evidence/private_refs/a2_releasefoundry_dataset_identity.private.json --identity-receipt docs/evidence/a2_releasefoundry_dataset_identity_receipt.json --evidence-ref docs/evidence/private_refs/a2_releasefoundry_get_run.redacted.json --review-status reviewed --reviewer-receipt \"$A2_REVIEWER_RECEIPT\" --reviewed-at-unix-ms \"$A2_REVIEWED_AT_UNIX_MS\" --require-reviewed --require-complete --output docs/evidence/private_refs/a2_releasefoundry_grading_import.review.json",
+            f"python scripts/a2_merge_calibration_observations.py --incoming docs/evidence/private_refs/a2_releasefoundry_grading_import.review.json --source releasefoundry_grading --min-count {expected_count} --require-reviewed --require-complete --output fixtures/a2/calibration/a2_g3_calibration_observations.json",
             "python scripts/a2_regenerate_fixtures.py --write",
         ]
     evidence_ref = complete_files[0]["evidence_ref"]
     return [
-        f"python scripts/a2_import_releasefoundry_grading.py --input {evidence_ref} --case-map {_display_path(case_map_path)} --evidence-ref {evidence_ref} --review-status reviewed --output docs/evidence/private_refs/a2_releasefoundry_grading_import.review.json",
-        f"python scripts/a2_merge_calibration_observations.py --incoming docs/evidence/private_refs/a2_releasefoundry_grading_import.review.json --source releasefoundry_grading --min-count {expected_count} --output fixtures/a2/calibration/a2_g3_calibration_observations.json",
+            f"python scripts/a2_import_releasefoundry_grading.py --input {evidence_ref} --case-map {_display_path(case_map_path)} --identity-file docs/evidence/private_refs/a2_releasefoundry_dataset_identity.private.json --identity-receipt docs/evidence/a2_releasefoundry_dataset_identity_receipt.json --evidence-ref {evidence_ref} --review-status reviewed --reviewer-receipt \"$A2_REVIEWER_RECEIPT\" --reviewed-at-unix-ms \"$A2_REVIEWED_AT_UNIX_MS\" --require-reviewed --require-complete --output docs/evidence/private_refs/a2_releasefoundry_grading_import.review.json",
+        f"python scripts/a2_merge_calibration_observations.py --incoming docs/evidence/private_refs/a2_releasefoundry_grading_import.review.json --source releasefoundry_grading --min-count {expected_count} --require-reviewed --require-complete --output fixtures/a2/calibration/a2_g3_calibration_observations.json",
         "python scripts/a2_regenerate_fixtures.py --write",
     ]
 

@@ -50,6 +50,7 @@
       "case_id": "sample-a2-s041-poor-retry-recovery",
       "scenario_id": "A2-S041",
       "fixture_ref": "fixtures/a2/runs/a2_s041_poor_retry_recovery.json",
+      "fixture_sha256": "sha256:ac14e62391582c32a6e1ddc9d5d3f9ebba622d72aa0844c949b0b2dc151ede8d",
       "status": "candidate",
       "severity": "high",
       "source": "production_incident",
@@ -129,5 +130,6 @@
     "does_not_execute_live_calls": true,
     "does_not_read_private_evidence": true,
     "candidate_policy": "Candidates require case-book owner review and reviewed external evidence before C5 maturity."
-  }
+  },
+  "artifact_hash": "sha256:6fe56015f768e6d65bead048e04a8546938050a65cdc1d5087017d8a34767fe9"
 }

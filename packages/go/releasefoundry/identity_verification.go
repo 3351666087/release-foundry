@@ -31,9 +31,10 @@ const (
 type IdentityVerificationPurpose string
 
 const (
-	IdentityVerificationBinding  IdentityVerificationPurpose = "binding"
-	IdentityVerificationLogin    IdentityVerificationPurpose = "login"
-	IdentityVerificationRecovery IdentityVerificationPurpose = "recovery"
+	IdentityVerificationRegistration IdentityVerificationPurpose = "registration"
+	IdentityVerificationBinding      IdentityVerificationPurpose = "binding"
+	IdentityVerificationLogin        IdentityVerificationPurpose = "login"
+	IdentityVerificationRecovery     IdentityVerificationPurpose = "recovery"
 )
 
 type IdentityVerificationChannel string
@@ -615,9 +616,10 @@ func (service *IdentityVerificationService) Start(
 		return IdentityVerificationChallengeDTO{}, err
 	}
 	_, productionCoordinator := service.transactionCoordinator.(ProductionIdentityVerificationTransactionCoordinator)
-	if purpose != IdentityVerificationBinding && !productionCoordinator {
+	if !productionCoordinator &&
+		(purpose == IdentityVerificationLogin || purpose == IdentityVerificationRecovery) {
 		if accountID == "" {
-			verificationErr := IdentityVerificationError{Code: "account_binding_required", Message: "login and recovery verification require account_id"}
+			verificationErr := IdentityVerificationError{Code: "account_binding_required", Message: "local login and recovery verification require account_id"}
 			service.appendAudit("identity.verification.start", channel, purpose, tenantID, accountID, "rejected", verificationErr.Code, now)
 			return IdentityVerificationChallengeDTO{}, verificationErr
 		}
@@ -768,9 +770,9 @@ func (service *IdentityVerificationService) Complete(
 	return result, err
 }
 
-// CompleteAndIssueSession is the trusted login/recovery boundary. Unlike the
-// public Complete method, it can return a one-use bearer receipt after the
-// durable transaction commits.
+// CompleteAndIssueSession is the trusted registration/login/recovery boundary.
+// Unlike the public Complete method, it can return a one-use bearer receipt
+// after the durable transaction commits.
 func (service *IdentityVerificationService) CompleteAndIssueSession(
 	ctx context.Context,
 	request IdentityVerificationCompleteRequest,
@@ -818,19 +820,17 @@ func (service *IdentityVerificationService) complete(
 		var created bool
 		var mutationErr error
 		switch purpose {
+		case IdentityVerificationRegistration:
+			account, credential, mutationErr = identity.CreateVerifiedAccount(ctx, CreateIdentityAccountRequest{
+				DisplayName: request.DisplayName, InitialCredential: &input,
+			})
+			created = mutationErr == nil
 		case IdentityVerificationBinding:
-			if accountID == "" {
-				account, credential, mutationErr = identity.CreateVerifiedAccount(ctx, CreateIdentityAccountRequest{
-					DisplayName: request.DisplayName, InitialCredential: &input,
-				})
-				created = mutationErr == nil
-			} else {
-				credential, created, mutationErr = identity.LinkVerifiedCredential(ctx, accountID, LinkIdentityCredentialRequest{
-					Credential: input, ActorID: request.ActorID,
-				})
-				if mutationErr == nil {
-					account, mutationErr = identity.GetAccount(ctx, accountID)
-				}
+			credential, created, mutationErr = identity.LinkVerifiedCredential(ctx, accountID, LinkIdentityCredentialRequest{
+				Credential: input, ActorID: request.ActorID,
+			})
+			if mutationErr == nil {
+				account, mutationErr = identity.GetAccount(ctx, accountID)
 			}
 		case IdentityVerificationLogin, IdentityVerificationRecovery:
 			var authenticated IdentityAuthenticationDTO
@@ -871,8 +871,10 @@ func (service *IdentityVerificationService) complete(
 	var result IdentityVerificationResultDTO
 	var receipt IdentitySessionIssuanceReceipt
 	if issueSession {
-		if purpose != IdentityVerificationLogin && purpose != IdentityVerificationRecovery {
-			err = IdentityVerificationError{Code: "session_issuance_not_applicable", Message: "session issuance requires login or recovery verification"}
+		if purpose != IdentityVerificationRegistration &&
+			purpose != IdentityVerificationLogin &&
+			purpose != IdentityVerificationRecovery {
+			err = IdentityVerificationError{Code: "session_issuance_not_applicable", Message: "session issuance requires registration, login, or recovery verification"}
 		} else if coordinator, ok := service.transactionCoordinator.(IdentityVerificationSessionTransactionCoordinator); !ok {
 			err = IdentityVerificationError{Code: "session_issuance_unavailable", Message: "identity session issuance is unavailable"}
 		} else {
@@ -880,7 +882,10 @@ func (service *IdentityVerificationService) complete(
 		}
 	} else {
 		_, productionCoordinator := service.transactionCoordinator.(ProductionIdentityVerificationTransactionCoordinator)
-		if productionCoordinator && (purpose == IdentityVerificationLogin || purpose == IdentityVerificationRecovery) {
+		if productionCoordinator &&
+			(purpose == IdentityVerificationRegistration ||
+				purpose == IdentityVerificationLogin ||
+				purpose == IdentityVerificationRecovery) {
 			err = IdentityVerificationError{Code: "session_issuance_required", Message: "trusted identity session issuance is required"}
 		} else {
 			result, err = service.transactionCoordinator.CompleteIdentityVerification(ctx, command)
@@ -1016,10 +1021,29 @@ func normalizeVerificationRequest(
 			IdentityVerificationError{Code: "invalid_tenant", Message: "tenant_id is required and must be a canonical handle"}
 	}
 	switch purpose {
-	case IdentityVerificationBinding, IdentityVerificationLogin, IdentityVerificationRecovery:
+	case IdentityVerificationRegistration:
+		if channel != IdentityVerificationEmail {
+			return channel, "", "", purpose, tenantID, accountID,
+				IdentityVerificationError{Code: "invalid_verification_channel", Message: "registration verification requires email"}
+		}
+		if accountID != "" {
+			return channel, "", "", purpose, tenantID, accountID,
+				IdentityVerificationError{Code: "registration_account_forbidden", Message: "registration verification must not include account_id"}
+		}
+	case IdentityVerificationBinding:
+		if accountID == "" {
+			return channel, "", "", purpose, tenantID, accountID,
+				IdentityVerificationError{Code: "account_binding_required", Message: "credential binding verification requires account_id"}
+		}
+	case IdentityVerificationLogin:
+	case IdentityVerificationRecovery:
+		if accountID == "" {
+			return channel, "", "", purpose, tenantID, accountID,
+				IdentityVerificationError{Code: "account_binding_required", Message: "recovery verification requires account_id"}
+		}
 	default:
 		return channel, "", "", purpose, tenantID, accountID,
-			IdentityVerificationError{Code: "invalid_verification_purpose", Message: "purpose must be binding, login, or recovery"}
+			IdentityVerificationError{Code: "invalid_verification_purpose", Message: "purpose must be registration, binding, login, or recovery"}
 	}
 	var kind IdentityCredentialKind
 	switch channel {

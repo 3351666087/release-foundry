@@ -424,12 +424,12 @@ DROP POLICY IF EXISTS releasefoundry_provider_dispatch_tenant_policy ON releasef
 DROP POLICY IF EXISTS releasefoundry_provider_dispatch_scope_policy ON releasefoundry_provider_dispatches;
 CREATE POLICY releasefoundry_provider_dispatch_scope_policy ON releasefoundry_provider_dispatches
     USING (
-        tenant_id = NULLIF(current_setting('app.a1_organization_id', true), '')
-        AND project_id = NULLIF(current_setting('app.a1_project_id', true), '')
+        tenant_id::text = NULLIF(current_setting('app.a1_organization_id', true), '')
+        AND project_id::text = NULLIF(current_setting('app.a1_project_id', true), '')
     )
     WITH CHECK (
-        tenant_id = NULLIF(current_setting('app.a1_organization_id', true), '')
-        AND project_id = NULLIF(current_setting('app.a1_project_id', true), '')
+        tenant_id::text = NULLIF(current_setting('app.a1_organization_id', true), '')
+        AND project_id::text = NULLIF(current_setting('app.a1_project_id', true), '')
     );
 `
 
@@ -1503,17 +1503,24 @@ func (repository *PostgresRepository) ListAPIKeys(tenantID, projectID string) (E
 	if err := repository.requireDB(); err != nil {
 		return Envelope[APIKeyListResult]{}, err
 	}
-	localFallback := false
-	rows, err := repository.db.QueryContext(context.Background(), `
+	// The hosted schema uses UUID tenant/project identifiers. Local and
+	// compatibility callers may use stable string identifiers, in which case
+	// CreateAPIKey stores the record in the string-keyed compatibility table.
+	localFallback := !(looksLikeUUID(tenantID) && looksLikeUUID(projectID))
+	var rows *sql.Rows
+	var err error
+	if !localFallback {
+		rows, err = repository.db.QueryContext(context.Background(), `
 SELECT id, name, key_prefix, scopes, status, created_at, last_used_at
 FROM api_keys
 WHERE organization_id::text = $1 AND project_id::text = $2
 ORDER BY created_at DESC, id
 `, tenantID, projectID)
+	}
 	if err != nil && !postgresRelationMissing(err) {
 		return Envelope[APIKeyListResult]{}, fmt.Errorf("list api keys: %w", err)
 	}
-	if postgresRelationMissing(err) {
+	if localFallback || postgresRelationMissing(err) {
 		localFallback = true
 		if err := repository.ensureLocalPostgresAPIKeySchema(context.Background()); err != nil {
 			return Envelope[APIKeyListResult]{}, err

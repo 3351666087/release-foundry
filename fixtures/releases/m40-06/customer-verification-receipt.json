@@ -10,31 +10,31 @@
   ],
   "customer_release": {
     "decision": "block_customer_agent_release",
-    "manifest_sha256": "bcad1f5acb9dbd2366cb18975cb98a81aa22c3ebc0e4f3ee8ca904a07a6f1d5f",
+    "manifest_sha256": "63345c7b80879f82cc9f414849ce36715c888b4881af18c2a27c633e81f44aec",
     "release_id": "agent-release:demo/a3-golden-agent@0.2.0-rc.3",
-    "verification_sha256": "dbb3b7cd9db746422ba416fcd5309f732a72450a0713eff02d8cb77e2f5582e1"
+    "verification_sha256": "0186fa64dbfd1878697c40a835d1a68b1006ee518ea43926a8e7068ff8311ec6"
   },
   "evidence": {
     "manifest": {
       "path": "fixtures/releases/m40-06/agent-release-demo-a3-golden-agent-0.2.0-rc.3/manifest.json",
-      "sha256": "bcad1f5acb9dbd2366cb18975cb98a81aa22c3ebc0e4f3ee8ca904a07a6f1d5f"
+      "sha256": "63345c7b80879f82cc9f414849ce36715c888b4881af18c2a27c633e81f44aec"
     },
     "verification": {
       "path": "fixtures/releases/m40-06/agent-release-demo-a3-golden-agent-0.2.0-rc.3/verification.json",
-      "sha256": "dbb3b7cd9db746422ba416fcd5309f732a72450a0713eff02d8cb77e2f5582e1"
+      "sha256": "0186fa64dbfd1878697c40a835d1a68b1006ee518ea43926a8e7068ff8311ec6"
     }
   },
-  "generated_at": "2026-07-21T05:22:47.937318Z",
+  "generated_at": "2026-08-02T15:52:44.736888Z",
   "identity_alignment": {
     "a1_candidate_source_commit": "1d292047e991995fdf52f0545ffff410ee19a171",
-    "a2_authority_commit": "d3529c356e49ce8502c050f0dad44020031ee0dd",
-    "a2_decision_ledger_head_hash": "sha256:bc608df9825ea316b374797ef76b4921bff4f6cee1943600d0297783e6be6303",
+    "a2_authority_commit": "e21ebcb1b09b2a709f5381e02f89933477453d82",
+    "a2_decision_ledger_head_hash": "sha256:93343a7920b06dc0f232aee7b3eb82b793010ca8c2061043682b4e7ebc088797",
     "a2_grades_hash": "sha256:ffeba9ab8d7a2ccfb26ca8e135448cc9a2e6c8ead5b49837f77e5e73606a5304",
-    "a3_implementation_commit": "a0b427257c5cd80fbe3394b4a406fa21f50bae37",
+    "a3_implementation_commit": "e21ebcb1b09b2a709f5381e02f89933477453d82",
     "candidate_id": "a3-golden-agent@0.2.0-rc.3",
     "evidence_release_version": "0.2.0-rc.3",
     "mismatch_reasons": [],
-    "release_package_commit": "ba805e7e087b0e4b8c79a0dd6fbcdc6f923aee01",
+    "release_package_commit": "665fa6487a76702f286a3c67f187627bb242b27b",
     "run_id": "a3-golden-20260720-003",
     "status": "passed"
   },
@@ -48,7 +48,7 @@
   "schema_version": "releasefoundry.m40_06_customer_verification_receipt.v1",
   "source": {
     "clean": true,
-    "release_package_commit": "ba805e7e087b0e4b8c79a0dd6fbcdc6f923aee01",
+    "release_package_commit": "665fa6487a76702f286a3c67f187627bb242b27b",
     "repository": "https://github.com/3351666087/release-foundry"
   }
 }

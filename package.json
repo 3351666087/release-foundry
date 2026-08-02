@@ -11,6 +11,7 @@
   "scripts": {
     "a3:delivery": "node services/report/a3_release_delivery_cli.mjs",
     "a3:github-observe": "node services/report/a3_github_observe_cli.mjs",
+    "demo:live-refund": "powershell -ExecutionPolicy Bypass -File scripts/run-live-refund-demo.ps1",
     "e2e": "playwright test",
     "test:e2e": "playwright test",
     "test:e2e:headed": "playwright test --headed",

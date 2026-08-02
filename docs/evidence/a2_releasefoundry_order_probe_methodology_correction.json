@@ -1,0 +1,70 @@
+{
+  "affected_candidate_ids": [
+    "wrong_tool_order",
+    "reverse_tool_order",
+    "missing_middle_tool"
+  ],
+  "affected_strategy_classes": [
+    "tool_call_reordering",
+    "tool_call_removal_with_positional_shift"
+  ],
+  "artifact_hash": "sha256:a02a4281bada17d3b2f6474c050f68f5ec050b71b6f43d580d2cb9fac995b4f7",
+  "c3_authority": false,
+  "c3_transition_allowed": false,
+  "claim_limits": {
+    "historical_non_order_scores_are_human_gold": false,
+    "historical_receipts_may_be_deleted": false,
+    "historical_reports_authorize_order_training_labels": false,
+    "historical_reports_establish_releasefoundry_order_blindness": false
+  },
+  "correction_status": "published",
+  "evidence_lane": "exploratory_unverified_mapping",
+  "finding": {
+    "behavior_after_fix": "The serializer consumes actual calls by position and therefore preserves reordering, omission shifts, and unexpected calls.",
+    "behavior_before_fix": "The serializer searched remaining actual calls by the expected tool name, which could reorder a perturbed trace back into expected order before submission.",
+    "corrected_harness_revision": "a2-releasefoundry-live-v5",
+    "corrected_tool_call_alignment": "positional",
+    "historical_order_probe_validity": false,
+    "historical_receipts_authentic": true,
+    "historical_service_scores_observed": true,
+    "invalidated_for_releasefoundry_order_sensitivity": true,
+    "minimum_corrected_repeat_count": 3,
+    "rerun_required": true,
+    "root_cause": "local_payload_order_normalization"
+  },
+  "generated_at": "2026-07-28T03:50:49Z",
+  "human_gold": false,
+  "human_review_required": true,
+  "human_reviewed": false,
+  "native_media_uploaded": false,
+  "notes": [
+    "This correction changes the interpretation of historical order-sensitive probes; it does not alter or erase authentic service receipts.",
+    "Historical scores remain observations of the payloads actually submitted by the old harness.",
+    "Corrected claims require fresh experiment labels and fresh non-retried create_run calls under positional tool-call alignment.",
+    "All affected evidence remains exploratory, text-projection-only, and ineligible for training or release authority."
+  ],
+  "preservation_policy": {
+    "attach_correction_in_downstream_review_packages": true,
+    "replace_only_after_corrected_receipt_bound_rerun": true,
+    "retain_original_public_reports": true,
+    "retain_original_receipts": true
+  },
+  "public_safety": {
+    "contains_api_key": false,
+    "contains_api_key_hash": false,
+    "contains_local_absolute_paths": false,
+    "contains_private_service_ids": false,
+    "contains_raw_candidate_response": false,
+    "contains_raw_prompt": false,
+    "contains_raw_tool_arguments": false
+  },
+  "release_authority": false,
+  "schema_version": "a2.releasefoundry_order_probe_methodology_correction.v1",
+  "source_stability_report": {
+    "artifact_hash": "sha256:a2877c25e96050ad4f887692b50ce16fe44ec4dfc4fd0bfe1ae6a14fc8f0911c",
+    "ref": "docs/evidence/a2_releasefoundry_sensitivity_probe_expansion_35_stability.json",
+    "sha256": "sha256:6c5e7df911159ffc81357b7425c2bd8a7a2d939117320b70b2cbbaa4eb914bd8"
+  },
+  "text_projection_only": true,
+  "training_eligible": false
+}

@@ -24,7 +24,7 @@
         "session_reached",
         "status",
         "user_id_present",
-        "user_email_sha256_12",
+        "user_email_present",
         "tenant_id_present",
         "tenant_name_present",
         "note_count"
@@ -33,7 +33,7 @@
         "session_reached": { "type": "boolean" },
         "status": { "type": "string" },
         "user_id_present": { "type": "boolean" },
-        "user_email_sha256_12": { "type": "string" },
+        "user_email_present": { "type": "boolean" },
         "tenant_id_present": { "type": "boolean" },
         "tenant_name_present": { "type": "boolean" },
         "note_count": { "type": "integer", "minimum": 0 }

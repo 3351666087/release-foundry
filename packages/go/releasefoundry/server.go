@@ -22,9 +22,14 @@ type HTTPServer struct {
 	identitySessions                   IdentityHTTPSessionResolver
 	identitySecurityTickets            IdentitySecurityTicketResolver
 	identitySecurity                   IdentitySecurityHTTPStore
+	identitySecurityService            *IdentitySecurityService
 	identityVerification               *IdentityVerificationService
 	identityVerificationResponsePolicy *IdentityVerificationResponsePolicy
 	identitySessionReceiptTransport    IdentitySessionReceiptTransport
+	identityBrowserVerificationIntents IdentityBrowserVerificationIntentTransport
+	tenancy                            TenancyHTTPStore
+	oauthFirstLoginIntents             OAuthFirstLoginIntentTransport
+	oauthFirstLogins                   map[string]*OAuthFirstLoginService
 	oauthProviders                     map[string]*OAuthService
 	githubOAuth                        *GitHubOAuthService
 	providerDispatch                   ProviderDispatchBackend
@@ -81,9 +86,14 @@ type HTTPServerOptions struct {
 	IdentitySessions                   IdentityHTTPSessionResolver
 	IdentitySecurityTickets            IdentitySecurityTicketResolver
 	IdentitySecurity                   IdentitySecurityHTTPStore
+	IdentitySecurityService            *IdentitySecurityService
 	IdentityVerification               *IdentityVerificationService
 	IdentityVerificationResponsePolicy *IdentityVerificationResponsePolicy
 	IdentitySessionReceiptTransport    IdentitySessionReceiptTransport
+	IdentityBrowserVerificationIntents IdentityBrowserVerificationIntentTransport
+	Tenancy                            TenancyHTTPStore
+	OAuthFirstLoginIntents             OAuthFirstLoginIntentTransport
+	OAuthFirstLogins                   map[string]*OAuthFirstLoginService
 	OAuthProviders                     map[string]*OAuthService
 	GitHubOAuth                        *GitHubOAuthService
 	ProviderDispatch                   ProviderDispatchBackend
@@ -113,6 +123,18 @@ func NewHTTPServerWithOptions(service ControlPlaneBackend, options HTTPServerOpt
 			continue
 		}
 		oauthProviders[normalizedProvider] = oauthService
+	}
+	oauthFirstLogins := make(
+		map[string]*OAuthFirstLoginService,
+		len(options.OAuthFirstLogins),
+	)
+	for providerName, oauthService := range options.OAuthFirstLogins {
+		normalizedProvider := strings.ToLower(strings.TrimSpace(providerName))
+		if normalizedProvider == "" || oauthService == nil ||
+			oauthService.ProviderName() != normalizedProvider {
+			continue
+		}
+		oauthFirstLogins[normalizedProvider] = oauthService
 	}
 	identity := options.IdentityService
 	oauth := options.OAuthCoordinator
@@ -150,9 +172,14 @@ func NewHTTPServerWithOptions(service ControlPlaneBackend, options HTTPServerOpt
 		identitySessions:                   options.IdentitySessions,
 		identitySecurityTickets:            options.IdentitySecurityTickets,
 		identitySecurity:                   options.IdentitySecurity,
+		identitySecurityService:            options.IdentitySecurityService,
 		identityVerification:               options.IdentityVerification,
 		identityVerificationResponsePolicy: options.IdentityVerificationResponsePolicy,
 		identitySessionReceiptTransport:    options.IdentitySessionReceiptTransport,
+		identityBrowserVerificationIntents: options.IdentityBrowserVerificationIntents,
+		tenancy:                            options.Tenancy,
+		oauthFirstLoginIntents:             options.OAuthFirstLoginIntents,
+		oauthFirstLogins:                   oauthFirstLogins,
 		oauthProviders:                     oauthProviders,
 		githubOAuth:                        options.GitHubOAuth,
 		providerDispatch:                   options.ProviderDispatch,
@@ -177,7 +204,7 @@ func (server *HTTPServer) ServeHTTP(writer http.ResponseWriter, request *http.Re
 		return
 	}
 	if request.Method == http.MethodGet && (request.URL.Path == "/openapi.json" || request.URL.Path == "/v1/openapi.json") {
-		writeJSON(writer, http.StatusOK, GoRouteManifest(server.backendName))
+		writeJSON(writer, http.StatusOK, server.goRouteManifest())
 		return
 	}
 	if request.URL.Path == "/bootstrap" || request.URL.Path == "/v1/bootstrap" {
@@ -196,6 +223,24 @@ func (server *HTTPServer) ServeHTTP(writer http.ResponseWriter, request *http.Re
 		}
 	}
 	parts := pathParts(request.URL.Path)
+	if len(parts) == 6 && parts[0] == "v1" && parts[1] == "identity" &&
+		parts[2] == "oauth" {
+		if _, configured := server.oauthFirstLogins[parts[3]]; configured &&
+			(parts[4] == "start" || parts[4] == "callback") {
+			// Reserved for a future path segment; reject rather than silently
+			// interpreting an ambiguous first-login route.
+			writeError(writer, http.StatusNotFound, "not_found", "route not found")
+			return
+		}
+	}
+	if len(parts) == 5 && parts[0] == "v1" && parts[1] == "identity" &&
+		parts[2] == "oauth" {
+		providerName := strings.ToLower(strings.TrimSpace(parts[3]))
+		if _, configured := server.oauthFirstLogins[providerName]; configured {
+			server.handleOAuthFirstLogin(writer, request, providerName, parts[4])
+			return
+		}
+	}
 	if server.handleIdentityRoute(writer, request, parts) {
 		return
 	}
@@ -209,6 +254,11 @@ func (server *HTTPServer) ServeHTTP(writer http.ResponseWriter, request *http.Re
 	}
 	if len(parts) >= 3 && parts[0] == "v1" && parts[1] == "accounts" {
 		server.handleUnifiedIdentityAccount(writer, request, parts[2], parts[3:])
+		return
+	}
+	if server.tenancy != nil && len(parts) >= 2 &&
+		parts[0] == "v1" && parts[1] == "organizations" {
+		server.handleTenancyRoute(writer, request, parts)
 		return
 	}
 	if len(parts) >= 6 && parts[0] == "v1" && parts[1] == "tenants" &&
@@ -1001,11 +1051,35 @@ func GoRouteManifest(backendName ...string) JSONMap {
 	if len(backendName) > 0 && strings.TrimSpace(backendName[0]) != "" {
 		backingStore = strings.TrimSpace(backendName[0])
 	}
-	routeEntries := GoRouteManifestEntries()
+	return goRouteManifestFromEntries(backingStore, GoRouteManifestEntries())
+}
+
+func goRouteManifestFromEntries(
+	backingStore string,
+	routeEntries []RouteManifestEntry,
+) JSONMap {
 	routes := GoRouteManifestRoutes(routeEntries)
 	scopeManifest := GoScopeManifest(routeEntries)
 	routeScopeDocs := GoRouteScopeDocs(routeEntries)
 	return JSONMap{"schema_version": ControlPlaneSchemaVersion, "manifest_schema_version": "releasefoundry.go_route_scope_manifest.v1", "routes": routes, "route_manifest": routeEntries, "scope_manifest": scopeManifest, "route_scope_docs": routeScopeDocs, "route_count": len(routeEntries), "go_owned": true, "backing_store": backingStore, "raw_payloads_included": false, "public_safe": true}
+}
+
+func (server *HTTPServer) goRouteManifest() JSONMap {
+	entries := GoRouteManifestEntries()
+	if server == nil || server.tenancy == nil {
+		filtered := make([]RouteManifestEntry, 0, len(entries))
+		for _, entry := range entries {
+			if !strings.HasPrefix(entry.Path, "/v1/organizations") {
+				filtered = append(filtered, entry)
+			}
+		}
+		entries = filtered
+	}
+	backingStore := "memory_service_v0"
+	if server != nil && strings.TrimSpace(server.backendName) != "" {
+		backingStore = strings.TrimSpace(server.backendName)
+	}
+	return goRouteManifestFromEntries(backingStore, entries)
 }
 
 func GoRouteManifestEntries() []RouteManifestEntry {
@@ -1026,6 +1100,10 @@ func GoRouteManifestEntries() []RouteManifestEntry {
 		goPublicRoute("POST", "/v1/identity/login/email/complete", "identity.login.email.complete", "identity"),
 		goPublicRoute("POST", "/v1/identity/oauth/begin", "identity.oauth.begin", "identity"),
 		goPublicRoute("POST", "/v1/identity/oauth/complete", "identity.oauth.complete", "identity"),
+		goPublicRoute("GET", "/v1/identity/oauth/google/start", "oauth.google.first_login.start", "oauth"),
+		goPublicRoute("GET", "/v1/identity/oauth/google/callback", "oauth.google.first_login.callback", "oauth"),
+		goPublicRoute("GET", "/v1/identity/oauth/github/start", "oauth.github.first_login.start", "oauth"),
+		goPublicRoute("GET", "/v1/identity/oauth/github/callback", "oauth.github.first_login.callback", "oauth"),
 		goPublicRoute("POST", "/v1/identity/mfa/complete", "identity.mfa.complete", "identity"),
 		goPublicRoute("POST", "/v1/identity/credentials/bind", "identity.credentials.bind", "identity"),
 		goPublicRoute("POST", "/v1/identity/sessions/revoke", "identity.sessions.revoke", "identity"),
@@ -1033,7 +1111,30 @@ func GoRouteManifestEntries() []RouteManifestEntry {
 		goScopedRoute("GET", "/v1/accounts/{account_id}", "identity.account.get", "identity"),
 		goScopedRoute("GET", "/v1/accounts/{account_id}/credentials", "identity.credentials.list", "identity"),
 		goScopedRoute("GET", "/v1/accounts/{account_id}/memberships", "identity.memberships.list", "identity"),
+		goScopedRoute("GET", "/v1/accounts/{account_id}/security", "identity.security.get", "identity"),
+		goScopedRoute("POST", "/v1/accounts/{account_id}/password/enroll/begin", "identity.password.enroll.begin", "identity"),
+		goScopedRoute("POST", "/v1/accounts/{account_id}/password/change/begin", "identity.password.change.begin", "identity"),
+		goScopedRoute("POST", "/v1/accounts/{account_id}/password/recover/begin", "identity.password.recover.begin", "identity"),
+		goScopedRoute("POST", "/v1/accounts/{account_id}/two-factor/enroll/begin", "identity.two_factor.enroll.begin", "identity"),
+		goScopedRoute("POST", "/v1/accounts/{account_id}/two-factor/enroll/confirm", "identity.two_factor.enroll.confirm", "identity"),
+		goScopedRoute("POST", "/v1/accounts/{account_id}/two-factor/disable", "identity.two_factor.disable", "identity"),
+		goScopedRoute("POST", "/v1/accounts/{account_id}/two-factor/recovery-codes/consume", "identity.two_factor.recovery_codes.consume", "identity"),
+		goScopedRoute("POST", "/v1/accounts/{account_id}/two-factor/recovery-codes/rotate", "identity.two_factor.recovery_codes.rotate", "identity"),
 		goScopedRoute("POST", "/v1/projects/{project_id}/accounts/{account_id}/browser-sessions/refresh", "identity.browser_session.refresh", "identity"),
+		goScopedRoute("POST", "/v1/organizations", TenancyOperationOrganizationCreate, "tenancy"),
+		goScopedRoute("GET", "/v1/organizations", TenancyOperationOrganizationList, "tenancy"),
+		goScopedRoute("POST", "/v1/organizations/{organization_id}/projects", TenancyOperationProjectCreate, "tenancy"),
+		goScopedRoute("GET", "/v1/organizations/{organization_id}/projects", TenancyOperationProjectList, "tenancy"),
+		goScopedRoute("PATCH", "/v1/organizations/{organization_id}/projects/{project_id}", TenancyOperationProjectUpdate, "tenancy"),
+		goScopedRoute("POST", "/v1/organizations/{organization_id}/projects/{project_id}/archive", TenancyOperationProjectArchive, "tenancy"),
+		goScopedRoute("POST", "/v1/organizations/{organization_id}/projects/{project_id}/restore", TenancyOperationProjectRestore, "tenancy"),
+		goScopedRoute("POST", "/v1/organizations/{organization_id}/projects/{project_id}/environments", TenancyOperationEnvironmentCreate, "tenancy"),
+		goScopedRoute("GET", "/v1/organizations/{organization_id}/projects/{project_id}/environments", TenancyOperationEnvironmentList, "tenancy"),
+		goScopedRoute("POST", "/v1/organizations/{organization_id}/projects/{project_id}/environments/{environment_id}/disable", TenancyOperationEnvironmentDisable, "tenancy"),
+		goScopedRoute("POST", "/v1/organizations/{organization_id}/projects/{project_id}/environments/{environment_id}/enable", TenancyOperationEnvironmentEnable, "tenancy"),
+		goScopedRoute("GET", "/v1/organizations/{organization_id}/projects/{project_id}/memberships", TenancyOperationProjectMembershipList, "tenancy"),
+		goScopedRoute("PUT", "/v1/organizations/{organization_id}/projects/{project_id}/memberships/{account_id}", TenancyOperationProjectMembershipSet, "tenancy"),
+		goScopedRoute("DELETE", "/v1/organizations/{organization_id}/projects/{project_id}/memberships/{account_id}", TenancyOperationProjectMembershipRevoke, "tenancy"),
 		// Reserved fail-closed contracts:
 		// POST /v1/accounts/{account_id}/credentials/{provider}/link
 		// DELETE /v1/accounts/{account_id}/credentials/{credential_id}/unlink

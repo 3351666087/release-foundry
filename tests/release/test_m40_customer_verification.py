@@ -16,7 +16,7 @@ PACKET_ROOT = (
     / "agent-release-demo-a3-golden-agent-0.2.0-rc.3"
 )
 RECEIPT = ROOT / "fixtures" / "releases" / "m40-06" / "customer-verification-receipt.json"
-EXPECTED_PACKAGE_COMMIT = "ba805e7e087b0e4b8c79a0dd6fbcdc6f923aee01"
+EXPECTED_PACKAGE_COMMIT = "665fa6487a76702f286a3c67f187627bb242b27b"
 EXPECTED_BLOCKERS = {
     "a2_release_blocked",
     "a2_release_not_ready",
@@ -88,10 +88,10 @@ def test_m40_06_manifest_separates_package_and_lane_commits() -> None:
         "release_package_commit": EXPECTED_PACKAGE_COMMIT,
         "a1_candidate_source_commit": "1d292047e991995fdf52f0545ffff410ee19a171",
         "a1_evidence_bundle_hash": "sha256:3240e097cc4e793520d9bbb0b2a600081a5440c751bf842cbe3b8cc9e495cd9f",
-        "a2_authority_commit": "d3529c356e49ce8502c050f0dad44020031ee0dd",
-        "a2_decision_ledger_head_hash": "sha256:bc608df9825ea316b374797ef76b4921bff4f6cee1943600d0297783e6be6303",
+        "a2_authority_commit": "e21ebcb1b09b2a709f5381e02f89933477453d82",
+        "a2_decision_ledger_head_hash": "sha256:93343a7920b06dc0f232aee7b3eb82b793010ca8c2061043682b4e7ebc088797",
         "a2_grades_hash": "sha256:ffeba9ab8d7a2ccfb26ca8e135448cc9a2e6c8ead5b49837f77e5e73606a5304",
-        "a3_implementation_commit": "a0b427257c5cd80fbe3394b4a406fa21f50bae37",
+        "a3_implementation_commit": "e21ebcb1b09b2a709f5381e02f89933477453d82",
     }
     assert verification["identity_alignment"]["status"] == "passed"
     assert verification["identity_alignment"]["mismatch_reasons"] == []

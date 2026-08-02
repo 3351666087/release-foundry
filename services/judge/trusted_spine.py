@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 from copy import deepcopy
 from typing import Any
 
@@ -17,6 +18,7 @@ TRUSTED_SPINE_CANDIDATE_SCHEMA_VERSION = "a2.trusted_spine_candidate.v1"
 GENESIS_HASH = "sha256:" + ("0" * 64)
 VALID_COMPLETENESS = {"complete", "partial", "evidence_missing", "invalid"}
 VALID_DECISIONS = {"allow", "block", "review"}
+VALID_MODALITIES = frozenset({"text", "image", "audio", "file", "video"})
 
 
 def build_evidence_snapshot(
@@ -73,11 +75,19 @@ def build_evidence_snapshot(
     )
     validation_errors.extend(derived_errors)
     observed_modalities = sorted(semantic_modalities | ({"text"} if _final_text(source) else set()))
-    required = sorted(set(required_modalities or ["text"]))
+    required = _normalize_required_modalities(required_modalities)
     missing = sorted(set(required) - set(observed_modalities))
     trace_completeness = normalized.get("trace_completeness")
-    if trace_completeness is not None and float(trace_completeness) < 1:
-        validation_errors.append("trace_incomplete")
+    if trace_completeness is not None:
+        if (
+            isinstance(trace_completeness, bool)
+            or not isinstance(trace_completeness, (int, float))
+            or not math.isfinite(trace_completeness)
+            or not 0 <= trace_completeness <= 1
+        ):
+            validation_errors.append("trace_completeness_invalid")
+        elif trace_completeness < 1:
+            validation_errors.append("trace_incomplete")
     if source_run_id != run_id:
         validation_errors.append("run_id_mismatch")
     completeness = "invalid" if validation_errors else ("evidence_missing" if missing else "complete")
@@ -121,6 +131,26 @@ def build_evidence_snapshot(
     snapshot_core["snapshot_id"] = stable_hash(snapshot_core)
     snapshot_core["snapshot_hash"] = stable_hash(snapshot_core)
     return snapshot_core
+
+
+def _normalize_required_modalities(
+    required_modalities: list[str] | None,
+) -> list[str]:
+    modalities = ["text"] if required_modalities is None else required_modalities
+    if (
+        not isinstance(modalities, list)
+        or not modalities
+        or any(
+            not isinstance(item, str)
+            or not item
+            or item not in VALID_MODALITIES
+            for item in modalities
+        )
+    ):
+        raise ValueError(
+            "required_modalities must be a non-empty list of supported modality names"
+        )
+    return sorted(set(modalities))
 
 
 def _derived_evidence(

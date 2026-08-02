@@ -2,9 +2,31 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
+import math
+import re
 from pathlib import Path
 from typing import Any
+
+from .releasefoundry_test_receipts import (
+    PUBLIC_RECEIPT_SCHEMA_VERSION,
+    SCORING_TERMINAL_STATUSES,
+    TEST_SCORING_SIGNAL_TYPES,
+    TEST_SCORING_SUMMARY_SCHEMA_VERSION,
+)
+from .releasefoundry_dataset_identity import (
+    RECEIPT_SCHEMA_VERSION as DATASET_IDENTITY_RECEIPT_SCHEMA_VERSION,
+)
+from .calibration import (
+    DEFAULT_SEMANTIC_JUDGE_COLLECTION_PACKET,
+    is_canonical_private_evidence_ref,
+    load_semantic_collection_packet_binding,
+    semantic_collection_packet_binding,
+    validate_releasefoundry_run_receipt_binding,
+    validate_semantic_review_receipt_binding,
+)
+from .result_persistence import stable_hash
 
 
 DEFAULT_RELEASEFOUNDRY_CASE_MAP = Path("fixtures/a2/calibration/releasefoundry_grading_batch_case_map.json")
@@ -53,9 +75,70 @@ DEFAULT_A1_BILLING_SQL_SEMANTIC_CONTRACT = Path("docs/a1/evidence/billing_sql_se
 DEFAULT_A1_OBJECT_STORAGE_CONTRACT = Path("docs/a1/evidence/object_storage_contract_20260709.md")
 DEFAULT_A2_REAL_API_SMOKE = Path("docs/evidence/a2_real_api_smoke.json")
 DEFAULT_A2_MULTIMODAL_REAL_API_SMOKE = Path("docs/evidence/a2_multimodal_real_api_smoke.json")
+DEFAULT_A2_MULTIMODAL_AUDIO_REAL_API_SMOKE = Path(
+    "docs/evidence/a2_multimodal_audio_real_api_smoke.json"
+)
+DEFAULT_A2_MULTIMODAL_IMAGE_REAL_API_SMOKE = Path(
+    "docs/evidence/a2_multimodal_image_real_api_smoke.json"
+)
+DEFAULT_A2_MULTIMODAL_FILE_REAL_API_SMOKE = Path(
+    "docs/evidence/a2_multimodal_file_real_api_smoke.json"
+)
+DEFAULT_A2_RELEASEFOUNDRY_NATIVE_MEDIA_SURFACE = Path(
+    "docs/evidence/a2_releasefoundry_native_media_surface.json"
+)
+EXPECTED_RELEASEFOUNDRY_NATIVE_MEDIA_SURFACE_SCHEMA_VERSION = (
+    "a2.releasefoundry_native_media_surface.v1"
+)
+EXPECTED_RELEASEFOUNDRY_NATIVE_MEDIA_SDK_VERSION = "0.3.1"
+EXPECTED_RELEASEFOUNDRY_NATIVE_MEDIA_SDK_ARTIFACT_SHA256 = (
+    "c20c36f7406b569c968e20a00b4a0a32fab02e22d7db51a62a61b14069087e87"
+)
+EXPECTED_RELEASEFOUNDRY_NATIVE_MEDIA_SURFACE_FINGERPRINT_SHA256 = (
+    "9e91500eb8e32980046901aed7b62497c5c7b6599704a20020479dc112aba775"
+)
+REVIEWER_RECEIPT_PATTERN = re.compile(r"sha256:[a-f0-9]{64}")
+RELEASEFOUNDRY_SERVER_SIDE_PROVIDER = "releasefoundry server-side grading"
+RELEASEFOUNDRY_SERVER_SIDE_MODEL = "releasefoundry-server-side"
 REQUIRED_RELEASEFOUNDRY_REVIEW_FIELDS = [
     "metadata.review_status",
+    "metadata.reviewer_receipt",
+    "metadata.reviewed_at_unix_ms",
     "evidence_ref",
+]
+REQUIRED_RELEASEFOUNDRY_TERMINAL_SCORING_FIELDS = [
+    "metadata.terminal_scoring_receipt_schema_version",
+    "metadata.terminal_status",
+    "metadata.terminal_status_verified",
+    "metadata.timestamps_verified",
+    "metadata.response_evidence_verified",
+    "metadata.server_grading_signal_verified",
+    "metadata.terminal_scoring_verified",
+    "metadata.grading_signal_types",
+    "metadata.terminal_receipt_blockers",
+    "metadata.run_terminal_receipt_schema_version",
+    "metadata.run_terminal_receipt_sha256",
+    "metadata.run_expected_test_count",
+    "metadata.run_verified_test_count",
+    "metadata.run_receipt_complete",
+    "metadata.run_dataset_id_verified",
+    "metadata.run_result_terminal_verified",
+    "metadata.server_grading_lifecycle_verified",
+    "metadata.exact_test_set_verified",
+    "metadata.all_expected_tests_terminal_scoring_verified",
+    "metadata.observed_judge_version",
+    "metadata.judge_version_source",
+    "metadata.judge_version_verified",
+    "metadata.aggregate_marker_used_as_acceptance_authority",
+    "metadata.run_terminal_receipt_blockers",
+    "metadata.dataset_identity_receipt_schema_version",
+    "metadata.dataset_identity_verified",
+    "metadata.dataset_identity_receipt_sha256",
+    "metadata.dataset_identity_manifest_sha256",
+    "metadata.dataset_identity_content_sha256",
+    "metadata.dataset_identity_content_collection",
+    "metadata.dataset_identity_content_item_count",
+    "metadata.dataset_identity_blockers",
 ]
 REQUIRED_SEMANTIC_FIELDS = [
     "case_id",
@@ -66,6 +149,8 @@ REQUIRED_SEMANTIC_FIELDS = [
     "prompt_hash",
     "response_hash",
     "review_status",
+    "reviewer_receipt",
+    "reviewed_at_unix_ms",
     "sdk_language",
     "cost.prompt_tokens",
     "cost.completion_tokens",
@@ -110,6 +195,17 @@ def build_evidence_readiness_report(
     a1_object_storage_contract_path: str | Path = DEFAULT_A1_OBJECT_STORAGE_CONTRACT,
     official_sdk_smoke_path: str | Path = DEFAULT_A2_REAL_API_SMOKE,
     multimodal_real_api_smoke_path: str | Path = DEFAULT_A2_MULTIMODAL_REAL_API_SMOKE,
+    multimodal_audio_real_api_smoke_path: str
+    | Path = DEFAULT_A2_MULTIMODAL_AUDIO_REAL_API_SMOKE,
+    multimodal_image_real_api_smoke_path: str
+    | Path = DEFAULT_A2_MULTIMODAL_IMAGE_REAL_API_SMOKE,
+    multimodal_file_real_api_smoke_path: str
+    | Path = DEFAULT_A2_MULTIMODAL_FILE_REAL_API_SMOKE,
+    releasefoundry_native_media_surface_path: str
+    | Path = DEFAULT_A2_RELEASEFOUNDRY_NATIVE_MEDIA_SURFACE,
+    semantic_collection_packet: dict[str, Any] | None = None,
+    semantic_collection_packet_path: str
+    | Path = DEFAULT_SEMANTIC_JUDGE_COLLECTION_PACKET,
 ) -> dict[str, Any]:
     """Describe what private evidence is still needed before C3/C4 can turn green."""
     cases = list(calibration_matrix.get("cases", []))
@@ -126,16 +222,23 @@ def build_evidence_readiness_report(
     releasefoundry_counts = source_coverage.get("releasefoundry_grading", {})
     llm_counts = source_coverage.get("llm_judge", {})
     llm_offline_only = _llm_offline_only(calibration_matrix)
+    (
+        semantic_collection_binding,
+        semantic_collection_binding_blockers,
+    ) = _resolve_semantic_collection_packet_binding(
+        semantic_collection_packet,
+        semantic_collection_packet_path,
+    )
     releasefoundry_import_commands = [
         "python scripts/a2_scan_releasefoundry_grading_evidence.py --input docs/evidence/private_refs/a2_releasefoundry_get_run.redacted.json --case-map fixtures/a2/calibration/releasefoundry_grading_batch_case_map.json",
-        "python scripts/a2_import_releasefoundry_grading.py --input docs/evidence/private_refs/a2_releasefoundry_get_run.redacted.json --case-map fixtures/a2/calibration/releasefoundry_grading_batch_case_map.json --evidence-ref docs/evidence/private_refs/a2_releasefoundry_get_run.redacted.json --review-status reviewed --output docs/evidence/private_refs/a2_releasefoundry_grading_import.review.json",
-        "python scripts/a2_merge_calibration_observations.py --incoming docs/evidence/private_refs/a2_releasefoundry_grading_import.review.json --source releasefoundry_grading --min-count 6 --output fixtures/a2/calibration/a2_g3_calibration_observations.json",
+            "python scripts/a2_import_releasefoundry_grading.py --input docs/evidence/private_refs/a2_releasefoundry_get_run.redacted.json --case-map fixtures/a2/calibration/releasefoundry_grading_batch_case_map.json --identity-file docs/evidence/private_refs/a2_releasefoundry_dataset_identity.private.json --identity-receipt docs/evidence/a2_releasefoundry_dataset_identity_receipt.json --evidence-ref docs/evidence/private_refs/a2_releasefoundry_get_run.redacted.json --review-status reviewed --reviewer-receipt \"$A2_REVIEWER_RECEIPT\" --reviewed-at-unix-ms \"$A2_REVIEWED_AT_UNIX_MS\" --require-reviewed --require-complete --output docs/evidence/private_refs/a2_releasefoundry_grading_import.review.json",
+        "python scripts/a2_merge_calibration_observations.py --incoming docs/evidence/private_refs/a2_releasefoundry_grading_import.review.json --source releasefoundry_grading --min-count 6 --require-reviewed --require-complete --output fixtures/a2/calibration/a2_g3_calibration_observations.json",
         "python scripts/a2_regenerate_fixtures.py --write",
     ]
     semantic_import_commands = [
         "python scripts/a2_build_semantic_judge_collection_packet.py --check",
-        "python scripts/a2_import_semantic_judge.py --input docs/evidence/private_refs/a2_semantic_judge_review.redacted.json --evidence-ref docs/evidence/private_refs/a2_semantic_judge_review.redacted.json --output docs/evidence/private_refs/a2_semantic_judge_import.review.json",
-        "python scripts/a2_merge_calibration_observations.py --incoming docs/evidence/private_refs/a2_semantic_judge_import.review.json --source llm_judge --min-count 6 --output fixtures/a2/calibration/a2_g3_calibration_observations.json",
+        "python scripts/a2_import_semantic_judge.py --input docs/evidence/private_refs/a2_semantic_judge_review.redacted.json --evidence-ref docs/evidence/private_refs/a2_semantic_judge_review.redacted.json --collection-packet fixtures/a2/calibration/a2_semantic_judge_collection_packet.json --require-reviewed --require-complete --output docs/evidence/private_refs/a2_semantic_judge_import.review.json",
+        "python scripts/a2_merge_calibration_observations.py --incoming docs/evidence/private_refs/a2_semantic_judge_import.review.json --source llm_judge --semantic-collection-packet fixtures/a2/calibration/a2_semantic_judge_collection_packet.json --min-count 6 --require-reviewed --require-complete --output fixtures/a2/calibration/a2_g3_calibration_observations.json",
         "python scripts/a2_regenerate_fixtures.py --write",
     ]
     semantic_risk = semantic_harness_report.get("risk_assessment", {})
@@ -184,24 +287,77 @@ def build_evidence_readiness_report(
     a1_object_storage_contract = _a1_object_storage_contract_summary(a1_object_storage_contract_path)
     official_sdk_smoke = _official_sdk_smoke_summary(official_sdk_smoke_path)
     multimodal_real_api_smoke = _multimodal_real_api_smoke_summary(multimodal_real_api_smoke_path)
+    multimodal_audio_real_api_smoke = _multimodal_real_api_smoke_summary(
+        multimodal_audio_real_api_smoke_path
+    )
+    multimodal_image_real_api_smoke = _multimodal_real_api_smoke_summary(
+        multimodal_image_real_api_smoke_path
+    )
+    multimodal_file_real_api_smoke = _multimodal_real_api_smoke_summary(
+        multimodal_file_real_api_smoke_path
+    )
+    releasefoundry_native_media_surface = _releasefoundry_native_media_surface_summary(
+        releasefoundry_native_media_surface_path
+    )
+    multimodal_generated_artifact_capabilities = (
+        _multimodal_generated_artifact_capabilities_summary(
+            [
+                (
+                    multimodal_image_real_api_smoke_path,
+                    multimodal_image_real_api_smoke,
+                ),
+                (
+                    multimodal_audio_real_api_smoke_path,
+                    multimodal_audio_real_api_smoke,
+                ),
+                (
+                    multimodal_file_real_api_smoke_path,
+                    multimodal_file_real_api_smoke,
+                ),
+            ],
+            releasefoundry_native_media_surface=releasefoundry_native_media_surface,
+        )
+    )
 
+    readiness_boolean_inputs = {
+        "semantic_harness_report.harness_ready": semantic_harness_report.get("harness_ready"),
+        "semantic_harness_report.risk_assessment.tracking_ready": semantic_risk.get("tracking_ready"),
+    }
+    invalid_readiness_boolean_fields = sorted(
+        field
+        for field, value in readiness_boolean_inputs.items()
+        if not isinstance(value, bool)
+    )
     readiness_checks = {
         "has_calibration_cases": bool(cases),
         "releasefoundry_case_map_covers_cases": not releasefoundry_missing and len(releasefoundry_case_map) == len(cases),
         "releasefoundry_import_commands_documented": True,
-        "semantic_harness_ready": bool(semantic_harness_report.get("harness_ready")),
-        "semantic_false_positive_tracking_ready": bool(semantic_risk.get("tracking_ready")),
+        "semantic_harness_ready": semantic_harness_report.get("harness_ready") is True,
+        "semantic_false_positive_tracking_ready": semantic_risk.get("tracking_ready") is True,
         "semantic_required_fields_documented": bool(REQUIRED_SEMANTIC_FIELDS),
         "semantic_sdk_language_matrix_ready": set(semantic_languages) >= {"python", "typescript"},
-        "official_sdk_smoke_readonly_ok": bool(official_sdk_smoke.get("read_only_reachable")),
-        "multimodal_real_api_smoke_reached": bool(multimodal_real_api_smoke.get("real_api_boundary_reached")),
+        "official_sdk_smoke_readonly_ok": official_sdk_smoke.get("read_only_reachable") is True,
+        "multimodal_real_api_smoke_reached": multimodal_real_api_smoke.get("real_api_boundary_reached") is True,
+        "multimodal_generated_artifacts_verified": (
+            multimodal_generated_artifact_capabilities.get(
+                "all_expected_modalities_verified"
+            )
+            is True
+        ),
+        "releasefoundry_native_media_surface_audited": (
+            releasefoundry_native_media_surface.get("surface_audit_verified") is True
+        ),
         "private_payload_boundary_documented": True,
     }
 
-    return {
+    report = {
         "schema_version": "a2.evidence_readiness.v1",
         "report_id": "a2_g3_evidence_readiness",
         "dataset_id": calibration_matrix.get("dataset_id", ""),
+        "source_matrix_hash": stable_hash(calibration_matrix),
+        "source_batch_plan_hash": stable_hash(batch_plan_report),
+        "source_semantic_harness_hash": stable_hash(semantic_harness_report),
+        "source_case_map_hash": stable_hash(releasefoundry_case_map),
         "status": "awaiting_private_evidence",
         "ready_for_external_collection": all(readiness_checks.values()),
         "readiness_checks": readiness_checks,
@@ -217,8 +373,11 @@ def build_evidence_readiness_report(
         ],
         "releasefoundry_grading_preflight": {
             "source": "releasefoundry_grading",
-            "current_available": int(releasefoundry_counts.get("available", 0)),
-            "current_missing": int(releasefoundry_counts.get("missing", len(cases))),
+            "current_available": _nonnegative_count(releasefoundry_counts.get("available", 0)),
+            "current_missing": _nonnegative_count(
+                releasefoundry_counts.get("missing", len(cases)),
+                fallback=len(cases),
+            ),
             "expected_observation_count": len(cases),
             "case_map_path": Path(releasefoundry_case_map_path).as_posix(),
             "case_map_count": len(releasefoundry_case_map),
@@ -226,6 +385,9 @@ def build_evidence_readiness_report(
             "case_map_missing_case_ids": releasefoundry_missing,
             "expected_reviewed_observation_count": len(cases),
             "required_review_fields": REQUIRED_RELEASEFOUNDRY_REVIEW_FIELDS,
+            "required_terminal_scoring_fields": (
+                REQUIRED_RELEASEFOUNDRY_TERMINAL_SCORING_FIELDS
+            ),
             "private_input_ref": "docs/evidence/private_refs/a2_releasefoundry_get_run.redacted.json",
             "commands": releasefoundry_import_commands,
         },
@@ -244,42 +406,87 @@ def build_evidence_readiness_report(
         "a1_object_storage_contract": a1_object_storage_contract,
         "official_sdk_smoke": official_sdk_smoke,
         "multimodal_real_api_smoke": multimodal_real_api_smoke,
-        "releasefoundry_public_merge_gate": _releasefoundry_public_merge_gate(cases, releasefoundry_counts, len(cases), releasefoundry_import_commands),
+        "releasefoundry_native_media_surface": releasefoundry_native_media_surface,
+        "multimodal_generated_artifact_capabilities": (
+            multimodal_generated_artifact_capabilities
+        ),
+        "releasefoundry_public_merge_gate": _releasefoundry_public_merge_gate(
+            cases,
+            releasefoundry_counts,
+            len(cases),
+            releasefoundry_import_commands,
+            calibration_matrix.get("releasefoundry_run_terminal_receipt"),
+        ),
         "semantic_judge_preflight": {
             "source": "llm_judge",
-            "current_available": int(llm_counts.get("available", 0)),
-            "current_missing": int(llm_counts.get("missing", 0)),
+            "current_available": _nonnegative_count(llm_counts.get("available", 0)),
+            "current_missing": _nonnegative_count(
+                llm_counts.get("missing", len(cases)),
+                fallback=len(cases),
+            ),
             "offline_reference_only": llm_offline_only,
             "expected_observation_count": len(cases),
             "expected_reviewed_observation_count": len(cases),
-            "reviewed_live_observation_count": int(semantic_harness_report.get("reviewed_live_observation_count", 0)),
-            "missing_reviewed_live_observation_count": int(
-                semantic_harness_report.get("missing_reviewed_live_observation_count", len(cases))
+            "reviewed_live_observation_count": _nonnegative_count(
+                semantic_harness_report.get("reviewed_live_observation_count", 0)
+            ),
+            "missing_reviewed_live_observation_count": _nonnegative_count(
+                semantic_harness_report.get("missing_reviewed_live_observation_count", len(cases)),
+                fallback=len(cases),
             ),
             "reviewed_live_sdk_languages": semantic_harness_report.get("reviewed_live_sdk_languages", []),
             "reviewed_live_required_metadata_fields": semantic_harness_report.get(
                 "reviewed_live_required_metadata_fields", []
             ),
             "risk_assessment_status": semantic_risk.get("status", "unknown"),
-            "false_positive_tracking_ready": bool(semantic_risk.get("tracking_ready")),
-            "false_positive_candidate_count": int(semantic_risk.get("false_positive_candidate_count", 0)),
-            "false_negative_candidate_count": int(semantic_risk.get("false_negative_candidate_count", 0)),
-            "failure_class_drift_candidate_count": int(semantic_risk.get("failure_class_drift_candidate_count", 0)),
-            "score_delta_review_count": int(semantic_risk.get("score_delta_review_count", 0)),
-            "risk_case_count": int(semantic_risk.get("risk_case_count", 0)),
+            "false_positive_tracking_ready": semantic_risk.get("tracking_ready") is True,
+            "false_positive_candidate_count": _nonnegative_count(
+                semantic_risk.get("false_positive_candidate_count", 0)
+            ),
+            "false_negative_candidate_count": _nonnegative_count(
+                semantic_risk.get("false_negative_candidate_count", 0)
+            ),
+            "failure_class_drift_candidate_count": _nonnegative_count(
+                semantic_risk.get("failure_class_drift_candidate_count", 0)
+            ),
+            "score_delta_review_count": _nonnegative_count(
+                semantic_risk.get("score_delta_review_count", 0)
+            ),
+            "risk_case_count": _nonnegative_count(semantic_risk.get("risk_case_count", 0)),
             "required_fields": REQUIRED_SEMANTIC_FIELDS,
             "required_sdk_languages": semantic_harness_report.get("source_matrix", {}).get("required_languages", []),
             "covered_sdk_languages": semantic_harness_report.get("source_matrix", {}).get("covered_languages", []),
             "private_input_ref": "docs/evidence/private_refs/a2_semantic_judge_review.redacted.json",
             "collection_packet_ref": "fixtures/a2/calibration/a2_semantic_judge_collection_packet.json",
+            "collection_packet_binding_valid": (
+                semantic_collection_binding is not None
+            ),
+            "collection_packet_id": (
+                semantic_collection_binding.get("packet_id", "")
+                if semantic_collection_binding
+                else ""
+            ),
+            "collection_packet_sha256": (
+                semantic_collection_binding.get("packet_sha256", "")
+                if semantic_collection_binding
+                else ""
+            ),
+            "collection_packet_binding_blockers": (
+                semantic_collection_binding_blockers
+            ),
             "commands": semantic_import_commands,
         },
         "semantic_live_merge_gate": _semantic_live_merge_gate(
+            cases,
             llm_counts,
             llm_offline_only,
             len(cases),
             semantic_harness_report,
             semantic_import_commands,
+            semantic_collection_binding,
+            semantic_collection_binding_blockers,
+            str(calibration_matrix.get("dataset_id", "")),
+            calibration_matrix.get("semantic_human_review_receipt"),
         ),
         "batch_plan_refs": [
             batch.get("batch_id", "")
@@ -303,34 +510,335 @@ def build_evidence_readiness_report(
             "purpose": "Make C3/C4 evidence collection auditable without committing private payloads.",
         },
     }
+    if invalid_readiness_boolean_fields:
+        report["invalid_boolean_fields"] = invalid_readiness_boolean_fields
+    return _seal_evidence_readiness_artifact(report)
+
+
+def verify_evidence_readiness_artifact(
+    report: dict[str, Any],
+    *,
+    calibration_matrix: dict[str, Any] | None = None,
+    batch_plan_report: dict[str, Any] | None = None,
+    semantic_harness_report: dict[str, Any] | None = None,
+    releasefoundry_case_map: dict[str, Any] | None = None,
+    semantic_collection_packet: dict[str, Any] | None = None,
+) -> str:
+    """Verify report integrity and any supplied source-artifact bindings."""
+    if not isinstance(report, dict):
+        raise TypeError("evidence-readiness artifact must be an object")
+
+    hash_fields = (
+        "source_matrix_hash",
+        "source_batch_plan_hash",
+        "source_semantic_harness_hash",
+        "source_case_map_hash",
+        "artifact_hash",
+    )
+    for field in hash_fields:
+        value = report.get(field)
+        if not isinstance(value, str) or not REVIEWER_RECEIPT_PATTERN.fullmatch(value):
+            raise ValueError(
+                f"evidence-readiness {field} must be a canonical sha256 reference"
+            )
+
+    artifact_hash = report["artifact_hash"]
+    core = {
+        key: value
+        for key, value in report.items()
+        if key != "artifact_hash"
+    }
+    if stable_hash(core) != artifact_hash:
+        raise ValueError(
+            "evidence-readiness artifact_hash does not match report content"
+        )
+
+    source_bindings = (
+        ("source_matrix_hash", calibration_matrix),
+        ("source_batch_plan_hash", batch_plan_report),
+        ("source_semantic_harness_hash", semantic_harness_report),
+        ("source_case_map_hash", releasefoundry_case_map),
+    )
+    for field, source in source_bindings:
+        if source is not None and report[field] != stable_hash(source):
+            raise ValueError(
+                f"evidence-readiness {field} does not match supplied source"
+            )
+
+    releasefoundry_gate = report.get("releasefoundry_public_merge_gate")
+    semantic_gate = report.get("semantic_live_merge_gate")
+    c3_acceptance_claimed = (
+        isinstance(releasefoundry_gate, dict)
+        and releasefoundry_gate.get("safe_to_mark_c3_met") is True
+    )
+    c4_acceptance_claimed = (
+        isinstance(semantic_gate, dict)
+        and semantic_gate.get("safe_to_mark_c4_met") is True
+    )
+    if c3_acceptance_claimed or c4_acceptance_claimed:
+        authoritative_sources = {
+            "calibration_matrix": calibration_matrix,
+            "batch_plan_report": batch_plan_report,
+            "semantic_harness_report": semantic_harness_report,
+            "releasefoundry_case_map": releasefoundry_case_map,
+        }
+        missing_sources = [
+            name
+            for name, source in authoritative_sources.items()
+            if not isinstance(source, dict)
+        ]
+        if missing_sources:
+            raise ValueError(
+                "acceptance-ready evidence-readiness artifact is missing "
+                "authoritative sources: "
+                + ", ".join(missing_sources)
+            )
+
+    if c3_acceptance_claimed:
+        assert isinstance(calibration_matrix, dict)
+        cases = list(calibration_matrix.get("cases", []))
+        source_coverage = calibration_matrix.get("source_coverage", {})
+        releasefoundry_counts = (
+            source_coverage.get("releasefoundry_grading", {})
+            if isinstance(source_coverage, dict)
+            else {}
+        )
+        releasefoundry_preflight = report.get("releasefoundry_grading_preflight", {})
+        commands = (
+            releasefoundry_preflight.get("commands", [])
+            if isinstance(releasefoundry_preflight, dict)
+            else []
+        )
+        expected_releasefoundry_gate = _releasefoundry_public_merge_gate(
+            cases,
+            releasefoundry_counts if isinstance(releasefoundry_counts, dict) else {},
+            len(cases),
+            commands if isinstance(commands, list) else [],
+            calibration_matrix.get("releasefoundry_run_terminal_receipt"),
+        )
+        if releasefoundry_gate != expected_releasefoundry_gate:
+            raise ValueError(
+                "evidence-readiness releasefoundry_public_merge_gate does not match "
+                "deterministic source rebuild"
+            )
+
+    if c4_acceptance_claimed:
+        assert isinstance(calibration_matrix, dict)
+        assert isinstance(semantic_harness_report, dict)
+        if not isinstance(semantic_collection_packet, dict):
+            raise ValueError(
+                "acceptance-ready C4 evidence-readiness artifact is missing "
+                "the authoritative semantic collection packet"
+            )
+        collection_packet_binding = semantic_collection_packet_binding(
+            semantic_collection_packet
+        )
+        cases = list(calibration_matrix.get("cases", []))
+        source_coverage = calibration_matrix.get("source_coverage", {})
+        llm_counts = (
+            source_coverage.get("llm_judge", {})
+            if isinstance(source_coverage, dict)
+            else {}
+        )
+        semantic_preflight = report.get("semantic_judge_preflight", {})
+        commands = (
+            semantic_preflight.get("commands", [])
+            if isinstance(semantic_preflight, dict)
+            else []
+        )
+        expected_semantic_gate = _semantic_live_merge_gate(
+            cases,
+            llm_counts if isinstance(llm_counts, dict) else {},
+            _llm_offline_only(calibration_matrix),
+            len(cases),
+            semantic_harness_report,
+            commands if isinstance(commands, list) else [],
+            collection_packet_binding,
+            [],
+            str(calibration_matrix.get("dataset_id", "")),
+            calibration_matrix.get("semantic_human_review_receipt"),
+        )
+        if semantic_gate != expected_semantic_gate:
+            raise ValueError(
+                "evidence-readiness semantic_live_merge_gate does not match "
+                "deterministic source rebuild"
+            )
+    return artifact_hash
+
+
+def _seal_evidence_readiness_artifact(report: dict[str, Any]) -> dict[str, Any]:
+    core = {
+        key: value
+        for key, value in report.items()
+        if key != "artifact_hash"
+    }
+    return {**core, "artifact_hash": stable_hash(core)}
+
+
+def _resolve_semantic_collection_packet_binding(
+    packet: dict[str, Any] | None,
+    path: str | Path,
+) -> tuple[dict[str, Any] | None, list[str]]:
+    try:
+        binding = (
+            semantic_collection_packet_binding(packet)
+            if packet is not None
+            else load_semantic_collection_packet_binding(path)
+        )
+    except ValueError as exc:
+        return None, [f"semantic_collection_packet_invalid:{exc}"]
+    return binding, []
 
 
 def _semantic_live_merge_gate(
+    cases: list[dict[str, Any]],
     llm_counts: dict[str, Any],
     llm_offline_only: bool,
     expected_count: int,
     semantic_harness_report: dict[str, Any],
     commands: list[str],
+    collection_packet_binding: dict[str, Any] | None,
+    collection_packet_binding_blockers: list[str],
+    calibration_dataset_id: str,
+    semantic_human_review_receipt: Any,
 ) -> dict[str, Any]:
-    current_available = int(llm_counts.get("available", 0))
-    live_model_evidence = bool(semantic_harness_report.get("live_model_evidence_available"))
-    reviewed_count = int(semantic_harness_report.get("reviewed_live_observation_count", 0))
-    merged = expected_count > 0 and current_available >= expected_count and live_model_evidence and not llm_offline_only
+    current_available, current_available_valid = _strict_nonnegative_count(
+        llm_counts.get("available", 0)
+    )
+    reviewed_count, reviewed_count_valid = _strict_nonnegative_count(
+        semantic_harness_report.get("reviewed_live_observation_count", 0)
+    )
+    reviewed_case_ids = _reviewed_semantic_case_ids(cases)
+    case_level_reviewed_count = len(reviewed_case_ids)
+    available_count_matches_case_evidence = (
+        current_available_valid
+        and current_available == case_level_reviewed_count
+    )
+    reviewed_count_matches_case_evidence = (
+        reviewed_count_valid
+        and reviewed_count == case_level_reviewed_count
+    )
+    live_model_raw = semantic_harness_report.get("live_model_evidence_available")
+    live_model_evidence = live_model_raw is True
+    invalid_count_fields = []
+    if not current_available_valid:
+        invalid_count_fields.append("source_coverage.llm_judge.available")
+    if not reviewed_count_valid:
+        invalid_count_fields.append("reviewed_live_observation_count")
+    invalid_boolean_fields = (
+        []
+        if isinstance(live_model_raw, bool)
+        else ["live_model_evidence_available"]
+    )
+    (
+        collection_packet_binding_consistent,
+        collection_packet_cohort_blockers,
+    ) = _semantic_collection_cohort_consistency(
+        cases,
+        expected_count=expected_count,
+        calibration_dataset_id=calibration_dataset_id,
+        collection_packet_binding=collection_packet_binding,
+        initial_blockers=collection_packet_binding_blockers,
+    )
+    audited_without_packet_binding = (
+        expected_count > 0
+        and not invalid_count_fields
+        and not invalid_boolean_fields
+        and current_available >= expected_count
+        and reviewed_count >= expected_count
+        and case_level_reviewed_count >= expected_count
+        and available_count_matches_case_evidence
+        and reviewed_count_matches_case_evidence
+        and live_model_evidence
+        and not llm_offline_only
+    )
+    semantic_observations = []
+    for case in cases:
+        source = case.get("sources", {}).get("llm_judge")
+        if not isinstance(source, dict) or source.get("available") is not True:
+            continue
+        semantic_observations.append(
+            {
+                **source,
+                "case_id": case.get("case_id"),
+                "scenario_id": case.get("scenario_id"),
+            }
+        )
+    review_receipt_binding = validate_semantic_review_receipt_binding(
+        semantic_observations,
+        semantic_human_review_receipt,
+        expected_case_ids=[
+            str(case.get("case_id", ""))
+            for case in cases
+            if str(case.get("case_id", "")).strip()
+        ],
+    )
+    merged = (
+        audited_without_packet_binding
+        and collection_packet_binding_consistent
+        and review_receipt_binding["valid"]
+    )
     if merged:
         status = "audited_live_model_evidence"
     elif llm_offline_only:
         status = "offline_reference_only"
+    elif audited_without_packet_binding:
+        status = (
+            "audited_unbound_collection_packet"
+            if not collection_packet_binding_consistent
+            else "audited_unbound_human_review_receipt"
+        )
     else:
         status = "not_audited"
-    return {
+    gate = {
         "source": "llm_judge",
         "status": status,
         "audited_live_evidence_merged": merged,
         "safe_to_mark_c4_met": merged,
         "current_public_observation_count": current_available,
-        "audited_public_observation_count": reviewed_count if merged else 0,
+        "audited_public_observation_count": (
+            case_level_reviewed_count if merged else 0
+        ),
         "reviewed_live_observation_count": reviewed_count,
-        "missing_audited_observation_count": max(0, expected_count - reviewed_count),
+        "case_level_reviewed_observation_count": case_level_reviewed_count,
+        "case_level_reviewed_case_ids": reviewed_case_ids,
+        "aggregate_available_count_matches_case_evidence": (
+            available_count_matches_case_evidence
+        ),
+        "aggregate_reviewed_count_matches_case_evidence": (
+            reviewed_count_matches_case_evidence
+        ),
+        "collection_packet_binding_consistent": (
+            collection_packet_binding_consistent
+        ),
+        "collection_packet_binding_blockers": (
+            collection_packet_cohort_blockers
+        ),
+        "collection_packet_id": (
+            collection_packet_binding.get("packet_id", "")
+            if collection_packet_binding
+            else ""
+        ),
+        "collection_packet_sha256": (
+            collection_packet_binding.get("packet_sha256", "")
+            if collection_packet_binding
+            else ""
+        ),
+        "collection_packet_dataset_id": (
+            collection_packet_binding.get("dataset_id", "")
+            if collection_packet_binding
+            else ""
+        ),
+        "review_receipt_binding_consistent": review_receipt_binding["valid"],
+        "review_receipt_binding_blockers": review_receipt_binding["blockers"],
+        "review_receipt_sha256": review_receipt_binding["artifact_sha256"],
+        "review_receipt_artifact_present": review_receipt_binding[
+            "artifact_present"
+        ],
+        "missing_audited_observation_count": max(
+            0,
+            expected_count - case_level_reviewed_count,
+        ),
         "expected_reviewed_observation_count": expected_count,
         "offline_reference_only": llm_offline_only,
         "live_model_evidence_available": live_model_evidence,
@@ -338,9 +846,240 @@ def _semantic_live_merge_gate(
         "reviewed_private_import_ref": "docs/evidence/private_refs/a2_semantic_judge_import.review.json",
         "blocking_reason": ""
         if merged
-        else "Audited semantic judge observations must replace offline references before C4 is met.",
+        else (
+            (
+                "Audited semantic judge observations are not bound to the exact committed "
+                "collection packet. Every reviewed row must match the packet case, SDK, "
+                "prompt template, prompt material hash, dataset, and packet artifact hash."
+            )
+            if (
+                audited_without_packet_binding
+                and not collection_packet_binding_consistent
+            )
+            else (
+                "Audited semantic judge observations are not bound to an "
+                "independent, public-safe human review receipt. The retained "
+                "receipt must exactly match every reviewed case and each row "
+                "must bind the receipt hash and verification fields."
+            )
+            if audited_without_packet_binding
+            else (
+                "Audited semantic judge observations with canonical private evidence refs "
+                "must replace offline references before C4 is met. Per-case evidence is "
+                "acceptance authority; aggregate availability and reviewed-count markers "
+                "must match it."
+            )
+        ),
         "required_commands": commands,
     }
+    if invalid_count_fields:
+        gate["invalid_count_fields"] = invalid_count_fields
+    if invalid_boolean_fields:
+        gate["invalid_boolean_fields"] = invalid_boolean_fields
+    return gate
+
+
+def _semantic_collection_cohort_consistency(
+    cases: list[dict[str, Any]],
+    *,
+    expected_count: int,
+    calibration_dataset_id: str,
+    collection_packet_binding: dict[str, Any] | None,
+    initial_blockers: list[str],
+) -> tuple[bool, list[str]]:
+    blockers = list(initial_blockers)
+    if collection_packet_binding is None:
+        if not blockers:
+            blockers.append("semantic_collection_packet_unavailable")
+        return False, sorted(set(blockers))
+
+    packet_cases = collection_packet_binding["cases"]
+    packet_case_ids = set(packet_cases)
+    calibration_case_ids = [
+        str(case.get("case_id", "")).strip()
+        for case in cases
+    ]
+    if len(calibration_case_ids) != len(set(calibration_case_ids)):
+        blockers.append("duplicate_calibration_case_id")
+    if set(calibration_case_ids) != packet_case_ids:
+        blockers.append("calibration_case_set_mismatch")
+    if expected_count != collection_packet_binding["case_count"]:
+        blockers.append("calibration_case_count_mismatch")
+    if calibration_dataset_id != collection_packet_binding["dataset_id"]:
+        blockers.append("calibration_dataset_id_mismatch")
+
+    reviewed_rows = [
+        (
+            str(case.get("case_id", "")).strip(),
+            case.get("sources", {}).get("llm_judge", {}),
+        )
+        for case in cases
+        if _is_reviewed_semantic_source(
+            case.get("sources", {}).get("llm_judge", {})
+        )
+    ]
+    if len(reviewed_rows) != collection_packet_binding["case_count"]:
+        blockers.append("reviewed_semantic_observation_count_mismatch")
+
+    observed_packet_hashes: set[str] = set()
+    for case_id, source in reviewed_rows:
+        expected_case = packet_cases.get(case_id)
+        if expected_case is None:
+            blockers.append(f"{case_id}:semantic_collection_case_not_in_packet")
+            continue
+        metadata = (
+            source.get("metadata")
+            if isinstance(source.get("metadata"), dict)
+            else {}
+        )
+        packet_hash = metadata.get("semantic_collection_packet_sha256")
+        if isinstance(packet_hash, str) and packet_hash:
+            observed_packet_hashes.add(packet_hash)
+        expected_metadata = {
+            "semantic_collection_packet_schema_version": (
+                collection_packet_binding["schema_version"]
+            ),
+            "semantic_collection_packet_id": (
+                collection_packet_binding["packet_id"]
+            ),
+            "semantic_collection_packet_sha256": (
+                collection_packet_binding["packet_sha256"]
+            ),
+            "semantic_collection_dataset_id": (
+                collection_packet_binding["dataset_id"]
+            ),
+            "semantic_collection_case_count": (
+                collection_packet_binding["case_count"]
+            ),
+            "semantic_collection_target_observation_count": (
+                collection_packet_binding["target_observation_count"]
+            ),
+            "semantic_collection_case_id": case_id,
+            "semantic_collection_case_sdk_language": (
+                expected_case["sdk_language"]
+            ),
+            "semantic_collection_case_prompt_template_id": (
+                expected_case["prompt_template_id"]
+            ),
+            "semantic_collection_case_prompt_material_sha256": (
+                expected_case["prompt_material_sha256"]
+            ),
+        }
+        for field, expected_value in expected_metadata.items():
+            if metadata.get(field) != expected_value:
+                blockers.append(f"{case_id}:{field}_mismatch")
+
+    if len(observed_packet_hashes) > 1:
+        blockers.append("semantic_collection_packet_sha256_mixed")
+    if observed_packet_hashes != {
+        collection_packet_binding["packet_sha256"]
+    }:
+        blockers.append("semantic_collection_packet_sha256_cohort_mismatch")
+
+    blockers = sorted(set(blockers))
+    return not blockers, blockers
+
+
+def _reviewed_semantic_case_ids(cases: list[dict[str, Any]]) -> list[str]:
+    return sorted(
+        str(case.get("case_id", ""))
+        for case in cases
+        if _is_reviewed_semantic_source(
+            case.get("sources", {}).get("llm_judge", {})
+        )
+    )
+
+
+def _is_reviewed_semantic_source(source: Any) -> bool:
+    if not isinstance(source, dict):
+        return False
+    if source.get("available") is not True or source.get("status") != "available":
+        return False
+    if not is_canonical_private_evidence_ref(source.get("evidence_ref")):
+        return False
+    provider = str(source.get("provider", "")).strip().lower()
+    if provider in {"", "offline_reference", "offline reference judge samples"}:
+        return False
+    if not str(source.get("model", "")).strip():
+        return False
+
+    metadata = (
+        source.get("metadata")
+        if isinstance(source.get("metadata"), dict)
+        else {}
+    )
+    if any(
+        not str(metadata.get(field, "")).strip()
+        for field in (
+            "prompt_template_id",
+            "prompt_hash",
+            "response_hash",
+            "sdk_language",
+        )
+    ):
+        return False
+    if str(metadata.get("review_status", "")).strip().lower() != "reviewed":
+        return False
+    if str(metadata.get("sdk_language", "")).strip().lower() not in {
+        "python",
+        "typescript",
+    }:
+        return False
+    if any(
+        not isinstance(metadata.get(field), str)
+        or REVIEWER_RECEIPT_PATTERN.fullmatch(metadata[field]) is None
+        for field in ("prompt_hash", "response_hash", "reviewer_receipt")
+    ):
+        return False
+    reviewed_at = metadata.get("reviewed_at_unix_ms")
+    if (
+        isinstance(reviewed_at, bool)
+        or not isinstance(reviewed_at, int)
+        or reviewed_at <= 0
+    ):
+        return False
+
+    cost = source.get("cost") if isinstance(source.get("cost"), dict) else {}
+    prompt_tokens = cost.get("prompt_tokens")
+    completion_tokens = cost.get("completion_tokens")
+    estimated_usd = cost.get("estimated_usd")
+    return (
+        not isinstance(prompt_tokens, bool)
+        and isinstance(prompt_tokens, int)
+        and prompt_tokens > 0
+        and not isinstance(completion_tokens, bool)
+        and isinstance(completion_tokens, int)
+        and completion_tokens > 0
+        and not isinstance(estimated_usd, bool)
+        and isinstance(estimated_usd, (int, float))
+        and math.isfinite(estimated_usd)
+        and estimated_usd > 0
+    )
+
+
+def is_verified_reviewed_semantic_source(source: Any) -> bool:
+    """Return whether a semantic judge row is sufficient for acceptance evidence."""
+    return (
+        isinstance(source, dict)
+        and source.get("source") == "llm_judge"
+        and _is_reviewed_semantic_source(source)
+    )
+
+
+def is_verified_reviewed_releasefoundry_source(source: Any) -> bool:
+    """Return whether an ReleaseFoundry row has reviewed identity and per-test receipts."""
+    if not isinstance(source, dict):
+        return False
+    return (
+        source.get("source") == "releasefoundry_grading"
+        and source.get("status") == "available"
+        and str(source.get("provider", "")).strip().lower()
+        == RELEASEFOUNDRY_SERVER_SIDE_PROVIDER
+        and str(source.get("model", "")).strip().lower()
+        == RELEASEFOUNDRY_SERVER_SIDE_MODEL
+        and _is_reviewed_releasefoundry_source(source)
+        and _has_verified_releasefoundry_terminal_receipt(source)
+    )
 
 
 def _releasefoundry_public_merge_gate(
@@ -348,14 +1087,67 @@ def _releasefoundry_public_merge_gate(
     releasefoundry_counts: dict[str, Any],
     expected_count: int,
     commands: list[str],
+    run_receipt_artifact: Any,
 ) -> dict[str, Any]:
-    current_available = int(releasefoundry_counts.get("available", 0))
-    current_missing = int(releasefoundry_counts.get("missing", expected_count))
+    current_available, current_available_valid = _strict_nonnegative_count(
+        releasefoundry_counts.get("available", 0)
+    )
+    current_missing, current_missing_valid = _strict_nonnegative_count(
+        releasefoundry_counts.get("missing", expected_count),
+        fallback=expected_count,
+    )
+    invalid_count_fields = []
+    if not current_available_valid:
+        invalid_count_fields.append("source_coverage.releasefoundry_grading.available")
+    if not current_missing_valid:
+        invalid_count_fields.append("source_coverage.releasefoundry_grading.missing")
     reviewed_count = _reviewed_releasefoundry_count(cases)
-    count_complete = expected_count > 0 and current_available >= expected_count and current_missing == 0
-    merged = count_complete and reviewed_count >= expected_count
-    status = "merged" if merged else "merged_unreviewed" if count_complete else "not_merged"
-    return {
+    terminal_receipt_count = _terminal_scoring_verified_releasefoundry_count(cases)
+    receipt_cohort_consistent, receipt_cohort_blockers = (
+        _releasefoundry_receipt_cohort_consistency(cases, expected_count)
+    )
+    receipt_artifact_binding = validate_releasefoundry_run_receipt_binding(
+        [
+            {
+                "case_id": case.get("case_id"),
+                "metadata": (
+                    case.get("sources", {})
+                    .get("releasefoundry_grading", {})
+                    .get("metadata")
+                ),
+            }
+            for case in cases
+        ],
+        run_receipt_artifact,
+        expected_case_ids=[
+            case.get("case_id")
+            for case in cases
+        ],
+    )
+    count_complete = (
+        expected_count > 0
+        and not invalid_count_fields
+        and current_available >= expected_count
+        and current_missing == 0
+    )
+    review_complete = reviewed_count >= expected_count
+    terminal_receipts_complete = terminal_receipt_count >= expected_count
+    merged = (
+        count_complete
+        and review_complete
+        and terminal_receipts_complete
+        and receipt_cohort_consistent
+        and receipt_artifact_binding["valid"]
+    )
+    if merged:
+        status = "merged"
+    elif not count_complete:
+        status = "not_merged"
+    elif not review_complete:
+        status = "merged_unreviewed"
+    else:
+        status = "merged_unverified_scoring"
+    gate = {
         "source": "releasefoundry_grading",
         "status": status,
         "public_matrix_merged": merged,
@@ -363,18 +1155,53 @@ def _releasefoundry_public_merge_gate(
         "current_public_observation_count": current_available,
         "merged_public_observation_count": reviewed_count if merged else 0,
         "reviewed_public_observation_count": reviewed_count,
+        "terminal_scoring_verified_observation_count": (
+            terminal_receipt_count
+        ),
+        "receipt_cohort_consistent": receipt_cohort_consistent,
+        "receipt_cohort_blockers": receipt_cohort_blockers,
+        "run_receipt_artifact_present": receipt_artifact_binding[
+            "artifact_present"
+        ],
+        "run_receipt_artifact_sha256": receipt_artifact_binding[
+            "artifact_sha256"
+        ],
+        "run_receipt_artifact_binding_valid": receipt_artifact_binding[
+            "valid"
+        ],
+        "run_receipt_artifact_blockers": receipt_artifact_binding["blockers"],
         "missing_public_observation_count": current_missing,
         "missing_reviewed_observation_count": max(0, expected_count - reviewed_count),
+        "missing_terminal_scoring_receipt_count": max(
+            0,
+            expected_count - terminal_receipt_count,
+        ),
         "required_public_observation_count": expected_count,
         "expected_reviewed_observation_count": expected_count,
         "required_review_fields": REQUIRED_RELEASEFOUNDRY_REVIEW_FIELDS,
+        "required_terminal_scoring_fields": (
+            REQUIRED_RELEASEFOUNDRY_TERMINAL_SCORING_FIELDS
+        ),
         "public_matrix_path": "fixtures/a2/calibration/a2_g3_calibration_observations.json",
         "reviewed_private_import_ref": "docs/evidence/private_refs/a2_releasefoundry_grading_import.review.json",
         "blocking_reason": ""
         if merged
-        else "Reviewed ReleaseFoundry grading observations with review_status=reviewed and evidence_ref must be imported, merged, and regenerated before C3 is met.",
+        else (
+            "Reviewed ReleaseFoundry grading observations with review_status=reviewed, a canonical "
+            "reviewer_receipt, a positive reviewed_at_unix_ms, and canonical private "
+            "evidence_ref must be imported from one acceptance run bound to the fixed "
+            "dataset identity, complete run lifecycle, exact test set, server-observed "
+            "grader version, and independently verified per-test terminal scoring. "
+            "The retained public run receipt must hash-bind every observation and "
+            "match every run-level and per-test scoring field. "
+            "Aggregate markers are not acceptance authority; merge and regenerate "
+            "before C3 is met."
+        ),
         "required_commands": commands,
     }
+    if invalid_count_fields:
+        gate["invalid_count_fields"] = invalid_count_fields
+    return gate
 
 
 def _reviewed_releasefoundry_count(cases: list[dict[str, Any]]) -> int:
@@ -385,12 +1212,167 @@ def _reviewed_releasefoundry_count(cases: list[dict[str, Any]]) -> int:
     )
 
 
+def _terminal_scoring_verified_releasefoundry_count(
+    cases: list[dict[str, Any]],
+) -> int:
+    return sum(
+        1
+        for case in cases
+        if _has_verified_releasefoundry_terminal_receipt(
+            case.get("sources", {}).get("releasefoundry_grading", {})
+        )
+    )
+
+
+def _releasefoundry_receipt_cohort_consistency(
+    cases: list[dict[str, Any]],
+    expected_count: int,
+) -> tuple[bool, list[str]]:
+    metadata_rows = []
+    for case in cases:
+        source = case.get("sources", {}).get("releasefoundry_grading", {})
+        if not _has_verified_releasefoundry_terminal_receipt(source):
+            continue
+        metadata = source.get("metadata")
+        if isinstance(metadata, dict):
+            metadata_rows.append(metadata)
+
+    blockers = []
+    if len(metadata_rows) != expected_count:
+        blockers.append("verified_receipt_cohort_count_mismatch")
+    if not metadata_rows:
+        return False, blockers
+
+    for field in (
+        "run_terminal_receipt_sha256",
+        "dataset_identity_receipt_sha256",
+        "dataset_identity_manifest_sha256",
+        "dataset_identity_content_sha256",
+        "dataset_identity_content_collection",
+        "observed_judge_version",
+    ):
+        if len({metadata.get(field) for metadata in metadata_rows}) != 1:
+            blockers.append(f"{field}_mismatch")
+
+    for field in (
+        "run_expected_test_count",
+        "run_verified_test_count",
+        "dataset_identity_content_item_count",
+    ):
+        if any(metadata.get(field) != expected_count for metadata in metadata_rows):
+            blockers.append(f"{field}_mismatch")
+
+    return not blockers, blockers
+
+
 def _is_reviewed_releasefoundry_source(source: dict[str, Any]) -> bool:
     metadata = source.get("metadata") if isinstance(source.get("metadata"), dict) else {}
+    reviewer_receipt = metadata.get("reviewer_receipt")
+    reviewed_at = metadata.get("reviewed_at_unix_ms")
     return (
         source.get("available") is True
-        and str(source.get("evidence_ref", "")).strip() != ""
+        and is_canonical_private_evidence_ref(source.get("evidence_ref"))
         and str(metadata.get("review_status", "")).lower() == "reviewed"
+        and isinstance(reviewer_receipt, str)
+        and REVIEWER_RECEIPT_PATTERN.fullmatch(reviewer_receipt) is not None
+        and not isinstance(reviewed_at, bool)
+        and isinstance(reviewed_at, int)
+        and reviewed_at > 0
+    )
+
+
+def _has_verified_releasefoundry_terminal_receipt(source: dict[str, Any]) -> bool:
+    if source.get("available") is not True:
+        return False
+    metadata = (
+        source.get("metadata")
+        if isinstance(source.get("metadata"), dict)
+        else {}
+    )
+    signal_types = metadata.get("grading_signal_types")
+    blockers = metadata.get("terminal_receipt_blockers")
+    run_blockers = metadata.get("run_terminal_receipt_blockers")
+    dataset_identity_blockers = metadata.get("dataset_identity_blockers")
+    observed_judge_version = metadata.get("observed_judge_version")
+    dataset_identity_collection = metadata.get(
+        "dataset_identity_content_collection"
+    )
+    dataset_identity_item_count = metadata.get(
+        "dataset_identity_content_item_count"
+    )
+    run_expected_test_count = metadata.get("run_expected_test_count")
+    run_verified_test_count = metadata.get("run_verified_test_count")
+    canonical_signal_types = (
+        isinstance(signal_types, list)
+        and bool(signal_types)
+        and signal_types == sorted(set(signal_types))
+        and all(
+            isinstance(signal_type, str)
+            and signal_type in TEST_SCORING_SIGNAL_TYPES
+            for signal_type in signal_types
+        )
+    )
+    return (
+        metadata.get("terminal_scoring_receipt_schema_version")
+        == TEST_SCORING_SUMMARY_SCHEMA_VERSION
+        and metadata.get("terminal_status") in SCORING_TERMINAL_STATUSES
+        and metadata.get("terminal_status_verified") is True
+        and metadata.get("timestamps_verified") is True
+        and metadata.get("response_evidence_verified") is True
+        and metadata.get("server_grading_signal_verified") is True
+        and metadata.get("terminal_scoring_verified") is True
+        and canonical_signal_types
+        and isinstance(blockers, list)
+        and blockers == []
+        and metadata.get("run_terminal_receipt_schema_version")
+        == PUBLIC_RECEIPT_SCHEMA_VERSION
+        and _is_sha256(metadata.get("run_terminal_receipt_sha256"))
+        and isinstance(run_expected_test_count, int)
+        and not isinstance(run_expected_test_count, bool)
+        and run_expected_test_count > 0
+        and isinstance(run_verified_test_count, int)
+        and not isinstance(run_verified_test_count, bool)
+        and run_verified_test_count > 0
+        and run_verified_test_count == run_expected_test_count
+        and metadata.get("run_receipt_complete") is True
+        and metadata.get("run_dataset_id_verified") is True
+        and metadata.get("run_result_terminal_verified") is True
+        and metadata.get("server_grading_lifecycle_verified") is True
+        and metadata.get("exact_test_set_verified") is True
+        and metadata.get(
+            "all_expected_tests_terminal_scoring_verified"
+        )
+        is True
+        and isinstance(observed_judge_version, str)
+        and bool(observed_judge_version.strip())
+        and metadata.get("judge_version_source") == "server_observed"
+        and metadata.get("judge_version_verified") is True
+        and metadata.get(
+            "aggregate_marker_used_as_acceptance_authority"
+        )
+        is False
+        and isinstance(run_blockers, list)
+        and run_blockers == []
+        and metadata.get("dataset_identity_receipt_schema_version")
+        == DATASET_IDENTITY_RECEIPT_SCHEMA_VERSION
+        and metadata.get("dataset_identity_verified") is True
+        and _is_sha256(metadata.get("dataset_identity_receipt_sha256"))
+        and _is_sha256(metadata.get("dataset_identity_manifest_sha256"))
+        and _is_sha256(metadata.get("dataset_identity_content_sha256"))
+        and isinstance(dataset_identity_collection, str)
+        and bool(dataset_identity_collection.strip())
+        and isinstance(dataset_identity_item_count, int)
+        and not isinstance(dataset_identity_item_count, bool)
+        and dataset_identity_item_count > 0
+        and isinstance(dataset_identity_blockers, list)
+        and dataset_identity_blockers == []
+    )
+
+
+def _is_sha256(value: Any) -> bool:
+    return (
+        isinstance(value, str)
+        and REVIEWER_RECEIPT_PATTERN.fullmatch(value) is not None
     )
 
 
@@ -458,16 +1440,23 @@ def _a1_real_api_evidence_summary(path: str | Path) -> dict[str, Any]:
         for record in records
         if record.get("function") in {"get_run", "list_runs"} and record.get("dry_run") is False
     ]
+    counts, invalid_count_fields = _validated_nonnegative_counts(
+        payload,
+        {
+            "total_records": len(records),
+            "quota_block_count": 0,
+        },
+    )
     return {
-        "available": True,
+        "available": not invalid_count_fields,
         "index_path": target.as_posix(),
         "schema_version": str(payload.get("schema_version", "")),
         "label": str(payload.get("label", "")),
         "field_map_version": str(payload.get("field_map_version", "")),
-        "total_records": int(payload.get("total_records", len(records))),
+        "total_records": counts["total_records"],
         "status_counts": payload.get("status_counts", {}),
         "function_counts": payload.get("function_counts", {}),
-        "quota_block_count": int(payload.get("quota_block_count", 0)),
+        "quota_block_count": counts["quota_block_count"],
         "real_ok_functions": real_ok_functions,
         "mutating_functions_present": mutating_functions,
         "real_record_count": len(real_records),
@@ -482,6 +1471,15 @@ def _a1_real_api_evidence_summary(path: str | Path) -> dict[str, Any]:
             "A1 index is public-safe evidence of API reachability and field shapes, not an ReleaseFoundry grading import.",
             "Create-request records are commercial API shape evidence; they do not count as server-side grading.",
             "C3 still requires scanner-confirmed 6/6 A2 grading cases and reviewed releasefoundry_grading rows before public merge.",
+            *(
+                [
+                    "Malformed non-negative integer count fields make this evidence index unavailable: "
+                    + ", ".join(invalid_count_fields)
+                    + "."
+                ]
+                if invalid_count_fields
+                else []
+            ),
         ],
     }
 
@@ -532,17 +1530,30 @@ def _a1_official_api_readonly_manifest_summary(path: str | Path) -> dict[str, An
     public_safety = payload.get("public_safety") if isinstance(payload.get("public_safety"), dict) else {}
     step_summaries = [step for step in payload.get("step_summaries", []) if isinstance(step, dict)]
     public_safe = _official_manifest_public_safe(public_safety)
-    ready = bool(public_safe and str(payload.get("status", "")) not in {"invalid"})
+    counts, invalid_count_fields = _validated_nonnegative_counts(
+        summary,
+        {
+            "read_steps": 0,
+            "ok_or_planned_steps": 0,
+            "error_steps": 0,
+            "quota_block_count": 0,
+        },
+    )
+    ready = bool(
+        public_safe
+        and not invalid_count_fields
+        and str(payload.get("status", "")) not in {"invalid"}
+    )
     return {
         "available": True,
         "path": target.as_posix(),
         "schema_version": str(payload.get("schema_version", "")),
         "status": str(payload.get("status", "")),
         "source_private_manifest_present": payload.get("source_private_manifest_present") is True,
-        "read_step_count": int(summary.get("read_steps", 0)),
-        "ok_or_planned_step_count": int(summary.get("ok_or_planned_steps", 0)),
-        "error_step_count": int(summary.get("error_steps", 0)),
-        "quota_block_count": int(summary.get("quota_block_count", 0)),
+        "read_step_count": counts["read_steps"],
+        "ok_or_planned_step_count": counts["ok_or_planned_steps"],
+        "error_step_count": counts["error_steps"],
+        "quota_block_count": counts["quota_block_count"],
         "modalities": [str(modality) for modality in summary.get("modalities", [])],
         "step_ids": sorted(str(step.get("step_id", "")) for step in step_summaries if step.get("step_id")),
         "public_safe": public_safe,
@@ -552,6 +1563,15 @@ def _a1_official_api_readonly_manifest_summary(path: str | Path) -> dict[str, An
         "notes": [
             "A1 official API readonly manifest summary can support A2 evidence context and API shape confidence.",
             "It does not count as reviewed releasefoundry_grading rows for C3.",
+            *(
+                [
+                    "Malformed non-negative integer count fields block A2 evidence readiness: "
+                    + ", ".join(invalid_count_fields)
+                    + "."
+                ]
+                if invalid_count_fields
+                else []
+            ),
         ],
     }
 
@@ -600,6 +1620,13 @@ def _a1_official_api_mutating_index_summary(path: str | Path) -> dict[str, Any]:
         and raw_payloads_included is False
         and secret_values_included is False
     )
+    count_fields = ("total_steps", "read_steps", "quota_block_count")
+    invalid_count_fields = sorted(
+        f"records[{record_index}].{field}"
+        for record_index, record in enumerate(records)
+        for field in count_fields
+        if field in record and not _strict_nonnegative_count(record.get(field))[1]
+    )
     return {
         "available": True,
         "path": target.as_posix(),
@@ -612,16 +1639,25 @@ def _a1_official_api_mutating_index_summary(path: str | Path) -> dict[str, Any]:
         "modalities": modalities,
         "mutating_step_ids": mutating_step_ids,
         "observed_error_kinds": observed_error_kinds,
-        "total_steps": sum(_int_value(record.get("total_steps")) for record in records),
-        "read_step_count": sum(_int_value(record.get("read_steps")) for record in records),
+        "total_steps": sum(_nonnegative_count(record.get("total_steps")) for record in records),
+        "read_step_count": sum(_nonnegative_count(record.get("read_steps")) for record in records),
         "mutating_step_count": len(mutating_step_ids),
-        "quota_block_count": sum(_int_value(record.get("quota_block_count")) for record in records),
+        "quota_block_count": sum(_nonnegative_count(record.get("quota_block_count")) for record in records),
         "private_manifest_count": sum(1 for record in records if record.get("private_manifest")),
-        "ready_for_a2_evidence_context": public_safe and bool(records),
+        "ready_for_a2_evidence_context": public_safe and bool(records) and not invalid_count_fields,
         "c3_grading_ready": False,
         "notes": [
             "A1 mutating calibration index is public-safe quota/error shape evidence for official create-request calls.",
             "It does not count as reviewed releasefoundry_grading rows for C3.",
+            *(
+                [
+                    "Malformed non-negative integer count fields block A2 evidence readiness: "
+                    + ", ".join(invalid_count_fields)
+                    + "."
+                ]
+                if invalid_count_fields
+                else []
+            ),
         ],
     }
 
@@ -671,9 +1707,27 @@ def _a1_official_api_paid_media_summary(path: str | Path) -> dict[str, Any]:
         and guardrail_summary["mutating_execute_requires_quota_gate"]
         and guardrail_summary["output_is_private"]
     )
-    error_step_count = int(summary.get("error_steps", 0))
-    quota_block_count = int(summary.get("quota_block_count", len(quota_blocked_steps)))
-    safe_for_claims = str(payload.get("status", "")) == "ok" and error_step_count == 0 and quota_block_count == 0
+    counts, invalid_count_fields = _validated_nonnegative_counts(
+        summary,
+        {
+            "total_steps": len(step_summaries),
+            "read_steps": 0,
+            "mutating_steps": len(mutating_steps),
+            "ok_or_planned_steps": 0,
+            "error_steps": 0,
+            "quota_block_count": len(quota_blocked_steps),
+            "estimated_calls": 0,
+        },
+    )
+    ready = ready and not invalid_count_fields
+    error_step_count = counts["error_steps"]
+    quota_block_count = counts["quota_block_count"]
+    safe_for_claims = bool(
+        not invalid_count_fields
+        and str(payload.get("status", "")) == "ok"
+        and error_step_count == 0
+        and quota_block_count == 0
+    )
     return {
         "available": True,
         "path": target.as_posix(),
@@ -685,13 +1739,13 @@ def _a1_official_api_paid_media_summary(path: str | Path) -> dict[str, Any]:
         "redacted_summary_fields_only": public_safety.get("redacted_summary_fields_only") is True,
         "raw_payload_values_included": public_safety.get("raw_payload_values_included") is True,
         "guardrails": guardrail_summary,
-        "total_step_count": int(summary.get("total_steps", len(step_summaries))),
-        "read_step_count": int(summary.get("read_steps", 0)),
-        "mutating_step_count": int(summary.get("mutating_steps", len(mutating_steps))),
-        "ok_or_planned_step_count": int(summary.get("ok_or_planned_steps", 0)),
+        "total_step_count": counts["total_steps"],
+        "read_step_count": counts["read_steps"],
+        "mutating_step_count": counts["mutating_steps"],
+        "ok_or_planned_step_count": counts["ok_or_planned_steps"],
         "error_step_count": error_step_count,
         "quota_block_count": quota_block_count,
-        "estimated_call_count": int(summary.get("estimated_calls", 0)),
+        "estimated_call_count": counts["estimated_calls"],
         "modalities": [str(modality) for modality in summary.get("modalities", [])],
         "step_ids": sorted(str(step.get("step_id", "")) for step in step_summaries if step.get("step_id")),
         "mutating_functions": sorted(
@@ -711,6 +1765,15 @@ def _a1_official_api_paid_media_summary(path: str | Path) -> dict[str, Any]:
         "notes": [
             "A1 paid-media manifest summary is public-safe quota/error behavior context for mutating media calls.",
             "Partial or quota-blocked paid-media summaries must not be treated as hosted media readiness or C3 grading evidence.",
+            *(
+                [
+                    "Malformed non-negative integer count fields block A2 evidence readiness and paid-media claims: "
+                    + ", ".join(invalid_count_fields)
+                    + "."
+                ]
+                if invalid_count_fields
+                else []
+            ),
         ],
     }
 
@@ -3093,6 +4156,36 @@ def _int_value(value: Any) -> int:
     return 0
 
 
+def _strict_nonnegative_count(
+    value: Any,
+    *,
+    fallback: int = 0,
+) -> tuple[int, bool]:
+    if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+        return fallback, False
+    return value, True
+
+
+def _validated_nonnegative_counts(
+    source: dict[str, Any],
+    defaults: dict[str, int],
+) -> tuple[dict[str, int], list[str]]:
+    counts: dict[str, int] = {}
+    invalid_fields: list[str] = []
+    for field, fallback in defaults.items():
+        value = source[field] if field in source else fallback
+        count, valid = _strict_nonnegative_count(value, fallback=fallback)
+        counts[field] = count
+        if not valid:
+            invalid_fields.append(field)
+    return counts, sorted(invalid_fields)
+
+
+def _nonnegative_count(value: Any, *, fallback: int = 0) -> int:
+    count, valid = _strict_nonnegative_count(value, fallback=fallback)
+    return count if valid else fallback
+
+
 def _currency_minor_totals(value: Any) -> dict[str, int]:
     if not isinstance(value, dict):
         return {}
@@ -3168,105 +4261,442 @@ def _official_sdk_smoke_summary(path: str | Path) -> dict[str, Any]:
 
     calls = [call for call in payload.get("calls", []) if isinstance(call, dict)]
     ok_count = sum(1 for call in calls if call.get("status") == "ok")
-    return {
+    api_call_count, api_call_count_valid = _strict_nonnegative_count(
+        payload.get("api_call_count", len(calls)),
+        fallback=len(calls),
+    )
+    all_required_calls_raw = payload.get("all_required_calls_reached")
+    all_required_calls_reached = all_required_calls_raw is True
+    required_call_names = {
+        "init",
+        "health_check",
+        "list_datasets",
+        "list_runs",
+        "list_requests",
+        "list_agents",
+    }
+    call_names = sorted(str(call.get("name")) for call in calls if call.get("name"))
+    complete_call_set = len(calls) == len(required_call_names) and set(call_names) == required_call_names
+    invalid_boolean_fields = (
+        []
+        if isinstance(all_required_calls_raw, bool)
+        else ["all_required_calls_reached"]
+    )
+    invalid_count_fields = (
+        []
+        if api_call_count_valid and api_call_count == len(calls)
+        else ["api_call_count"]
+    )
+    summary = {
         "available": True,
         "path": target.as_posix(),
         "schema_version": str(payload.get("schema_version", "")),
         "generated_at": str(payload.get("generated_at", "")),
         "sdk_source": str(payload.get("sdk_source", "")),
         "base_url": str(payload.get("base_url", "")),
-        "api_call_count": int(payload.get("api_call_count", len(calls))),
+        "api_call_count": api_call_count,
         "ok_call_count": ok_count,
         "error_call_count": sum(1 for call in calls if call.get("status") != "ok"),
         "call_status_counts": _count_records(calls, "status"),
-        "call_names": sorted(str(call.get("name")) for call in calls if call.get("name")),
-        "all_required_calls_reached": bool(payload.get("all_required_calls_reached")),
-        "read_only_reachable": bool(calls) and ok_count == len(calls) and bool(payload.get("all_required_calls_reached")),
+        "call_names": call_names,
+        "all_required_calls_reached": all_required_calls_reached,
+        "read_only_reachable": (
+            not invalid_boolean_fields
+            and not invalid_count_fields
+            and complete_call_set
+            and ok_count == len(calls)
+            and all_required_calls_reached
+        ),
         "notes": [
             "This is a redacted official releasefoundry SDK smoke summary, separate from clone API calibration.",
             "It proves current authenticated read/list reachability but does not count as C3 server-side grading evidence.",
         ],
     }
+    if invalid_boolean_fields:
+        summary["invalid_boolean_fields"] = invalid_boolean_fields
+    if invalid_count_fields:
+        summary["invalid_count_fields"] = invalid_count_fields
+    return summary
 
 
+
+
+def _artifact_receipt_projection(value: Any) -> tuple[list[dict[str, Any]], list[str]]:
+    if not isinstance(value, list):
+        return [], ["artifact_receipts"]
+
+    allowed_keys = {
+        "modality",
+        "verification_status",
+        "sha256",
+        "byte_size",
+        "response_mime",
+    }
+    allowed_modalities = {"image", "audio", "video", "file"}
+    allowed_statuses = {
+        "verified",
+        "download_failed",
+        "invalid_url",
+        "invalid_redirect",
+        "size_limit_exceeded",
+        "empty_body",
+    }
+    receipts: list[dict[str, Any]] = []
+    invalid_fields: list[str] = []
+    for index, receipt in enumerate(value):
+        prefix = f"artifact_receipts[{index}]"
+        if not isinstance(receipt, dict):
+            invalid_fields.append(prefix)
+            continue
+        for key in sorted(set(receipt) - allowed_keys):
+            invalid_fields.append(f"{prefix}.{key}")
+
+        modality = receipt.get("modality")
+        verification_status = receipt.get("verification_status")
+        sha256 = receipt.get("sha256")
+        byte_size, byte_size_valid = _strict_nonnegative_count(
+            receipt.get("byte_size"),
+            fallback=0,
+        )
+        response_mime = receipt.get("response_mime")
+        if modality not in allowed_modalities:
+            invalid_fields.append(f"{prefix}.modality")
+        if verification_status not in allowed_statuses:
+            invalid_fields.append(f"{prefix}.verification_status")
+        if not isinstance(sha256, str) or not re.fullmatch(r"(?:|[0-9a-f]{64})", sha256):
+            invalid_fields.append(f"{prefix}.sha256")
+            sha256 = ""
+        if not byte_size_valid:
+            invalid_fields.append(f"{prefix}.byte_size")
+        if not isinstance(response_mime, str):
+            invalid_fields.append(f"{prefix}.response_mime")
+            response_mime = ""
+        if verification_status == "verified" and (
+            not sha256 or byte_size <= 0
+        ):
+            invalid_fields.append(f"{prefix}.verified_payload")
+
+        receipts.append(
+            {
+                "modality": str(modality) if modality in allowed_modalities else "",
+                "verification_status": (
+                    str(verification_status)
+                    if verification_status in allowed_statuses
+                    else ""
+                ),
+                "sha256": sha256,
+                "byte_size": byte_size,
+                "response_mime": response_mime,
+            }
+        )
+    return receipts, sorted(set(invalid_fields))
+
+
+def _empty_multimodal_real_api_smoke_summary(
+    path: str | Path,
+    reason: str,
+) -> dict[str, Any]:
+    return {
+        "available": False,
+        "path": Path(path).as_posix(),
+        "schema_version": "",
+        "request_content_sha256": "",
+        "requested_modalities": [],
+        "required_modalities": [],
+        "excluded_modalities": [],
+        "request_config_accepted_modalities": [],
+        "observed_artifact_modalities": [],
+        "accepted_modalities": [],
+        "modality_evidence": {},
+        "generation_options": {},
+        "artifact_origin": "",
+        "artifact_receipt_status": "",
+        "artifact_reference_count": 0,
+        "artifact_download_attempt_count": 0,
+        "artifact_download_verified_count": 0,
+        "artifact_reference_modalities": [],
+        "artifact_verified_modalities": [],
+        "artifact_missing_modalities": [],
+        "artifact_modality_coverage_complete": False,
+        "artifact_receipts": [],
+        "artifact_receipts_public_safe": False,
+        "request_status": "",
+        "api_call_count": 0,
+        "ok_call_count": 0,
+        "error_call_count": 0,
+        "call_status_counts": {},
+        "call_names": [],
+        "quota_blocked": False,
+        "real_api_boundary_reached": False,
+        "all_required_modalities_requested": False,
+        "create_request_reached": False,
+        "request_reused": False,
+        "wait_completed": False,
+        "dataset_id_present": False,
+        "dataset_request_binding_verified": False,
+        "native_media_uploaded": False,
+        "media_upload_api_observed": False,
+        "public_safe": False,
+        "c3_grading_ready": False,
+        "reason": reason,
+    }
 
 
 def _multimodal_real_api_smoke_summary(path: str | Path) -> dict[str, Any]:
     target = Path(path)
     if not target.exists():
-        return {
-            "available": False,
-            "path": target.as_posix(),
-            "schema_version": "",
-            "accepted_modalities": [],
-            "generation_options": {},
-            "api_call_count": 0,
-            "ok_call_count": 0,
-            "error_call_count": 0,
-            "call_status_counts": {},
-            "call_names": [],
-            "quota_blocked": False,
-            "real_api_boundary_reached": False,
-            "all_required_modalities_requested": False,
-            "create_request_reached": False,
-            "wait_completed": False,
-            "dataset_id_present": False,
-            "public_safe": False,
-            "c3_grading_ready": False,
-            "reason": "A2 multimodal real API smoke summary is not available yet.",
-        }
+        return _empty_multimodal_real_api_smoke_summary(
+            target,
+            "A2 multimodal real API smoke summary is not available yet.",
+        )
 
-    payload = json.loads(target.read_text(encoding="utf-8"))
+    try:
+        payload = json.loads(target.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError):
+        return _empty_multimodal_real_api_smoke_summary(
+            target,
+            "A2 multimodal real API smoke summary is not valid UTF-8 JSON.",
+        )
     if not isinstance(payload, dict):
-        return {
-            "available": False,
-            "path": target.as_posix(),
-            "schema_version": "",
-            "accepted_modalities": [],
-            "generation_options": {},
-            "api_call_count": 0,
-            "ok_call_count": 0,
-            "error_call_count": 0,
-            "call_status_counts": {},
-            "call_names": [],
-            "quota_blocked": False,
-            "real_api_boundary_reached": False,
-            "all_required_modalities_requested": False,
-            "create_request_reached": False,
-            "wait_completed": False,
-            "dataset_id_present": False,
-            "public_safe": False,
-            "c3_grading_ready": False,
-            "reason": "A2 multimodal real API smoke summary is not a JSON object.",
-        }
+        return _empty_multimodal_real_api_smoke_summary(
+            target,
+            "A2 multimodal real API smoke summary is not a JSON object.",
+        )
 
     calls = [call for call in payload.get("calls", []) if isinstance(call, dict)]
     ok_count = sum(1 for call in calls if call.get("status") == "ok")
     create_call = next((call for call in calls if call.get("name") == "create_request"), {})
     create_error_message = str(create_call.get("error_message", "")) if isinstance(create_call, dict) else ""
     quota_blocked = "usage limit exceeded" in create_error_message.lower() or "quota" in create_error_message.lower()
-    requested_modalities = _string_list(payload.get("accepted_modalities"))
-    required_modalities = {"text", "image", "audio", "file", "video"}
+    requested_modalities = _string_list(payload.get("requested_modalities"))
+    required_modalities = _string_list(payload.get("required_modalities"))
+    if not required_modalities:
+        required_modalities = ["text", "image", "audio", "file", "video"]
+    excluded_modalities = _string_list(payload.get("excluded_modalities"))
+    request_config_accepted_modalities = _string_list(payload.get("request_config_accepted_modalities"))
+    observed_artifact_modalities = _string_list(payload.get("observed_artifact_modalities"))
+    accepted_modalities = _string_list(payload.get("accepted_modalities"))
+    modality_evidence = payload.get("modality_evidence") if isinstance(payload.get("modality_evidence"), dict) else {}
+    required_modality_set = set(required_modalities)
+    generation_option_by_modality = {
+        "image": "generate_images",
+        "audio": "generate_audio",
+        "file": "generate_files",
+        "video": "generate_videos",
+    }
     generation_options = payload.get("generation_options") if isinstance(payload.get("generation_options"), dict) else {}
-    all_generation_options_enabled = all(
-        generation_options.get(key) is True
-        for key in ("generate_audio", "generate_files", "generate_images", "generate_videos")
+    request_status = str(payload.get("request_status", ""))
+    request_content_sha256 = payload.get("request_content_sha256")
+    invalid_digest_fields = []
+    if not isinstance(request_content_sha256, str) or not re.fullmatch(
+        r"[0-9a-f]{64}",
+        request_content_sha256,
+    ):
+        request_content_sha256 = ""
+        invalid_digest_fields.append("request_content_sha256")
+    artifact_receipts, invalid_artifact_receipt_fields = _artifact_receipt_projection(
+        payload.get("artifact_receipts", [])
     )
-    all_modalities_requested = set(requested_modalities) >= required_modalities and all_generation_options_enabled
-    create_request_reached = bool(payload.get("create_request_reached"))
-    real_api_boundary_reached = bool(create_request_reached or quota_blocked)
-    return {
+    modality_order = ("image", "audio", "file", "video")
+    required_media_modalities = sorted(
+        {
+            modality
+            for modality in required_modality_set
+            if modality in modality_order
+        },
+        key=modality_order.index,
+    )
+    artifact_reference_modalities = sorted(
+        {
+            receipt["modality"]
+            for receipt in artifact_receipts
+            if receipt["modality"]
+        },
+        key=modality_order.index,
+    )
+    artifact_verified_modalities = sorted(
+        {
+            receipt["modality"]
+            for receipt in artifact_receipts
+            if receipt["verification_status"] == "verified"
+            and receipt["modality"]
+        },
+        key=modality_order.index,
+    )
+    artifact_missing_modalities = [
+        modality
+        for modality in required_media_modalities
+        if modality not in set(artifact_verified_modalities)
+    ]
+    artifact_modality_coverage_complete = bool(
+        required_media_modalities and not artifact_missing_modalities
+    )
+    all_generation_options_enabled = all(
+        generation_options.get(generation_option_by_modality[modality]) is True
+        for modality in required_modality_set - {"text"}
+        if modality in generation_option_by_modality
+    )
+    all_modalities_requested = set(requested_modalities) >= required_modality_set and all_generation_options_enabled
+    counts, invalid_count_fields = _validated_nonnegative_counts(
+        payload,
+        {
+            "api_call_count": len(calls),
+            "artifact_reference_count": 0,
+            "artifact_download_attempt_count": 0,
+            "artifact_download_verified_count": 0,
+        },
+    )
+    boolean_inputs = {
+        "all_required_modalities_requested": payload.get("all_required_modalities_requested"),
+        "create_request_reached": payload.get("create_request_reached"),
+        "request_reused": payload.get("request_reused", False),
+        "wait_completed": payload.get("wait_completed"),
+        "dataset_id_present": payload.get("dataset_id_present"),
+        "dataset_request_binding_verified": payload.get(
+            "dataset_request_binding_verified"
+        ),
+        "native_media_uploaded": payload.get("native_media_uploaded"),
+        "media_upload_api_observed": payload.get("media_upload_api_observed"),
+        "c3_grading_ready": payload.get("c3_grading_ready"),
+        "artifact_receipts_public_safe": payload.get(
+            "artifact_receipts_public_safe"
+        ),
+        "artifact_modality_coverage_complete": payload.get(
+            "artifact_modality_coverage_complete"
+        ),
+        "public_safe": payload.get("public_safe"),
+    }
+    invalid_boolean_fields = sorted(
+        field
+        for field, value in boolean_inputs.items()
+        if not isinstance(value, bool)
+    )
+    api_call_count = counts["api_call_count"]
+    artifact_reference_count = counts["artifact_reference_count"]
+    artifact_download_attempt_count = counts["artifact_download_attempt_count"]
+    artifact_download_verified_count = counts["artifact_download_verified_count"]
+    if api_call_count != len(calls):
+        invalid_count_fields.append("api_call_count")
+    if artifact_download_attempt_count != len(artifact_receipts):
+        invalid_count_fields.append("artifact_download_attempt_count")
+    if artifact_download_verified_count != sum(
+        receipt["verification_status"] == "verified"
+        for receipt in artifact_receipts
+    ):
+        invalid_count_fields.append("artifact_download_verified_count")
+    if not (
+        artifact_download_verified_count
+        <= artifact_download_attempt_count
+        <= artifact_reference_count
+    ):
+        invalid_count_fields.extend(
+            [
+                "artifact_reference_count",
+                "artifact_download_attempt_count",
+                "artifact_download_verified_count",
+            ]
+        )
+    invalid_count_fields = sorted(set(invalid_count_fields))
+    if (
+        artifact_download_verified_count
+        == artifact_download_attempt_count
+        == artifact_reference_count
+        and artifact_reference_count > 0
+        and artifact_modality_coverage_complete
+    ):
+        artifact_receipt_status = "verified"
+    elif artifact_download_verified_count > 0:
+        artifact_receipt_status = "partial"
+    elif artifact_download_attempt_count > 0:
+        artifact_receipt_status = "failed"
+    else:
+        artifact_receipt_status = str(
+            payload.get("artifact_receipt_status", "")
+        )
+    create_request_reached = boolean_inputs["create_request_reached"] is True
+    request_reused = boolean_inputs["request_reused"] is True
+    real_api_boundary_reached = create_request_reached or request_reused or quota_blocked
+    all_required_modalities_confirmed = (
+        boolean_inputs["all_required_modalities_requested"] is True
+        and all_modalities_requested
+    )
+    artifact_receipts_public_safe = bool(
+        boolean_inputs["artifact_receipts_public_safe"] is True
+        and not invalid_artifact_receipt_fields
+    )
+    public_safe = bool(
+        boolean_inputs["public_safe"] is True
+        and artifact_receipts_public_safe
+    )
+    invalid_semantic_fields = []
+    for field in (
+        "native_media_uploaded",
+        "media_upload_api_observed",
+        "c3_grading_ready",
+    ):
+        if boolean_inputs[field] is not False:
+            invalid_semantic_fields.append(field)
+    reported_artifact_fields = {
+        "artifact_receipt_status": payload.get("artifact_receipt_status"),
+        "artifact_reference_modalities": _string_list(
+            payload.get("artifact_reference_modalities")
+        ),
+        "artifact_verified_modalities": _string_list(
+            payload.get("artifact_verified_modalities")
+        ),
+        "artifact_missing_modalities": _string_list(
+            payload.get("artifact_missing_modalities")
+        ),
+        "artifact_modality_coverage_complete": payload.get(
+            "artifact_modality_coverage_complete"
+        ),
+    }
+    recomputed_artifact_fields = {
+        "artifact_receipt_status": artifact_receipt_status,
+        "artifact_reference_modalities": artifact_reference_modalities,
+        "artifact_verified_modalities": artifact_verified_modalities,
+        "artifact_missing_modalities": artifact_missing_modalities,
+        "artifact_modality_coverage_complete": (
+            artifact_modality_coverage_complete
+        ),
+    }
+    for field, recomputed_value in recomputed_artifact_fields.items():
+        if reported_artifact_fields[field] != recomputed_value:
+            invalid_semantic_fields.append(field)
+    invalid_semantic_fields = sorted(set(invalid_semantic_fields))
+    summary = {
         "available": True,
         "path": target.as_posix(),
         "schema_version": str(payload.get("schema_version", "")),
+        "request_content_sha256": request_content_sha256,
         "generated_at": str(payload.get("generated_at", "")),
         "sdk_source": str(payload.get("sdk_source", "")),
         "base_url": str(payload.get("base_url", "")),
         "private_ref": str(payload.get("private_ref", "")),
         "private_ref_sha256_12": str(payload.get("private_ref_sha256_12", "")),
-        "accepted_modalities": requested_modalities,
+        "requested_modalities": requested_modalities,
+        "required_modalities": required_modalities,
+        "excluded_modalities": excluded_modalities,
+        "request_config_accepted_modalities": request_config_accepted_modalities,
+        "observed_artifact_modalities": observed_artifact_modalities,
+        "accepted_modalities": accepted_modalities,
+        "modality_evidence": modality_evidence,
         "generation_options": generation_options,
-        "api_call_count": int(payload.get("api_call_count", len(calls))),
+        "artifact_origin": str(payload.get("artifact_origin", "")),
+        "artifact_receipt_status": artifact_receipt_status,
+        "artifact_reference_count": artifact_reference_count,
+        "artifact_download_attempt_count": artifact_download_attempt_count,
+        "artifact_download_verified_count": artifact_download_verified_count,
+        "artifact_reference_modalities": artifact_reference_modalities,
+        "artifact_verified_modalities": artifact_verified_modalities,
+        "artifact_missing_modalities": artifact_missing_modalities,
+        "artifact_modality_coverage_complete": (
+            artifact_modality_coverage_complete
+        ),
+        "artifact_receipts": artifact_receipts,
+        "artifact_receipts_public_safe": artifact_receipts_public_safe,
+        "request_status": request_status,
+        "api_call_count": api_call_count,
         "ok_call_count": ok_count,
         "error_call_count": sum(1 for call in calls if call.get("status") != "ok"),
         "call_status_counts": _count_records(calls, "status"),
@@ -3275,23 +4705,897 @@ def _multimodal_real_api_smoke_summary(path: str | Path) -> dict[str, Any]:
         "create_request_error_type": str(create_call.get("error_type", "")) if isinstance(create_call, dict) else "",
         "create_request_error_message": create_error_message,
         "real_api_boundary_reached": real_api_boundary_reached,
-        "all_required_modalities_requested": all_modalities_requested and bool(payload.get("all_required_modalities_requested")),
+        "all_required_modalities_requested": all_required_modalities_confirmed,
         "create_request_reached": create_request_reached,
-        "wait_completed": bool(payload.get("wait_completed")),
-        "dataset_id_present": bool(payload.get("dataset_id_present")),
-        "public_safe": bool(payload.get("public_safe")),
-        "ready_for_a2_multimodal_context": bool(
-            payload.get("public_safe")
-            and all_modalities_requested
+        "request_reused": request_reused,
+        "wait_completed": boolean_inputs["wait_completed"] is True,
+        "dataset_id_present": boolean_inputs["dataset_id_present"] is True,
+        "dataset_request_binding_verified": (
+            boolean_inputs["dataset_request_binding_verified"] is True
+        ),
+        "native_media_uploaded": False,
+        "media_upload_api_observed": False,
+        "public_safe": public_safe,
+        "ready_for_a2_multimodal_context": (
+            not invalid_boolean_fields
+            and not invalid_count_fields
+            and not invalid_digest_fields
+            and not invalid_semantic_fields
+            and public_safe
+            and all_required_modalities_confirmed
             and real_api_boundary_reached
+            and set(accepted_modalities) >= required_modality_set
         ),
         "c3_grading_ready": False,
         "notes": [
-            "This is a redacted real ReleaseFoundry API multimodal smoke summary for image/audio/file/video request injection.",
-            "A quota-blocked create_request still proves the request payload reached the authenticated API gate after local SDK validation.",
+            "This is a redacted real ReleaseFoundry API smoke summary for the explicitly requested ReleaseFoundry-generated modalities.",
+            "The request status is copied from the terminal request detail when available; failure is not treated as quota evidence or grading success.",
+            "A reused request is selected only by its exact content-bound request name; generated artifacts do not prove caller media upload support.",
+            "Artifact receipts contain only modality, status, SHA-256, byte count, and response MIME; links, object keys, paths, and bytes are not projected.",
+            "Artifact modality coverage and receipt status are rebuilt from requested modalities and verified public receipts; contradictory claims fail closed.",
             "It is not reviewed ReleaseFoundry grading evidence and does not mark C3 ready.",
         ],
     }
+    if invalid_boolean_fields:
+        summary["invalid_boolean_fields"] = invalid_boolean_fields
+    if invalid_count_fields:
+        summary["invalid_count_fields"] = invalid_count_fields
+    if invalid_artifact_receipt_fields:
+        summary["invalid_artifact_receipt_fields"] = (
+            invalid_artifact_receipt_fields
+        )
+    if invalid_digest_fields:
+        summary["invalid_digest_fields"] = invalid_digest_fields
+    if invalid_semantic_fields:
+        summary["invalid_semantic_fields"] = invalid_semantic_fields
+    return summary
+
+
+def _public_multimodal_probe_path(path: str | Path) -> str:
+    target = Path(path)
+    if target.is_absolute():
+        return ""
+    posix_path = target.as_posix()
+    if (
+        target.suffix.lower() != ".json"
+        or len(target.parts) < 3
+        or target.parts[0:2] != ("docs", "evidence")
+        or ".." in target.parts
+        or "?" in posix_path
+        or "#" in posix_path
+        or ":" in posix_path
+    ):
+        return ""
+    return posix_path
+
+
+def _canonical_sha256(value: Any) -> str:
+    if isinstance(value, str) and re.fullmatch(r"[0-9a-f]{64}", value):
+        return value
+    return ""
+
+
+def _unexpected_record_fields(
+    record: dict[str, Any],
+    *,
+    required: set[str],
+    allowed: set[str],
+    prefix: str,
+) -> list[str]:
+    return sorted(
+        [
+            *(f"{prefix}.{field}" for field in required - set(record)),
+            *(f"{prefix}.{field}" for field in set(record) - allowed),
+        ]
+    )
+
+
+def _sensitive_native_surface_fields(value: Any, *, prefix: str = "payload") -> list[str]:
+    sensitive_keys = {
+        "apikey",
+        "authorization",
+        "bearertoken",
+        "password",
+        "secret",
+        "clientsecret",
+        "accesstoken",
+        "refreshtoken",
+        "signedurl",
+    }
+    findings = []
+    if isinstance(value, dict):
+        for key, nested in value.items():
+            normalized_key = re.sub(r"[^a-z0-9]", "", str(key).lower())
+            field_path = f"{prefix}.{key}"
+            if normalized_key in sensitive_keys:
+                findings.append(field_path)
+            findings.extend(
+                _sensitive_native_surface_fields(nested, prefix=field_path)
+            )
+    elif isinstance(value, list):
+        for index, nested in enumerate(value):
+            findings.extend(
+                _sensitive_native_surface_fields(
+                    nested,
+                    prefix=f"{prefix}[{index}]",
+                )
+            )
+    elif isinstance(value, str):
+        if (
+            re.search(r"(?i)\bbearer\s+[a-z0-9._~-]+", value)
+            or re.search(r"https?://[^\s\"']+\?", value)
+            or re.match(r"^[a-zA-Z]:[\\/]", value)
+            or ("-----BEGIN " + "PRIVATE KEY-----") in value
+        ):
+            findings.append(prefix)
+    return findings
+
+
+def _empty_releasefoundry_native_media_surface_summary(
+    path: str | Path,
+    reason: str,
+) -> dict[str, Any]:
+    return {
+        "available": False,
+        "path": _public_multimodal_probe_path(path),
+        "schema_version": "",
+        "sdk_package_name": "",
+        "sdk_version": "",
+        "sdk_artifact_sha256": "",
+        "static_audit_status": "",
+        "expected_surface_matches": False,
+        "surface_fingerprint_sha256": "",
+        "live_session_requested": False,
+        "live_session_attempted": False,
+        "live_session_reached": False,
+        "live_session_status": "",
+        "live_session_api_call_count": 0,
+        "mutation_attempt_count": 0,
+        "generated_artifact_capabilities": {
+            "image": "not_verified",
+            "audio": "not_verified",
+            "file": "not_verified",
+            "video": "provider_unverified",
+        },
+        "generated_artifact_evidence_count": 0,
+        "generated_artifact_evidence": [],
+        "caller_native_submission": {
+            "image": "sdk_surface_changed_review_required",
+            "audio": "sdk_surface_changed_review_required",
+            "file": "sdk_surface_changed_review_required",
+            "video": "provider_unverified",
+        },
+        "upload_method_observed": False,
+        "immutable_media_url_parameter_observed": False,
+        "undocumented_endpoint_probed": False,
+        "native_media_uploaded": False,
+        "caller_native_input_support_proven": False,
+        "surface_audit_verified": False,
+        "public_safe": False,
+        "c3_grading_ready": False,
+        "invalid_fields": [],
+        "reason": reason,
+        "notes": [
+            "No caller-native media capability may be inferred without a valid pinned SDK surface receipt.",
+            "Video remains provider-unverified.",
+        ],
+    }
+
+
+def _project_native_media_evidence(
+    value: Any,
+) -> tuple[list[dict[str, Any]], list[str]]:
+    if not isinstance(value, list):
+        return [], ["generated_artifact_evidence"]
+
+    modality_order = ("image", "audio", "file")
+    projected = []
+    invalid_fields = []
+    for index, item in enumerate(value):
+        prefix = f"generated_artifact_evidence[{index}]"
+        if not isinstance(item, dict):
+            invalid_fields.append(prefix)
+            continue
+        invalid_fields.extend(
+            _unexpected_record_fields(
+                item,
+                required={"path", "sha256", "verified_modalities"},
+                allowed={"path", "sha256", "verified_modalities"},
+                prefix=prefix,
+            )
+        )
+        path = _public_multimodal_probe_path(item.get("path", ""))
+        digest = _canonical_sha256(item.get("sha256"))
+        modalities = _string_list(item.get("verified_modalities"))
+        if not path:
+            invalid_fields.append(f"{prefix}.path")
+        if not digest:
+            invalid_fields.append(f"{prefix}.sha256")
+        if (
+            len(modalities) != len(set(modalities))
+            or not set(modalities) <= set(modality_order)
+        ):
+            invalid_fields.append(f"{prefix}.verified_modalities")
+            modalities = []
+        else:
+            modalities = sorted(modalities, key=modality_order.index)
+
+        content_hash_verified = False
+        if path and digest:
+            target = Path(path)
+            try:
+                content_hash_verified = (
+                    target.is_file()
+                    and hashlib.sha256(target.read_bytes()).hexdigest() == digest
+                )
+            except OSError:
+                content_hash_verified = False
+        if not content_hash_verified:
+            invalid_fields.append(f"{prefix}.content_hash")
+        projected.append(
+            {
+                "path": path,
+                "sha256": digest,
+                "verified_modalities": modalities,
+                "content_hash_verified": content_hash_verified,
+            }
+        )
+
+    expected_paths = {
+        DEFAULT_A2_MULTIMODAL_REAL_API_SMOKE.as_posix(),
+        DEFAULT_A2_MULTIMODAL_AUDIO_REAL_API_SMOKE.as_posix(),
+        DEFAULT_A2_MULTIMODAL_IMAGE_REAL_API_SMOKE.as_posix(),
+        DEFAULT_A2_MULTIMODAL_FILE_REAL_API_SMOKE.as_posix(),
+    }
+    if len(projected) != len(expected_paths):
+        invalid_fields.append("generated_artifact_evidence.count")
+    if {item["path"] for item in projected} != expected_paths:
+        invalid_fields.append("generated_artifact_evidence.paths")
+    if len({item["path"] for item in projected if item["path"]}) != len(projected):
+        invalid_fields.append("generated_artifact_evidence.path.not_unique")
+    if len({item["sha256"] for item in projected if item["sha256"]}) != len(
+        projected
+    ):
+        invalid_fields.append("generated_artifact_evidence.sha256.not_unique")
+    verified_modalities = {
+        modality
+        for item in projected
+        for modality in item["verified_modalities"]
+        if item["content_hash_verified"]
+    }
+    if verified_modalities != set(modality_order):
+        invalid_fields.append("generated_artifact_evidence.modality_coverage")
+    return projected, sorted(set(invalid_fields))
+
+
+def _releasefoundry_native_media_surface_summary(path: str | Path) -> dict[str, Any]:
+    target = Path(path)
+    if not target.exists():
+        return _empty_releasefoundry_native_media_surface_summary(
+            target,
+            "A2 ReleaseFoundry native-media SDK surface receipt is not available yet.",
+        )
+    try:
+        payload = json.loads(target.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError):
+        return _empty_releasefoundry_native_media_surface_summary(
+            target,
+            "A2 ReleaseFoundry native-media SDK surface receipt is not valid UTF-8 JSON.",
+        )
+    if not isinstance(payload, dict):
+        return _empty_releasefoundry_native_media_surface_summary(
+            target,
+            "A2 ReleaseFoundry native-media SDK surface receipt is not a JSON object.",
+        )
+
+    expected_top_level = {
+        "schema_version",
+        "generated_at",
+        "sdk",
+        "static_audit",
+        "live_session",
+        "generated_artifact_capabilities",
+        "generated_artifact_evidence",
+        "caller_native_submission",
+        "upload_method_observed",
+        "immutable_media_url_parameter_observed",
+        "undocumented_endpoint_probed",
+        "mutation_attempt_count",
+        "native_media_uploaded",
+        "caller_native_input_support_proven",
+        "c3_grading_ready",
+        "public_safe",
+        "notes",
+    }
+    invalid_fields = _unexpected_record_fields(
+        payload,
+        required=expected_top_level,
+        allowed=expected_top_level,
+        prefix="payload",
+    )
+    invalid_fields.extend(_sensitive_native_surface_fields(payload))
+
+    sdk = payload.get("sdk") if isinstance(payload.get("sdk"), dict) else {}
+    static_audit = (
+        payload.get("static_audit")
+        if isinstance(payload.get("static_audit"), dict)
+        else {}
+    )
+    live_session = (
+        payload.get("live_session")
+        if isinstance(payload.get("live_session"), dict)
+        else {}
+    )
+    generated_capabilities = (
+        payload.get("generated_artifact_capabilities")
+        if isinstance(payload.get("generated_artifact_capabilities"), dict)
+        else {}
+    )
+    caller_submission = (
+        payload.get("caller_native_submission")
+        if isinstance(payload.get("caller_native_submission"), dict)
+        else {}
+    )
+
+    invalid_fields.extend(
+        _unexpected_record_fields(
+            sdk,
+            required={
+                "package_name",
+                "version",
+                "artifact_path",
+                "artifact_sha256",
+                "source_file_sha256",
+            },
+            allowed={
+                "package_name",
+                "version",
+                "artifact_path",
+                "artifact_sha256",
+                "source_file_sha256",
+            },
+            prefix="sdk",
+        )
+    )
+    static_audit_fields = {
+        "status",
+        "expected_surface_matches",
+        "surface_fingerprint_sha256",
+        "public_client_methods",
+        "upload_method_names_observed",
+        "dataset_ingestion_method_names_observed",
+        "immutable_media_url_parameters_observed",
+        "generic_payload_parameters_observed",
+        "accepted_inputs",
+        "add_user_file",
+        "eval_runner",
+    }
+    invalid_fields.extend(
+        _unexpected_record_fields(
+            static_audit,
+            required=static_audit_fields,
+            allowed=static_audit_fields,
+            prefix="static_audit",
+        )
+    )
+    invalid_fields.extend(
+        _unexpected_record_fields(
+            live_session,
+            required={
+                "requested",
+                "attempted",
+                "reached",
+                "status",
+                "api_call_count",
+                "mutation_attempt_count",
+            },
+            allowed={
+                "requested",
+                "attempted",
+                "reached",
+                "status",
+                "api_call_count",
+                "mutation_attempt_count",
+                "error_type",
+            },
+            prefix="live_session",
+        )
+    )
+    for field, record in (
+        ("generated_artifact_capabilities", generated_capabilities),
+        ("caller_native_submission", caller_submission),
+    ):
+        invalid_fields.extend(
+            _unexpected_record_fields(
+                record,
+                required={"image", "audio", "file", "video"},
+                allowed={"image", "audio", "file", "video"},
+                prefix=field,
+            )
+        )
+
+    public_path = _public_multimodal_probe_path(target)
+    schema_version = (
+        payload.get("schema_version")
+        if isinstance(payload.get("schema_version"), str)
+        else ""
+    )
+    sdk_package_name = (
+        sdk.get("package_name") if isinstance(sdk.get("package_name"), str) else ""
+    )
+    sdk_version = sdk.get("version") if isinstance(sdk.get("version"), str) else ""
+    sdk_artifact_sha256 = _canonical_sha256(sdk.get("artifact_sha256"))
+    static_audit_status = (
+        static_audit.get("status")
+        if static_audit.get("status") in {"completed", "review_required"}
+        else ""
+    )
+    surface_fingerprint_sha256 = _canonical_sha256(
+        static_audit.get("surface_fingerprint_sha256")
+    )
+    live_session_status = (
+        live_session.get("status")
+        if live_session.get("status") in {"not_requested", "ok", "error"}
+        else ""
+    )
+    live_api_call_count, live_api_call_count_valid = _strict_nonnegative_count(
+        live_session.get("api_call_count")
+    )
+    mutation_attempt_count, mutation_attempt_count_valid = _strict_nonnegative_count(
+        payload.get("mutation_attempt_count")
+    )
+    live_mutation_attempt_count, live_mutation_attempt_count_valid = (
+        _strict_nonnegative_count(live_session.get("mutation_attempt_count"))
+    )
+    if not public_path:
+        invalid_fields.append("path")
+    if schema_version != EXPECTED_RELEASEFOUNDRY_NATIVE_MEDIA_SURFACE_SCHEMA_VERSION:
+        invalid_fields.append("schema_version")
+    if sdk_package_name != "releasefoundry":
+        invalid_fields.append("sdk.package_name")
+    if sdk_version != EXPECTED_RELEASEFOUNDRY_NATIVE_MEDIA_SDK_VERSION:
+        invalid_fields.append("sdk.version")
+    if sdk_artifact_sha256 != EXPECTED_RELEASEFOUNDRY_NATIVE_MEDIA_SDK_ARTIFACT_SHA256:
+        invalid_fields.append("sdk.artifact_sha256")
+    if static_audit_status != "completed":
+        invalid_fields.append("static_audit.status")
+    if static_audit.get("expected_surface_matches") is not True:
+        invalid_fields.append("static_audit.expected_surface_matches")
+    if (
+        surface_fingerprint_sha256
+        != EXPECTED_RELEASEFOUNDRY_NATIVE_MEDIA_SURFACE_FINGERPRINT_SHA256
+    ):
+        invalid_fields.append("static_audit.surface_fingerprint_sha256")
+    for field in (
+        "upload_method_names_observed",
+        "dataset_ingestion_method_names_observed",
+        "immutable_media_url_parameters_observed",
+    ):
+        if static_audit.get(field) != []:
+            invalid_fields.append(f"static_audit.{field}")
+
+    accepted_inputs = (
+        static_audit.get("accepted_inputs")
+        if isinstance(static_audit.get("accepted_inputs"), dict)
+        else {}
+    )
+    add_user_file = (
+        static_audit.get("add_user_file")
+        if isinstance(static_audit.get("add_user_file"), dict)
+        else {}
+    )
+    eval_runner = (
+        static_audit.get("eval_runner")
+        if isinstance(static_audit.get("eval_runner"), dict)
+        else {}
+    )
+    static_contract_checks = {
+        "static_audit.accepted_inputs": (
+            accepted_inputs.get("observed") is True
+            and accepted_inputs.get("classification")
+            == "agent_capability_declaration_not_media_transport"
+        ),
+        "static_audit.add_user_file": (
+            add_user_file.get("observed") is True
+            and add_user_file.get("records_file_path") is True
+            and add_user_file.get("file_io_calls_observed") == []
+            and add_user_file.get("classification") == "metadata_only"
+        ),
+        "static_audit.eval_runner": (
+            eval_runner.get("action_content_read") is True
+            and eval_runner.get("agent_respond_receives_content") is True
+            and eval_runner.get("native_file_action_call_observed") is False
+            and eval_runner.get("classification") == "text_content_only_observed"
+        ),
+    }
+    invalid_fields.extend(
+        field for field, passed in static_contract_checks.items() if not passed
+    )
+
+    boolean_expectations = {
+        "live_session.requested": (live_session.get("requested"), False),
+        "live_session.attempted": (live_session.get("attempted"), False),
+        "live_session.reached": (live_session.get("reached"), False),
+        "upload_method_observed": (
+            payload.get("upload_method_observed"),
+            False,
+        ),
+        "immutable_media_url_parameter_observed": (
+            payload.get("immutable_media_url_parameter_observed"),
+            False,
+        ),
+        "undocumented_endpoint_probed": (
+            payload.get("undocumented_endpoint_probed"),
+            False,
+        ),
+        "native_media_uploaded": (payload.get("native_media_uploaded"), False),
+        "caller_native_input_support_proven": (
+            payload.get("caller_native_input_support_proven"),
+            False,
+        ),
+        "c3_grading_ready": (payload.get("c3_grading_ready"), False),
+        "public_safe": (payload.get("public_safe"), True),
+    }
+    for field, (actual, expected) in boolean_expectations.items():
+        if not isinstance(actual, bool) or actual is not expected:
+            invalid_fields.append(field)
+    if live_session_status != "not_requested":
+        invalid_fields.append("live_session.status")
+    if not live_api_call_count_valid or live_api_call_count != 0:
+        invalid_fields.append("live_session.api_call_count")
+    if (
+        not mutation_attempt_count_valid
+        or mutation_attempt_count != 0
+        or not live_mutation_attempt_count_valid
+        or live_mutation_attempt_count != 0
+    ):
+        invalid_fields.append("mutation_attempt_count")
+
+    expected_generated_capabilities = {
+        "image": "verified",
+        "audio": "verified",
+        "file": "verified",
+        "video": "provider_unverified",
+    }
+    expected_caller_submission = {
+        "image": "provider_surface_missing",
+        "audio": "provider_surface_missing",
+        "file": "provider_surface_missing",
+        "video": "provider_unverified",
+    }
+    if generated_capabilities != expected_generated_capabilities:
+        invalid_fields.append("generated_artifact_capabilities")
+    if caller_submission != expected_caller_submission:
+        invalid_fields.append("caller_native_submission")
+
+    generated_evidence, evidence_invalid_fields = (
+        _project_native_media_evidence(
+            payload.get("generated_artifact_evidence")
+        )
+    )
+    invalid_fields.extend(evidence_invalid_fields)
+    invalid_fields = sorted(set(invalid_fields))
+    surface_audit_verified = not invalid_fields
+
+    return {
+        "available": True,
+        "path": public_path,
+        "schema_version": schema_version,
+        "sdk_package_name": sdk_package_name,
+        "sdk_version": sdk_version,
+        "sdk_artifact_sha256": sdk_artifact_sha256,
+        "static_audit_status": static_audit_status,
+        "expected_surface_matches": (
+            static_audit.get("expected_surface_matches") is True
+        ),
+        "surface_fingerprint_sha256": surface_fingerprint_sha256,
+        "live_session_requested": live_session.get("requested") is True,
+        "live_session_attempted": live_session.get("attempted") is True,
+        "live_session_reached": live_session.get("reached") is True,
+        "live_session_status": live_session_status,
+        "live_session_api_call_count": (
+            live_api_call_count if live_api_call_count_valid else 0
+        ),
+        "mutation_attempt_count": (
+            mutation_attempt_count if mutation_attempt_count_valid else 0
+        ),
+        "generated_artifact_capabilities": (
+            expected_generated_capabilities
+            if surface_audit_verified
+            else {
+                "image": "not_verified",
+                "audio": "not_verified",
+                "file": "not_verified",
+                "video": "provider_unverified",
+            }
+        ),
+        "generated_artifact_evidence_count": (
+            len(generated_evidence) if surface_audit_verified else 0
+        ),
+        "generated_artifact_evidence": (
+            generated_evidence if surface_audit_verified else []
+        ),
+        "caller_native_submission": (
+            expected_caller_submission
+            if surface_audit_verified
+            else {
+                "image": "sdk_surface_changed_review_required",
+                "audio": "sdk_surface_changed_review_required",
+                "file": "sdk_surface_changed_review_required",
+                "video": "provider_unverified",
+            }
+        ),
+        "upload_method_observed": payload.get("upload_method_observed") is True,
+        "immutable_media_url_parameter_observed": (
+            payload.get("immutable_media_url_parameter_observed") is True
+        ),
+        "undocumented_endpoint_probed": (
+            payload.get("undocumented_endpoint_probed") is True
+        ),
+        "native_media_uploaded": False,
+        "caller_native_input_support_proven": False,
+        "surface_audit_verified": surface_audit_verified,
+        "public_safe": surface_audit_verified,
+        "c3_grading_ready": False,
+        "invalid_fields": invalid_fields,
+        "notes": [
+            "The pinned offline releasefoundry 0.3.1 compatibility surface is hash-verified when surface_audit_verified is true.",
+            "No live API session is claimed by the static compatibility fixture.",
+            "Image, audio, and file verification refers only to ReleaseFoundry-generated artifacts, not caller-native upload or grading.",
+            "Video remains provider-unverified and cannot become verified through this receipt.",
+            "Any SDK surface drift, mutation, upload signal, malformed field, or private material fails closed for manual review.",
+        ],
+    }
+
+
+def _multimodal_generated_artifact_capabilities_summary(
+    probes: list[tuple[str | Path, dict[str, Any]]],
+    *,
+    releasefoundry_native_media_surface: dict[str, Any],
+) -> dict[str, Any]:
+    expected_modalities = ("image", "audio", "file")
+    projected_probes = []
+    invalid_probe_fields = []
+
+    for index, (path, summary) in enumerate(probes):
+        prefix = f"probes[{index}]"
+        expected_modality = (
+            expected_modalities[index]
+            if index < len(expected_modalities)
+            else ""
+        )
+        public_path = _public_multimodal_probe_path(path)
+        if not public_path:
+            invalid_probe_fields.append(f"{prefix}.path")
+
+        request_content_sha256 = summary.get("request_content_sha256")
+        if not isinstance(request_content_sha256, str) or not re.fullmatch(
+            r"[0-9a-f]{64}",
+            request_content_sha256,
+        ):
+            request_content_sha256 = ""
+            invalid_probe_fields.append(
+                f"{prefix}.request_content_sha256"
+            )
+
+        artifact_receipts, receipt_invalid_fields = _artifact_receipt_projection(
+            summary.get("artifact_receipts", [])
+        )
+        invalid_probe_fields.extend(
+            f"{prefix}.{field}" for field in receipt_invalid_fields
+        )
+        inherited_invalid_fields = sorted(
+            field
+            for key, value in summary.items()
+            if key.startswith("invalid_") and isinstance(value, list)
+            for field in value
+        )
+        invalid_probe_fields.extend(
+            f"{prefix}.{field}" for field in inherited_invalid_fields
+        )
+
+        verified_modalities = sorted(
+            {
+                receipt["modality"]
+                for receipt in artifact_receipts
+                if receipt["verification_status"] == "verified"
+                and receipt["modality"] in expected_modalities
+            },
+            key=expected_modalities.index,
+        )
+        unexpected_verified_modalities = sorted(
+            {
+                receipt["modality"]
+                for receipt in artifact_receipts
+                if receipt["verification_status"] == "verified"
+                and receipt["modality"] not in expected_modalities
+            }
+        )
+        if unexpected_verified_modalities:
+            invalid_probe_fields.append(
+                f"{prefix}.unexpected_verified_modalities"
+            )
+
+        validity_checks = {
+            "available": summary.get("available") is True,
+            "schema_version": (
+                summary.get("schema_version")
+                == "a2.multimodal_real_api_smoke.v1"
+            ),
+            "required_modality_binding": (
+                len(summary.get("required_modalities", [])) == 2
+                and set(summary.get("required_modalities", []))
+                == {"text", expected_modality}
+            ),
+            "verified_modality_binding": (
+                verified_modalities == [expected_modality]
+            ),
+            "public_safe": summary.get("public_safe") is True,
+            "artifact_origin": (
+                summary.get("artifact_origin")
+                == "releasefoundry_generated_dataset"
+            ),
+            "artifact_receipt_status": (
+                summary.get("artifact_receipt_status") == "verified"
+            ),
+            "request_status": summary.get("request_status") == "completed",
+            "real_api_boundary_reached": (
+                summary.get("real_api_boundary_reached") is True
+            ),
+            "wait_completed": summary.get("wait_completed") is True,
+            "dataset_id_present": summary.get("dataset_id_present") is True,
+            "dataset_request_binding_verified": (
+                summary.get("dataset_request_binding_verified") is True
+            ),
+            "native_media_uploaded": (
+                summary.get("native_media_uploaded") is False
+            ),
+            "media_upload_api_observed": (
+                summary.get("media_upload_api_observed") is False
+            ),
+            "c3_grading_ready": (
+                summary.get("c3_grading_ready") is False
+            ),
+            "artifact_receipts": bool(artifact_receipts)
+            and all(
+                receipt["verification_status"] == "verified"
+                for receipt in artifact_receipts
+            ),
+            "verified_modalities": bool(verified_modalities),
+        }
+        for field, passed in validity_checks.items():
+            if not passed:
+                invalid_probe_fields.append(f"{prefix}.{field}")
+
+        projected_probes.append(
+            {
+                "path": public_path,
+                "request_content_sha256": request_content_sha256,
+                "request_status": str(summary.get("request_status", "")),
+                "dataset_request_binding_verified": (
+                    summary.get("dataset_request_binding_verified") is True
+                ),
+                "artifact_receipts": artifact_receipts,
+                "verified_generated_artifact_modalities": verified_modalities,
+                "valid_for_aggregation": all(validity_checks.values())
+                and not receipt_invalid_fields
+                and not inherited_invalid_fields
+                and not unexpected_verified_modalities
+                and bool(public_path)
+                and bool(request_content_sha256),
+            }
+        )
+
+    request_hashes = [
+        probe["request_content_sha256"]
+        for probe in projected_probes
+        if probe["request_content_sha256"]
+    ]
+    if len(set(request_hashes)) != len(request_hashes):
+        invalid_probe_fields.append(
+            "probes.request_content_sha256.not_unique"
+        )
+    artifact_hashes = [
+        receipt["sha256"]
+        for probe in projected_probes
+        for receipt in probe["artifact_receipts"]
+        if receipt["verification_status"] == "verified"
+        and receipt["sha256"]
+    ]
+    if len(set(artifact_hashes)) != len(artifact_hashes):
+        invalid_probe_fields.append(
+            "probes.artifact_receipts.sha256.not_unique"
+        )
+
+    invalid_probe_fields = sorted(set(invalid_probe_fields))
+    aggregation_valid = (
+        len(projected_probes) == len(expected_modalities)
+        and not invalid_probe_fields
+        and all(probe["valid_for_aggregation"] for probe in projected_probes)
+    )
+    verified_modalities = (
+        sorted(
+            {
+                modality
+                for probe in projected_probes
+                for modality in probe[
+                    "verified_generated_artifact_modalities"
+                ]
+            },
+            key=expected_modalities.index,
+        )
+        if aggregation_valid
+        else []
+    )
+    all_expected_modalities_verified = (
+        aggregation_valid
+        and verified_modalities == list(expected_modalities)
+    )
+    native_media_surface_binding_verified = bool(
+        releasefoundry_native_media_surface.get("surface_audit_verified") is True
+        and releasefoundry_native_media_surface.get("generated_artifact_capabilities")
+        == {
+            "image": "verified",
+            "audio": "verified",
+            "file": "verified",
+            "video": "provider_unverified",
+        }
+        and releasefoundry_native_media_surface.get("caller_native_input_support_proven")
+        is False
+        and releasefoundry_native_media_surface.get("c3_grading_ready") is False
+    )
+
+    return {
+        "artifact_origin": "releasefoundry_generated_dataset",
+        "aggregation_status": (
+            "verified"
+            if all_expected_modalities_verified
+            else "invalid"
+            if invalid_probe_fields
+            else "incomplete"
+        ),
+        "probe_count": len(projected_probes),
+        "verified_probe_count": (
+            sum(
+                probe["valid_for_aggregation"]
+                for probe in projected_probes
+            )
+            if aggregation_valid
+            else 0
+        ),
+        "independent_request_count": (
+            len(set(request_hashes)) if aggregation_valid else 0
+        ),
+        "required_verified_modalities": list(expected_modalities),
+        "verified_generated_artifact_modalities": verified_modalities,
+        "provider_unverified_modalities": ["video"],
+        "all_expected_modalities_verified": (
+            all_expected_modalities_verified
+        ),
+        "native_media_uploaded": False,
+        "media_upload_api_observed": False,
+        "caller_native_input_support_proven": False,
+        "native_media_surface_path": (
+            str(releasefoundry_native_media_surface.get("path", ""))
+            if native_media_surface_binding_verified
+            else ""
+        ),
+        "native_media_surface_binding_verified": (
+            native_media_surface_binding_verified
+        ),
+        "public_safe": aggregation_valid,
+        "c3_grading_ready": False,
+        "probes": projected_probes,
+        "invalid_probe_fields": invalid_probe_fields,
+        "notes": [
+            "This projection combines three independent public-safe ReleaseFoundry request receipts without merging their request identities.",
+            "It proves only ReleaseFoundry-generated image, audio, and file artifact availability.",
+            "It does not prove caller-native media upload support, reviewed grading, Reward Model training, or C3 completion.",
+            "Video remains provider-unverified and is excluded from the default real-API smoke path.",
+        ],
+    }
+
+
 def _llm_offline_only(calibration_matrix: dict[str, Any]) -> bool:
     providers = set()
     for row in calibration_matrix.get("cost_ledger", []):

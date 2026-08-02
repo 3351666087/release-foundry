@@ -6,9 +6,15 @@ import json
 import math
 import re
 import sqlite3
+from collections.abc import Mapping
 from datetime import datetime, timedelta, timezone
 from typing import Any, Callable
 
+from .a1_event_bridge import (
+    A1_EVENT_SCHEMA_VERSION,
+    build_release_decision_spool_handoff,
+)
+from .provider_gateway import validate_idempotency_key
 from .result_persistence import stable_hash
 from .trusted_spine import GENESIS_HASH, build_decision_ledger
 
@@ -22,6 +28,81 @@ _SECRET_OR_LOCATION = re.compile(
     r"(?i)(bearer\s+|api[_-]?key|token=|https?://|file://|[a-z]:\\|/private_refs/)"
 )
 _SHA256_REF = re.compile(r"sha256:[0-9a-f]{64}\Z")
+_MAX_LEASE_SECONDS = 86_400
+_MAX_WORKER_ID_LENGTH = 256
+
+
+def validate_operation_id(value: Any) -> str:
+    """Require the canonical digest used to identify a decision operation."""
+    if not isinstance(value, str) or _SHA256_REF.fullmatch(value) is None:
+        raise ValueError("operation_id must be a sha256 reference")
+    return value
+
+
+def validate_timestamp(value: Any, *, field: str) -> str:
+    """Require an explicit timezone before using a timestamp for durable state."""
+    _strict_timestamp(value, field=field)
+    return value
+
+
+def validate_lease_seconds(value: Any) -> int:
+    """Reject unsafe lease values before they can authorize or claim work."""
+    if (
+        isinstance(value, bool)
+        or not isinstance(value, int)
+        or value <= 0
+        or value > _MAX_LEASE_SECONDS
+    ):
+        raise ValueError(
+            "lease_seconds must be positive; expected an integer no greater than "
+            f"{_MAX_LEASE_SECONDS}"
+        )
+    return value
+
+
+def validate_worker_id(value: Any) -> str:
+    """Require a durable, bounded owner identity for fenced work."""
+    if (
+        not isinstance(value, str)
+        or not value.strip()
+        or len(value) > _MAX_WORKER_ID_LENGTH
+    ):
+        raise ValueError(
+            "worker_id must be a non-empty string no longer than "
+            f"{_MAX_WORKER_ID_LENGTH} characters"
+        )
+    return value
+
+
+def validate_next_reconcile_at(value: Any, *, observed_at: Any) -> str | None:
+    """Reject malformed or immediately-due reconciliation schedules."""
+    observed_timestamp = _strict_timestamp(observed_at, field="observed_at")
+    if value is None:
+        return None
+    next_timestamp = _strict_timestamp(value, field="next_reconcile_at")
+    if next_timestamp <= observed_timestamp:
+        raise ValueError("next_reconcile_at must be later than observed_at")
+    return value
+
+
+def validate_tenant_scope(payload: Any) -> dict[str, str]:
+    """Preserve exact tenant identities instead of coercing arbitrary values."""
+    if not isinstance(payload, Mapping):
+        raise ValueError("tenant scope must be a mapping")
+    fields = ("organization_id", "tenant_id", "workspace_id", "project_id", "environment_id")
+    scope: dict[str, str] = {}
+    for field in fields:
+        value = payload.get(field)
+        if (
+            not isinstance(value, str)
+            or not value.strip()
+            or value != value.strip()
+        ):
+            raise ValueError(
+                f"{field} must be a non-empty string without surrounding whitespace"
+            )
+        scope[field] = value
+    return scope
 
 
 def migrate_legacy_taxonomy_policy_identity(
@@ -62,6 +143,7 @@ def reserve_decision_operation(
     provider_endpoint_hash: str = "",
 ) -> dict[str, Any]:
     """Reserve an idempotent operation before any external provider call."""
+    created_at = validate_timestamp(created_at, field="created_at")
     if not idempotency_key:
         raise ValueError("idempotency key is required")
     if reconciliation_mode not in {"unsupported", "provider_status_lookup"}:
@@ -133,6 +215,10 @@ def authorize_provider_call(
     idempotency_key_hash: str = "",
 ) -> dict[str, Any]:
     """Acquire fenced execution authority before handing control to the provider."""
+    operation_id = validate_operation_id(operation_id)
+    created_at = validate_timestamp(created_at, field="created_at")
+    lease_seconds = validate_lease_seconds(lease_seconds)
+    worker_id = validate_worker_id(worker_id)
     normalized_scope = _scope(scope)
     now = _timestamp(created_at)
     lease_expires_at = (now + timedelta(seconds=lease_seconds)).isoformat().replace("+00:00", "Z")
@@ -190,10 +276,14 @@ def claim_provider_reconciliation(
     worker_id: str,
     now: str,
     lease_seconds: int = 60,
+    expected_idempotency_key_hash: str | None = None,
+    expected_request_hash: str | None = None,
 ) -> dict[str, Any]:
     """Claim one uncertain Provider operation without authorizing another call."""
-    if lease_seconds <= 0:
-        raise ValueError("lease_seconds must be positive")
+    operation_id = validate_operation_id(operation_id)
+    now = validate_timestamp(now, field="now")
+    lease_seconds = validate_lease_seconds(lease_seconds)
+    worker_id = validate_worker_id(worker_id)
     normalized_scope = _scope(scope)
     now_value = _timestamp(now)
     lease_expires_at = (now_value + timedelta(seconds=lease_seconds)).isoformat().replace("+00:00", "Z")
@@ -218,6 +308,17 @@ def claim_provider_reconciliation(
         required = ("provider_call_id", "logical_call_id", "provider_payload_hash", "provider_idempotency_key_hash")
         if any(not row.get(field) for field in required):
             raise ValueError("provider reconciliation identity is incomplete")
+        if (
+            expected_idempotency_key_hash is not None
+            and row["provider_idempotency_key_hash"] != expected_idempotency_key_hash
+        ):
+            raise IdempotencyConflictError(
+                "reconciliation idempotency key does not match original provider call"
+            )
+        if expected_request_hash is not None and row["request_hash"] != expected_request_hash:
+            raise IdempotencyConflictError(
+                "reconciliation input does not match original provider call"
+            )
         generation = int(row["reconciliation_generation"]) + 1
         cursor = connection.execute(
             """
@@ -266,7 +367,9 @@ def claim_due_provider_reconciliation(
     lease_seconds: int = 60,
 ) -> dict[str, Any] | None:
     """Claim the oldest due reconciliation job across tenant scopes."""
-    _timestamp(now)
+    now = validate_timestamp(now, field="now")
+    lease_seconds = validate_lease_seconds(lease_seconds)
+    worker_id = validate_worker_id(worker_id)
     row = connection.execute(
         """
         SELECT operation_id, organization_id, tenant_id, workspace_id, project_id, environment_id
@@ -278,13 +381,19 @@ def claim_due_provider_reconciliation(
           AND provider_payload_hash IS NOT NULL
           AND provider_idempotency_key_hash IS NOT NULL
           AND provider_endpoint_hash <> ''
-          AND (reconciliation_next_at IS NULL OR reconciliation_next_at <= ?)
+          AND (
+            reconciliation_next_at IS NULL
+            OR julianday(reconciliation_next_at) <= julianday(?)
+          )
           AND (
             reconciliation_owner IS NULL
             OR reconciliation_lease_expires_at IS NULL
-            OR reconciliation_lease_expires_at <= ?
+            OR julianday(reconciliation_lease_expires_at) <= julianday(?)
           )
-        ORDER BY COALESCE(reconciliation_next_at, created_at), created_at, operation_id
+        ORDER BY
+          COALESCE(julianday(reconciliation_next_at), julianday(created_at)),
+          julianday(created_at),
+          operation_id
         LIMIT 1
         """,
         (now, now),
@@ -318,6 +427,8 @@ def persist_provider_reconciliation_observation(
     next_reconcile_at: str | None = None,
 ) -> dict[str, Any]:
     """Append one public-safe observation while keeping release and retry closed."""
+    operation_id = validate_operation_id(operation_id)
+    observed_at = validate_timestamp(observed_at, field="observed_at")
     normalized_scope = _scope(scope)
     record = _reconciliation_record(operation_id, normalized_scope, lease, observation, observed_at, next_reconcile_at)
     try:
@@ -325,20 +436,23 @@ def persist_provider_reconciliation_observation(
         row = _operation_by_id(connection, operation_id)
         _assert_reconciliation_fence(row, normalized_scope, lease, observed_at)
         _insert_reconciliation_observation(connection, record)
-        connection.execute(
+        cursor = connection.execute(
             """
             UPDATE a2_decision_operations
             SET last_reconciliation_status = ?, last_reconciliation_observation_hash = ?,
                 reconciliation_next_at = ?, reconciliation_owner = NULL,
                 reconciliation_lease_expires_at = NULL, updated_at = ?
             WHERE operation_id = ? AND reconciliation_owner = ?
-              AND reconciliation_generation = ?
+              AND reconciliation_generation = ? AND fencing_token = ?
             """,
             (
                 record["status"], record["observation_hash"], next_reconcile_at, observed_at,
                 operation_id, lease["worker_id"], lease["reconciliation_generation"],
+                lease["fencing_token"],
             ),
         )
+        if cursor.rowcount != 1:
+            raise ValueError("stale provider reconciliation fence")
         _write_operation_audit(
             connection, operation_id, normalized_scope, "provider_reconciliation_observed", observed_at,
             {"status": record["status"], "observation_hash": record["observation_hash"]},
@@ -363,6 +477,8 @@ def persist_provider_outcome(
     failure_injector: FailureInjector | None = None,
 ) -> dict[str, str]:
     """Persist Provider hashes plus a governed public-safe recovery envelope."""
+    operation_id = validate_operation_id(operation_id)
+    completed_at = validate_timestamp(completed_at, field="completed_at")
     normalized_scope = _scope(scope)
     if recovery_envelope is None:
         recovery_envelope = {
@@ -457,6 +573,8 @@ def persist_reconciled_provider_outcome(
     failure_injector: FailureInjector | None = None,
 ) -> dict[str, str]:
     """Atomically bridge a verified remote completion into the normal outcome path."""
+    operation_id = validate_operation_id(operation_id)
+    completed_at = validate_timestamp(completed_at, field="completed_at")
     normalized_scope = _scope(scope)
     _validate_recovery_envelope(recovery_envelope, normalized_scope)
     record = _reconciliation_record(operation_id, normalized_scope, lease, observation, completed_at, None)
@@ -550,8 +668,10 @@ def claim_decision_recovery(
     lease_seconds: int = 60,
 ) -> dict[str, Any]:
     """Claim a completed Provider outcome without authorizing another Provider call."""
-    if lease_seconds <= 0:
-        raise ValueError("lease_seconds must be positive")
+    operation_id = validate_operation_id(operation_id)
+    now = validate_timestamp(now, field="now")
+    lease_seconds = validate_lease_seconds(lease_seconds)
+    worker_id = validate_worker_id(worker_id)
     normalized_scope = _scope(scope)
     lease_expires_at = (
         _timestamp(now) + timedelta(seconds=lease_seconds)
@@ -614,10 +734,12 @@ def load_decision_recovery_envelope(
     scope: dict[str, str],
 ) -> dict[str, Any]:
     """Load and verify the canonical public-safe recovery input."""
+    operation_id = validate_operation_id(operation_id)
     normalized_scope = _scope(scope)
     cursor = connection.execute(
         """
-        SELECT o.provider_outcome_hash, o.request_hash AS operation_request_hash,
+        SELECT o.provider_outcome_hash, o.idempotency_key AS operation_idempotency_key,
+               o.request_hash AS operation_request_hash,
                o.provider_payload_hash, p.outcome_hash, p.recovery_envelope_json,
                p.recovery_envelope_hash
         FROM a2_decision_operations o
@@ -649,6 +771,8 @@ def load_decision_recovery_envelope(
     if envelope.get("recovery_supported") is not True:
         raise ValueError("provider outcome does not contain a recoverable envelope")
     _validate_recovery_envelope(envelope, normalized_scope)
+    if envelope["idempotency_key"] != row["operation_idempotency_key"]:
+        raise IdempotencyConflictError("recovery idempotency key changed before commit")
     if envelope.get("request_hash") != row["operation_request_hash"]:
         raise IdempotencyConflictError("decision input changed before commit")
     snapshot = _dict(envelope.get("snapshot"), "recovery snapshot")
@@ -684,6 +808,8 @@ def mark_operation_recovery_required(
     lease: dict[str, Any] | None = None,
 ) -> None:
     """Mark an uncertain external-call window for explicit recovery."""
+    operation_id = validate_operation_id(operation_id)
+    created_at = validate_timestamp(created_at, field="created_at")
     normalized_scope = _scope(scope)
     try:
         connection.execute("BEGIN IMMEDIATE")
@@ -722,6 +848,8 @@ def persist_release_decision(
     failure_injector: FailureInjector | None = None,
 ) -> dict[str, Any]:
     """Atomically commit one decision and its mandatory audit event."""
+    if operation_id is not None:
+        operation_id = validate_operation_id(operation_id)
     snapshot = _dict(result.get("evidence_snapshot"), "evidence snapshot")
     provenance = _dict(result.get("provider_provenance"), "provider provenance")
     judge = _dict(result.get("judge_result"), "judge result")
@@ -731,6 +859,9 @@ def persist_release_decision(
     if not isinstance(records, list) or len(records) != 1 or not isinstance(records[0], dict):
         raise ValueError("decision ledger must contain exactly one record")
     record = records[0]
+    validate_timestamp(record.get("created_at"), field="created_at")
+    if commit_now is not None:
+        commit_now = validate_timestamp(commit_now, field="commit_now")
     scope = _scope(record)
     _assert_scope(snapshot, scope, "evidence snapshot")
     _assert_scope(ledger, scope, "decision ledger")
@@ -867,12 +998,13 @@ def persist_release_decision(
                   record_hash, ledger_hash, provider_outcome_hash, delivery_status,
                   available_at, created_at, public_safe
                 ) VALUES (?, 'a2.release_decision.committed.v1', ?, ?, ?, ?, ?, ?, ?,
-                          'releasefoundry.event_envelope.v1', ?, ?, ?, ?, 'pending', ?, ?, 1)
+                          ?, ?, ?, ?, ?, 'pending', ?, ?, 1)
                 """,
                 (
                     event_id, operation_id, record["record_id"], scope["organization_id"],
                     scope["tenant_id"], scope["workspace_id"], scope["project_id"],
-                    scope["environment_id"], stable_hash(outbox_payload), record["record_hash"],
+                    scope["environment_id"], A1_EVENT_SCHEMA_VERSION,
+                    stable_hash(outbox_payload), record["record_hash"],
                     ledger["ledger_hash"], operation["provider_outcome_hash"],
                     record["created_at"], record["created_at"],
                 ),
@@ -899,8 +1031,9 @@ def claim_decision_outbox(
     lease_seconds: int = 60,
 ) -> dict[str, Any] | None:
     """Claim one due A3 event with a monotonic delivery fencing generation."""
-    if lease_seconds <= 0:
-        raise ValueError("lease_seconds must be positive")
+    now = validate_timestamp(now, field="now")
+    lease_seconds = validate_lease_seconds(lease_seconds)
+    worker_id = validate_worker_id(worker_id)
     lease_expires_at = (
         _timestamp(now) + timedelta(seconds=lease_seconds)
     ).isoformat().replace("+00:00", "Z")
@@ -908,12 +1041,35 @@ def claim_decision_outbox(
         connection.execute("BEGIN IMMEDIATE")
         cursor = connection.execute(
             """
-            SELECT * FROM a2_decision_outbox
+            SELECT
+              outbox.*,
+              decision.run_id,
+              decision.case_id,
+              decision.scenario_id,
+              decision.decision,
+              decision.review_required,
+              decision.ledger_id,
+              decision.organization_id AS decision_organization_id,
+              decision.tenant_id AS decision_tenant_id,
+              decision.workspace_id AS decision_workspace_id,
+              decision.project_id AS decision_project_id,
+              decision.environment_id AS decision_environment_id,
+              decision.record_hash AS decision_record_hash,
+              decision.ledger_hash AS decision_ledger_hash,
+              operation.provider_outcome_hash AS operation_provider_outcome_hash
+            FROM a2_decision_outbox AS outbox
+            JOIN a2_release_decisions AS decision
+              ON decision.record_id = outbox.record_id
+            JOIN a2_decision_operations AS operation
+              ON operation.operation_id = outbox.operation_id
             WHERE (
-              delivery_status IN ('pending', 'retry')
-              OR (delivery_status = 'leased' AND lease_expires_at <= ?)
-            ) AND available_at <= ?
-            ORDER BY created_at, event_id
+              outbox.delivery_status IN ('pending', 'retry')
+              OR (
+                outbox.delivery_status = 'leased'
+                AND julianday(outbox.lease_expires_at) <= julianday(?)
+              )
+            ) AND julianday(outbox.available_at) <= julianday(?)
+            ORDER BY julianday(outbox.created_at), outbox.event_id
             LIMIT 1
             """,
             (now, now),
@@ -922,6 +1078,7 @@ def claim_decision_outbox(
         if row is None:
             connection.commit()
             return None
+        a1_handoff = build_release_decision_spool_handoff(row)
         generation = int(row["lease_generation"]) + 1
         updated = connection.execute(
             """
@@ -944,6 +1101,7 @@ def claim_decision_outbox(
         lease_expires_at=lease_expires_at,
         attempt_count=int(row["attempt_count"]) + 1,
         delivery_status="leased",
+        a1_event_handoff=a1_handoff,
     )
     return row
 
@@ -960,10 +1118,16 @@ def settle_decision_outbox(
     error_class: str | None = None,
 ) -> None:
     """Settle a claimed event without allowing a stale dispatcher to overwrite state."""
+    worker_id = validate_worker_id(worker_id)
     if outcome not in {"delivered", "retry", "dead"}:
         raise ValueError("outbox outcome must be delivered, retry, or dead")
     if outcome == "retry" and not retry_at:
         raise ValueError("retry_at is required for retry")
+    delivered_at = validate_timestamp(delivered_at, field="delivered_at")
+    if retry_at is not None:
+        retry_at = validate_timestamp(retry_at, field="retry_at")
+        if _timestamp(retry_at) <= _timestamp(delivered_at):
+            raise ValueError("retry_at must be later than delivered_at")
     available_at = retry_at or delivered_at
     final_delivered_at = delivered_at if outcome == "delivered" else None
     cursor = connection.execute(
@@ -986,11 +1150,7 @@ def settle_decision_outbox(
 
 
 def _scope(payload: dict[str, Any]) -> dict[str, str]:
-    fields = ("organization_id", "tenant_id", "workspace_id", "project_id", "environment_id")
-    scope = {field: str(payload.get(field) or "") for field in fields}
-    if not all(scope.values()):
-        raise ValueError("complete five-field tenant scope is required")
-    return scope
+    return validate_tenant_scope(payload)
 
 
 def _operation_row(
@@ -1017,6 +1177,7 @@ def _operation_row(
 
 
 def _operation_by_id(connection: sqlite3.Connection, operation_id: str) -> dict[str, Any] | None:
+    operation_id = validate_operation_id(operation_id)
     cursor = connection.execute(
         "SELECT * FROM a2_decision_operations WHERE operation_id = ?",
         (operation_id,),
@@ -1150,6 +1311,22 @@ def _assert_reconciliation_fence(
         or int(row["fencing_token"]) != int(lease["fencing_token"])
     ):
         raise ValueError("stale provider reconciliation fence")
+    lease_bindings = {
+        "operation_id": "operation_id",
+        "provider_call_id": "provider_call_id",
+        "provider_id": "provider_id",
+        "model_id": "model_id",
+        "logical_call_id": "logical_call_id",
+        "snapshot_hash": "snapshot_hash",
+        "provider_payload_hash": "payload_hash",
+        "provider_idempotency_key_hash": "idempotency_key_hash",
+        "provider_endpoint_hash": "provider_endpoint_hash",
+    }
+    if any(
+        row[row_field] != lease.get(lease_field)
+        for row_field, lease_field in lease_bindings.items()
+    ):
+        raise ValueError("provider reconciliation lease identity mismatch")
     if (
         not row.get("reconciliation_lease_expires_at")
         or _timestamp(row["reconciliation_lease_expires_at"]) <= _timestamp(observed_at)
@@ -1165,6 +1342,7 @@ def _reconciliation_record(
     observed_at: str,
     next_reconcile_at: str | None,
 ) -> dict[str, Any]:
+    operation_id = validate_operation_id(operation_id)
     status = str(observation.get("status") or "")
     allowed = {
         "remote_completed", "remote_pending", "remote_not_found",
@@ -1177,6 +1355,10 @@ def _reconciliation_record(
     normalized_output = observation.get("normalized_output")
     if status != "remote_completed" and normalized_output is not None:
         raise ValueError("non-completed reconciliation cannot contain normalized output")
+    next_reconcile_at = validate_next_reconcile_at(
+        next_reconcile_at,
+        observed_at=observed_at,
+    )
     normalized_json = (
         json.dumps(normalized_output, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
         if normalized_output is not None else None
@@ -1274,6 +1456,10 @@ def _validate_recovery_envelope(
     _assert_exact_keys(envelope, supported_top, "recovery envelope")
     if envelope.get("schema_version") != "a2.normalized_decision_envelope.v1":
         raise ValueError("unsupported recovery envelope schema")
+    validate_idempotency_key(envelope.get("idempotency_key"))
+    request_hash = envelope.get("request_hash")
+    if not isinstance(request_hash, str) or _SHA256_REF.fullmatch(request_hash) is None:
+        raise ValueError("recovery request hash is invalid")
     if _SHA256_REF.fullmatch(str(envelope.get("evaluation_trust_policy_hash") or "")) is None:
         raise ValueError("evaluation trust policy hash is invalid")
     taxonomy_policy_hash = str(envelope.get("taxonomy_policy_hash") or "")
@@ -1452,5 +1638,17 @@ def _scan_public_safe_value(value: Any) -> None:
         raise ValueError("recovery envelope contains secret or location-like text")
 
 
-def _timestamp(value: str) -> datetime:
-    return datetime.fromisoformat(str(value).replace("Z", "+00:00")).astimezone(timezone.utc)
+def _timestamp(value: Any) -> datetime:
+    return _strict_timestamp(value, field="timestamp")
+
+
+def _strict_timestamp(value: Any, *, field: str) -> datetime:
+    if not isinstance(value, str) or not value.strip():
+        raise ValueError(f"{field} must be a timezone-aware ISO-8601 timestamp")
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError as exc:
+        raise ValueError(f"{field} must be a valid timezone-aware ISO-8601 timestamp") from exc
+    if parsed.tzinfo is None or parsed.utcoffset() is None:
+        raise ValueError(f"{field} must be a timezone-aware ISO-8601 timestamp")
+    return parsed.astimezone(timezone.utc)

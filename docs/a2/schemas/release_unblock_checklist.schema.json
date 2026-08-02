@@ -6,6 +6,9 @@
     "schema_version",
     "checklist_id",
     "source_release_gate",
+    "source_release_gate_artifact_hash",
+    "source_release_gate_snapshot_hash",
+    "release_gate_artifact_verified",
     "release_gate_decision",
     "release_gate_exit_code",
     "release_gate_risk_score",
@@ -21,6 +24,9 @@
     "schema_version": { "const": "a2.release_unblock_checklist.v1" },
     "checklist_id": { "type": "string" },
     "source_release_gate": { "type": "string" },
+    "source_release_gate_artifact_hash": { "type": "string" },
+    "source_release_gate_snapshot_hash": { "$ref": "#/$defs/hash_ref" },
+    "release_gate_artifact_verified": { "type": "boolean" },
     "release_gate_decision": { "type": "string" },
     "release_gate_exit_code": { "type": "integer", "minimum": 0 },
     "release_gate_risk_score": { "type": "integer", "minimum": 0, "maximum": 100 },
@@ -53,6 +59,10 @@
     }
   },
   "$defs": {
+    "hash_ref": {
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$"
+    },
     "string_array": {
       "type": "array",
       "items": { "type": "string" }
@@ -62,6 +72,7 @@
       "required": [
         "schema_version",
         "blocked_gate_count",
+        "release_gate_artifact_verified",
         "primary_action",
         "dashboard_sections",
         "evidence_refs"
@@ -69,6 +80,7 @@
       "properties": {
         "schema_version": { "const": "a2.release_unblock_checklist.a3_summary.v1" },
         "blocked_gate_count": { "type": "integer", "minimum": 0 },
+        "release_gate_artifact_verified": { "type": "boolean" },
         "primary_action": { "type": "string" },
         "dashboard_sections": { "$ref": "#/$defs/string_array" },
         "evidence_refs": { "$ref": "#/$defs/string_array" }

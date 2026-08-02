@@ -2,8 +2,11 @@
   "schema_version": "a2.regression_promotion_queue.v1",
   "queue_id": "a2_regression_promotion_queue",
   "source_case_book": "a2_case_book",
+  "source_case_book_hash": "sha256:376bb1b0412b3e7d015f4fd9079b26eaf1dc9e55eef2e154dbf4321d28623f66",
   "source_incident_candidates": "a2_incident_regression_candidates",
+  "source_incident_candidates_hash": "sha256:6fe56015f768e6d65bead048e04a8546938050a65cdc1d5087017d8a34767fe9",
   "source_regression_replay": "a2_case_book_regression_replay",
+  "source_regression_replay_hash": "sha256:3bfa09754b0db9016b2afa978cf9d5983a4e3fce74319bdfadbd9523445c1bae",
   "target_mature_replay_case_count": 3,
   "current_replay_case_count": 1,
   "missing_replay_case_count": 2,
@@ -29,6 +32,8 @@
   "promotion_items": [
     {
       "promotion_id": "promotion-incident-regression-prod-inc-2026-07-support-status-retry",
+      "source_incident_candidates_hash": "sha256:6fe56015f768e6d65bead048e04a8546938050a65cdc1d5087017d8a34767fe9",
+      "candidate_hash": "sha256:d2e649a52aee1c0eaf6dcedb9a16403e68498c14cc561d1fec81d39d5687c747",
       "queue_status": "ready_for_owner_review",
       "case_id": "sample-a2-s041-poor-retry-recovery",
       "scenario_id": "A2-S041",
@@ -79,5 +84,6 @@
     "does_not_execute_live_calls": true,
     "does_not_read_private_evidence": true,
     "private_evidence_boundary": "Private evidence refs may be named, but raw private payloads stay under docs/evidence/private_refs/ and are not read."
-  }
+  },
+  "artifact_hash": "sha256:d29d066d4a4937a42f2608196d3f5a919f6389911109993060e7310fe4ce481c"
 }

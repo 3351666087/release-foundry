@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import re
 import os
+import shutil
 import subprocess
 import uuid
 from concurrent.futures import ThreadPoolExecutor
@@ -52,8 +53,11 @@ def _function_body(function: str, next_marker: str) -> str:
 
 
 def _docker(*args: str, input_text: str | None = None, check: bool = True):
+    docker = shutil.which("docker")
+    if docker is None:
+        pytest.skip("Docker CLI is unavailable for live PostgreSQL tests")
     return subprocess.run(
-        ["docker", *args],
+        [docker, *args],
         input=input_text,
         text=True,
         capture_output=True,
@@ -570,11 +574,14 @@ def test_live_retryable_proof_outbox_budget_and_runtime_boundary(
         issued = _rows(_psql(
             verification_database,
             f"""
-              SET ROLE a1_security_ticket_issuer;
+              -- Migration 028 deliberately removes the independent
+              -- password/MFA issuer's access to this legacy credential-bind
+              -- primitive. Seed the authority as the database owner because
+              -- this test exercises binding atomicity, not issuer ACLs.
               SELECT a1_issue_identity_security_mutation_ticket(
                 '{ticket_digest}', '{step_up_digest}', '{principal}',
                 '{principal}', 'credential_bind', '{request_digest}',
-                NULL, NULL, NULL, NULL,
+                NULL, NULL, NULL, NULL, NULL, NULL,
                 clock_timestamp() + interval '5 minutes'
               );
             """,

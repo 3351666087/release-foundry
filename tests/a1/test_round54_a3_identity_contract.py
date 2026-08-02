@@ -73,7 +73,8 @@ def test_a3_surface_covers_account_security_lifecycle() -> None:
         "password_change",
         "two_factor_enroll",
         "two_factor_verify",
-        "two_factor_recovery",
+        "two_factor_recovery_consume",
+        "two_factor_recovery_rotate",
         "two_factor_disable",
     } <= operations
     assert contract["account_mutations"]["last_login_method_unlink_forbidden"] is True
@@ -151,7 +152,16 @@ def test_evidence_separates_desired_implemented_runtime_and_gaps() -> None:
         for route in evidence["implemented_routes"]["routes"]
     }
     assert implemented == {
+        ("GET", "/v1/accounts/{account_id}/security"),
         ("GET", "/v1/identity/providers"),
+        ("POST", "/v1/accounts/{account_id}/password/change/begin"),
+        ("POST", "/v1/accounts/{account_id}/password/enroll/begin"),
+        ("POST", "/v1/accounts/{account_id}/password/recover/begin"),
+        ("POST", "/v1/accounts/{account_id}/two-factor/disable"),
+        ("POST", "/v1/accounts/{account_id}/two-factor/enroll/begin"),
+        ("POST", "/v1/accounts/{account_id}/two-factor/enroll/confirm"),
+        ("POST", "/v1/accounts/{account_id}/two-factor/recovery-codes/consume"),
+        ("POST", "/v1/accounts/{account_id}/two-factor/recovery-codes/rotate"),
         ("POST", "/v1/identity/registration/start"),
         ("POST", "/v1/identity/registration/complete"),
         ("POST", "/v1/identity/login/start"),
@@ -164,7 +174,21 @@ def test_evidence_separates_desired_implemented_runtime_and_gaps() -> None:
         "register_complete",
         "login_start",
         "login_complete",
+        "security_posture",
+        "password_set",
+        "password_change",
+        "password_recover",
+        "two_factor_enroll",
+        "two_factor_verify",
+        "two_factor_recovery_consume",
+        "two_factor_recovery_rotate",
+        "two_factor_disable",
     } & proposed
+    assert proposed == {
+        "link_start",
+        "link_complete",
+        "unlink",
+    }
     assert evidence["proposed_non_routable"]["client_callable"] is False
     assert evidence["known_gaps"]
 

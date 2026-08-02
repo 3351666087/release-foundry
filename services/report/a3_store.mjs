@@ -132,6 +132,11 @@ export class A3StoreResourceNotFoundError extends Error {
 }
 
 export const A3_SOURCE_FIXTURES = {
+  "refund-demo": {
+    label: "E-commerce Refund Teaching Demo",
+    runFixture: "fixtures/a3/demo/refund_demo_run_results.json",
+    gradeFixture: "fixtures/a3/demo/refund_demo_grade_results.json"
+  },
   mock: {
     label: "A1/A2 Mock",
     runFixture: "fixtures/a3/mock_run_results.json",

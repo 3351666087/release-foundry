@@ -366,6 +366,57 @@ class A2JudgeServiceWrapperTests(unittest.TestCase):
             any(item["id"] == "A1-OUTPUT-POLICY" for item in result["a3_release_gate_summary"]["failed_checks"])
         )
 
+    def test_release_policy_endpoint_blocks_malformed_release_gate_report(self):
+        malformed_reports = (
+            "invalid",
+            [],
+            {
+                "decision": "pass",
+                "blockers": [],
+                "warnings": [],
+                "release_candidate": "invalid",
+            },
+            {
+                "decision": "pass",
+                "blockers": [{"type": "source_blocker", "severity": "critical"}],
+                "warnings": [],
+            },
+            {
+                "decision": "pass",
+                "blockers": [None],
+                "warnings": "invalid",
+            },
+        )
+
+        for malformed_report in malformed_reports:
+            with self.subTest(report=malformed_report):
+                response = post_internal_release_policy_evaluate(
+                    {
+                        "request_id": "svc-release-malformed-gate",
+                        "tenant_id": "tenant_demo",
+                        "project_id": "project_enterprise",
+                        "environment": "prod",
+                        "release_candidate_id": "agent-malformed",
+                        "release_gate_report": malformed_report,
+                    }
+                )
+                result = response["result"]
+                integrity_blockers = [
+                    item
+                    for item in result["blockers"]
+                    if item["type"] == "release_gate_report_integrity"
+                ]
+
+                self.assertTrue(response["ok"])
+                self.assertEqual(result["decision"], "block")
+                self.assertEqual(result["exit_code"], 2)
+                self.assertEqual(len(integrity_blockers), 1)
+                self.assertTrue(result["a3_release_gate_summary"]["blocks_merge"])
+                self.assertEqual(
+                    result["release_candidate"]["id"],
+                    "agent-malformed",
+                )
+
     def test_release_policy_endpoint_applies_public_waiver(self):
         grade_results = [
             {

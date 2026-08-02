@@ -1,13 +1,18 @@
 export type OAuthProvider = "google" | "github";
 
 export const authContractCapabilities = {
-  sourceSha: "c784163",
-  sourceState: "merged_to_main",
+  sourceSha: "6897997",
+  sourceState: "merged_to_a3",
   oauthAccountLinking: true,
+  oauthInitialLoginCoordinator: true,
   oauthInitialLogin: false,
+  emailRegistration: true,
+  emailLogin: true,
   emailChallengeRequest: true,
-  emailBrowserCompletion: false,
+  emailBrowserCompletion: true,
   emailLoginSessionCookie: true,
+  browserIdentityRead: true,
+  browserLogout: true,
   browserSessionRefresh: true,
   productionReady: false
 } as const;
@@ -17,7 +22,13 @@ export type AuthRuntimeConfig = {
   projectId: string;
   tenantId: string;
   configured: boolean;
-  reason: "ready" | "api_base_missing" | "api_base_invalid" | "project_missing" | "tenant_missing";
+  scopeConfigured: boolean;
+  reason:
+    | "ready"
+    | "api_base_missing"
+    | "api_base_invalid"
+    | "browser_origin_insecure"
+    | "browser_origin_mismatch";
 };
 
 type OAuthAccountLinkStartResponse = {
@@ -27,32 +38,32 @@ type OAuthAccountLinkStartResponse = {
   expires_at: string;
 };
 
-type VerificationStartResponse = {
-  schema_version: string;
-  status: "accepted";
-  message: string;
-};
-
-export type VerificationCompleteResponse = {
+export type EmailIdentityChallenge = {
   schema_version: string;
   challenge_id: string;
-  credential_created: boolean;
-  verified_at: string;
-  account: {
-    account_id: string;
-    status: string;
-    display_name?: string;
-  };
-  credential: {
-    credential_id: string;
-    kind: string;
-    verified: boolean;
-  };
+  intent_id: string;
+  expires_at: string;
+  resend_after: string;
+};
+
+export type EmailIdentityCompletion = {
+  status: "authenticated";
+  redirect_to: "/console";
 };
 
 export type IdentitySessionRefreshResponse = {
   schema_version: "releasefoundry.identity_session_refresh.v1";
   status: "rotated";
+};
+
+export type CurrentIdentity = {
+  schema_version: string;
+  account_id: string;
+  primary_principal_id: string;
+  display_name?: string;
+  status: string;
+  credential_count: number;
+  membership_count: number;
 };
 
 const rawApiBase = process.env.NEXT_PUBLIC_A1_API_BASE_URL || "";
@@ -75,19 +86,20 @@ export function getAuthRuntimeConfig(): AuthRuntimeConfig {
   let reason: AuthRuntimeConfig["reason"] = "ready";
   if (!rawApiBase.trim()) reason = "api_base_missing";
   else if (!apiBaseUrl) reason = "api_base_invalid";
-  else if (!projectId) reason = "project_missing";
-  else if (!tenantId) reason = "tenant_missing";
+  else if (typeof window !== "undefined" && window.location.protocol !== "https:") reason = "browser_origin_insecure";
+  else if (typeof window !== "undefined" && new URL(apiBaseUrl).origin !== window.location.origin) reason = "browser_origin_mismatch";
   return {
     apiBaseUrl,
     projectId,
     tenantId,
     configured: reason === "ready",
+    scopeConfigured: reason === "ready" && Boolean(projectId) && Boolean(tenantId),
     reason
   };
 }
 
 export async function startOAuthAccountLinking(provider: OAuthProvider): Promise<OAuthAccountLinkStartResponse> {
-  const config = requireConfig();
+  const config = requireScopedConfig();
   const payload = await fetchJson(
     `${config.apiBaseUrl}/v1/projects/${encodeURIComponent(config.projectId)}/oauth/${provider}/start`,
     {
@@ -110,76 +122,80 @@ export async function startOAuthAccountLinking(provider: OAuthProvider): Promise
   };
 }
 
-export async function requestEmailVerification(email: string): Promise<VerificationStartResponse> {
-  const config = requireConfig();
-  const payload = await fetchJson(`${config.apiBaseUrl}/v1/identity-verification/challenges`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    credentials: "include",
-    body: JSON.stringify({
-      channel: "email",
-      identifier: normalizeEmail(email),
-      purpose: "binding",
-      tenant_id: config.tenantId
-    })
-  });
-  const status = readString(payload, "status");
-  if (status !== "accepted") {
-    throw new AuthApiError("Identity verification returned an unexpected status.", "verification_response_invalid");
-  }
-  return {
-    schema_version: readString(payload, "schema_version"),
-    status: "accepted",
-    message: readString(payload, "message")
-  };
+export async function beginEmailRegistration(email: string): Promise<EmailIdentityChallenge> {
+  return beginEmailIdentity("registration", email);
 }
 
-export async function completeEmailVerification(input: {
-  challengeId: string;
-  code: string;
-  email: string;
-  displayName: string;
-}): Promise<VerificationCompleteResponse> {
-  const config = requireConfig();
-  const code = input.code.trim();
-  if (!/^\d{6}$/.test(code)) throw new AuthApiError("Enter a six-digit verification code.", "verification_code_invalid");
-  if (!input.challengeId.trim()) throw new AuthApiError("Secure challenge context is missing.", "verification_challenge_missing");
-  const payload = await fetchJson(`${config.apiBaseUrl}/v1/identity-verification/verify`, {
+export async function beginEmailLogin(email: string): Promise<EmailIdentityChallenge> {
+  return beginEmailIdentity("login", email);
+}
+
+async function beginEmailIdentity(
+  purpose: "registration" | "login",
+  email: string
+): Promise<EmailIdentityChallenge> {
+  const config = requireBrowserConfig();
+  const payload = await fetchJson(`${config.apiBaseUrl}/v1/identity/${purpose}/email/begin`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     credentials: "include",
-    body: JSON.stringify({
-      challenge_id: input.challengeId.trim(),
-      code,
-      channel: "email",
-      identifier: normalizeEmail(input.email),
-      purpose: "binding",
-      tenant_id: config.tenantId,
-      display_name: input.displayName.trim()
-    })
+    body: JSON.stringify({ email: normalizeEmail(email) })
   });
-  const account = readRecord(payload, "account");
-  const credential = readRecord(payload, "credential");
   return {
     schema_version: readString(payload, "schema_version"),
     challenge_id: readString(payload, "challenge_id"),
-    credential_created: payload.credential_created === true,
-    verified_at: readString(payload, "verified_at"),
-    account: {
-      account_id: readString(account, "account_id"),
-      status: readString(account, "status"),
-      display_name: optionalString(account.display_name)
-    },
-    credential: {
-      credential_id: readString(credential, "credential_id"),
-      kind: readString(credential, "kind"),
-      verified: credential.verified === true
-    }
+    intent_id: readString(payload, "intent_id"),
+    expires_at: readDateString(payload, "expires_at"),
+    resend_after: readDateString(payload, "resend_after")
   };
 }
 
+export async function completeEmailRegistration(input: {
+  challengeId: string;
+  intentId: string;
+  code: string;
+  displayName: string;
+}): Promise<EmailIdentityCompletion> {
+  return completeEmailIdentity("registration", {
+    challengeId: input.challengeId,
+    intentId: input.intentId,
+    code: input.code,
+    displayName: input.displayName
+  });
+}
+
+export async function completeEmailLogin(input: {
+  challengeId: string;
+  intentId: string;
+  code: string;
+}): Promise<EmailIdentityCompletion> {
+  return completeEmailIdentity("login", input);
+}
+
+async function completeEmailIdentity(
+  purpose: "registration" | "login",
+  input: { challengeId: string; intentId: string; code: string; displayName?: string }
+): Promise<EmailIdentityCompletion> {
+  const config = requireBrowserConfig();
+  const code = input.code.trim();
+  if (!/^\d{6}$/.test(code)) throw new AuthApiError("Enter a six-digit verification code.", "verification_code_invalid");
+  const challengeId = normalizeHandle(input.challengeId, "challenge_id");
+  const intentId = normalizeHandle(input.intentId, "intent_id");
+  const body: Record<string, string> = {
+    challenge_id: challengeId,
+    intent_id: intentId,
+    proof: code
+  };
+  if (purpose === "registration") {
+    const displayName = input.displayName?.trim();
+    if (!displayName) throw new AuthApiError("Enter a display name.", "display_name_missing");
+    body.display_name = displayName;
+  }
+  return fetchIdentityCompletion(`${config.apiBaseUrl}/v1/identity/${purpose}/email/complete`, body);
+}
+
 export async function refreshIdentitySession(accountId: string): Promise<IdentitySessionRefreshResponse> {
-  const config = requireConfig();
+  const config = requireScopedConfig();
   const apiOrigin = new URL(config.apiBaseUrl).origin;
   if (window.location.origin !== apiOrigin) {
     throw new AuthApiError(
@@ -205,12 +221,56 @@ export async function refreshIdentitySession(accountId: string): Promise<Identit
   };
 }
 
-function requireConfig(): AuthRuntimeConfig & { apiBaseUrl: string } {
+export async function getCurrentIdentity(): Promise<CurrentIdentity> {
+  const config = requireBrowserConfig();
+  const payload = await fetchJson(`${config.apiBaseUrl}/v1/me`, {
+    method: "GET",
+    credentials: "include"
+  });
+  return {
+    schema_version: readString(payload, "schema_version"),
+    account_id: readString(payload, "account_id"),
+    primary_principal_id: readString(payload, "primary_principal_id"),
+    display_name: optionalString(payload.display_name),
+    status: readString(payload, "status"),
+    credential_count: readNonNegativeInteger(payload, "credential_count"),
+    membership_count: readNonNegativeInteger(payload, "membership_count")
+  };
+}
+
+export async function logoutIdentity(): Promise<void> {
+  const config = requireBrowserConfig();
+  let payload: Record<string, unknown>;
+  try {
+    payload = await fetchJson(`${config.apiBaseUrl}/v1/identity/sessions/revoke`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: "{}"
+    });
+  } catch (error) {
+    // A missing or already-revoked session is already in the requested state.
+    if (error instanceof AuthApiError && error.status === 401) return;
+    throw error;
+  }
+  if (readString(payload, "status") !== "revoked") {
+    throw new AuthApiError("The identity service did not confirm logout.", "identity_logout_invalid");
+  }
+}
+
+function requireBrowserConfig(): AuthRuntimeConfig & { apiBaseUrl: string } {
   const config = getAuthRuntimeConfig();
   if (!config.configured || !config.apiBaseUrl) {
     throw new AuthApiError("The identity service is not configured for this build.", config.reason);
   }
   return { ...config, apiBaseUrl: config.apiBaseUrl };
+}
+
+function requireScopedConfig(): AuthRuntimeConfig & { apiBaseUrl: string } {
+  const config = requireBrowserConfig();
+  if (!config.projectId) throw new AuthApiError("The identity project is not configured.", "project_missing");
+  if (!config.tenantId) throw new AuthApiError("The identity tenant is not configured.", "tenant_missing");
+  return config;
 }
 
 function normalizeApiBase(value: string): string | null {
@@ -252,6 +312,54 @@ function normalizeScopeId(value: string, field: string) {
     throw new AuthApiError(`${field} is invalid.`, "identity_scope_invalid");
   }
   return normalized;
+}
+
+function normalizeHandle(value: string, field: "challenge_id" | "intent_id") {
+  const normalized = value.trim();
+  if (!/^[A-Za-z0-9._:-]{8,256}$/.test(normalized)) {
+    throw new AuthApiError(`Secure ${field} context is missing.`, "verification_challenge_missing");
+  }
+  return normalized;
+}
+
+async function fetchIdentityCompletion(
+  url: string,
+  body: Record<string, string>
+): Promise<EmailIdentityCompletion> {
+  const controller = new AbortController();
+  const timeout = window.setTimeout(() => controller.abort(), 12_000);
+  try {
+    const response = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      cache: "no-store",
+      redirect: "follow",
+      signal: controller.signal,
+      body: JSON.stringify(body)
+    });
+    if (!response.ok) {
+      const payload = await readResponsePayload(response);
+      throw new AuthApiError(
+        optionalString(payload.message) || publicErrorMessage(response.status),
+        optionalString(payload.code) || `http_${response.status}`,
+        response.status
+      );
+    }
+    const finalUrl = new URL(response.url);
+    if (!response.redirected || finalUrl.origin !== window.location.origin || finalUrl.pathname !== "/console") {
+      throw new AuthApiError("The identity service did not complete the trusted console handoff.", "identity_handoff_invalid");
+    }
+    return { status: "authenticated", redirect_to: "/console" };
+  } catch (error) {
+    if (error instanceof AuthApiError) throw error;
+    if (error instanceof DOMException && error.name === "AbortError") {
+      throw new AuthApiError("The identity service timed out.", "identity_service_timeout");
+    }
+    throw new AuthApiError("The identity service could not be reached.", "identity_service_unreachable");
+  } finally {
+    window.clearTimeout(timeout);
+  }
 }
 
 async function fetchJson(url: string, init: RequestInit): Promise<Record<string, unknown>> {
@@ -296,12 +404,20 @@ function readString(record: Record<string, unknown>, key: string) {
   return value;
 }
 
-function readRecord(record: Record<string, unknown>, key: string) {
-  const value = record[key];
-  if (value === null || typeof value !== "object" || Array.isArray(value)) {
-    throw new AuthApiError(`The identity response is missing ${key}.`, "identity_response_invalid");
+function readDateString(record: Record<string, unknown>, key: string) {
+  const value = readString(record, key);
+  if (Number.isNaN(Date.parse(value))) {
+    throw new AuthApiError(`The identity response contains an invalid ${key}.`, "identity_response_invalid");
   }
-  return value as Record<string, unknown>;
+  return value;
+}
+
+function readNonNegativeInteger(record: Record<string, unknown>, key: string) {
+  const value = record[key];
+  if (typeof value !== "number" || !Number.isInteger(value) || value < 0) {
+    throw new AuthApiError(`The identity response contains an invalid ${key}.`, "identity_response_invalid");
+  }
+  return value;
 }
 
 function optionalString(value: unknown) {

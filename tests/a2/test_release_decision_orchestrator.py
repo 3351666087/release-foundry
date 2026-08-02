@@ -12,6 +12,11 @@ from unittest.mock import patch
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
+from services.judge.a1_event_bridge import (
+    A1_EVENT_SCHEMA_VERSION,
+    A1EventBridgeError,
+    verify_release_decision_spool_handoff,
+)
 from services.judge.provider_gateway import (
     ProviderDefinition, ProviderGateway, StrictFakeAdapter, StrictFakeReconciliationAdapter,
 )
@@ -52,6 +57,28 @@ from services.judge.trusted_spine import build_evidence_snapshot
 
 NOW = 1_750_000_000_000
 KEY = b"k" * 32
+MALFORMED_OPERATION_IDS = (
+    None,
+    "",
+    "   ",
+    True,
+    123,
+    [],
+    {},
+    "operation-1",
+    "sha256:short",
+    "SHA256:" + "a" * 64,
+)
+MALFORMED_TIMESTAMPS = (
+    None,
+    "",
+    "not-a-time",
+    True,
+    123,
+    [],
+    {},
+    "2026-07-12T00:00:00",
+)
 
 
 def canonical(value):
@@ -323,7 +350,40 @@ def image_pipeline_and_evidence(*, production_qualified=True, disclosure=True):
     return pipeline, evidence
 
 
-def reconciliation_gateway(status="remote_pending"):
+def grounded_request():
+    pipeline, evidence = image_pipeline_and_evidence()
+    candidate = request()
+    candidate.update(
+        {
+            "required_modalities": ["text", "image"],
+            "artifact_pipeline_records": [pipeline],
+            "derived_evidence_records": [evidence],
+        }
+    )
+    candidate["evaluation_quality_proof"] = signed_quality_proof(candidate)
+    return candidate
+
+
+def grounded_gateway(candidate, **semantic_overrides):
+    citation = candidate["derived_evidence_records"][0]["blocks"][0]["citation_id"]
+    semantic = {
+        "passed": True,
+        "score": 0.98,
+        "reason": "disclosed evidence supports release",
+        "failure_classes": [],
+        "evidence_refs": [citation],
+        "abstained": False,
+    }
+    semantic.update(semantic_overrides)
+    return gateway(
+        {
+            "output_text": json.dumps(semantic),
+            "usage": {"input_tokens": 10, "output_tokens": 10},
+        }
+    )
+
+
+def reconciliation_gateway(status="remote_pending", *, citation="snapshot"):
     provider = ProviderDefinition(
         "unit", "fake", "local", "", frozenset({"text"}), frozenset({"tenant-a"}),
         data_residency="local", reconciliation_mode="provider_status_lookup",
@@ -334,7 +394,7 @@ def reconciliation_gateway(status="remote_pending"):
             "output_text": json.dumps(
                 {
                     "passed": True, "score": 0.98, "reason": "verified",
-                    "failure_classes": [], "evidence_refs": ["snapshot"], "abstained": False,
+                    "failure_classes": [], "evidence_refs": [citation], "abstained": False,
                 }
             )
         }
@@ -353,6 +413,415 @@ class ProcessInterruptedAdapter:
 
 
 class ReleaseDecisionOrchestratorTests(unittest.TestCase):
+    def test_malformed_request_timestamp_is_rejected_before_persistence_or_provider_call(self):
+        for value in MALFORMED_TIMESTAMPS:
+            with self.subTest(value=value):
+                connection = sqlite3.connect(":memory:")
+                try:
+                    initialize_sql_store(connection)
+                    candidate = request()
+                    candidate["created_at"] = value
+                    provider_gateway = gateway()
+                    with self.assertRaisesRegex(ValueError, "created_at"):
+                        execute_release_decision(
+                            candidate,
+                            gateway=provider_gateway,
+                            key_resolver=lambda _: KEY,
+                            now_unix_ms=NOW,
+                            persistence_connection=connection,
+                        )
+                    self.assertEqual(provider_gateway.adapters["fake"].calls, 0)
+                    self.assertEqual(_count(connection, "a2_decision_operations"), 0)
+                    self.assertEqual(_count(connection, "a2_decision_operation_audit"), 0)
+                finally:
+                    connection.close()
+
+    def test_store_rejects_malformed_operation_timestamps_without_mutation(self):
+        scope = {field: request()[field] for field in (
+            "organization_id", "tenant_id", "workspace_id", "project_id", "environment_id",
+        )}
+        for index, value in enumerate(MALFORMED_TIMESTAMPS):
+            with self.subTest(boundary="reserve", value=value):
+                connection = sqlite3.connect(":memory:")
+                try:
+                    initialize_sql_store(connection)
+                    with self.assertRaisesRegex(ValueError, "created_at"):
+                        reserve_decision_operation(
+                            connection,
+                            scope=scope,
+                            idempotency_key=f"invalid-created-at-{index}",
+                            request_hash="sha256:request",
+                            snapshot_id="snapshot",
+                            snapshot_hash="sha256:snapshot",
+                            provider_id="unit",
+                            model_id="semantic-1",
+                            created_at=value,
+                        )
+                    self.assertEqual(_count(connection, "a2_decision_operations"), 0)
+                    self.assertEqual(_count(connection, "a2_decision_operation_audit"), 0)
+                finally:
+                    connection.close()
+
+        connection = sqlite3.connect(":memory:")
+        try:
+            initialize_sql_store(connection)
+            operation = reserve_decision_operation(
+                connection,
+                scope=scope,
+                idempotency_key="invalid-authorization-time",
+                request_hash="sha256:request",
+                snapshot_id="snapshot",
+                snapshot_hash="sha256:snapshot",
+                provider_id="unit",
+                model_id="semantic-1",
+                created_at="2026-07-12T00:00:00Z",
+            )
+            for value in MALFORMED_TIMESTAMPS:
+                with self.subTest(boundary="authorize", value=value):
+                    with self.assertRaisesRegex(ValueError, "created_at"):
+                        authorize_provider_call(
+                            connection,
+                            operation_id=operation["operation_id"],
+                            scope=scope,
+                            created_at=value,
+                            worker_id="provider",
+                        )
+                    self.assertEqual(
+                        connection.execute(
+                            """SELECT status, lease_owner, lease_expires_at, fencing_token,
+                                      attempt_count, provider_call_id
+                               FROM a2_decision_operations"""
+                        ).fetchone(),
+                        ("reserved", None, None, 0, 0, None),
+                    )
+        finally:
+            connection.close()
+
+    def test_store_rejects_malformed_operation_ids_without_mutation(self):
+        scope = {field: request()[field] for field in (
+            "organization_id", "tenant_id", "workspace_id", "project_id", "environment_id",
+        )}
+        connection = sqlite3.connect(":memory:")
+        try:
+            initialize_sql_store(connection)
+            reserve_decision_operation(
+                connection,
+                scope=scope,
+                idempotency_key="invalid-operation-id",
+                request_hash="sha256:request",
+                snapshot_id="snapshot",
+                snapshot_hash="sha256:snapshot",
+                provider_id="unit",
+                model_id="semantic-1",
+                created_at="2026-07-12T00:00:00Z",
+            )
+            for value in MALFORMED_OPERATION_IDS:
+                with self.subTest(value=value):
+                    with self.assertRaisesRegex(ValueError, "operation_id"):
+                        authorize_provider_call(
+                            connection,
+                            operation_id=value,
+                            scope=scope,
+                            created_at="2026-07-12T00:00:00Z",
+                            worker_id="provider",
+                        )
+                    self.assertEqual(
+                        connection.execute(
+                            """SELECT status, lease_owner, lease_expires_at, fencing_token,
+                                      attempt_count, provider_call_id
+                               FROM a2_decision_operations"""
+                        ).fetchone(),
+                        ("reserved", None, None, 0, 0, None),
+                    )
+                    self.assertEqual(
+                        connection.execute(
+                            """SELECT COUNT(*) FROM a2_decision_operation_audit
+                               WHERE event_type = 'provider_call_authorized'"""
+                        ).fetchone()[0],
+                        0,
+                    )
+        finally:
+            connection.close()
+
+    def test_malformed_idempotency_keys_are_rejected_before_persistence_or_provider_call(self):
+        for value in (None, "", "   ", 123, True, [], {}, "a" * 257):
+            with self.subTest(value=value):
+                connection = sqlite3.connect(":memory:")
+                try:
+                    initialize_sql_store(connection)
+                    candidate = request()
+                    candidate["idempotency_key"] = value
+                    provider_gateway = gateway()
+                    with self.assertRaisesRegex(ValueError, "idempotency_key"):
+                        execute_release_decision(
+                            candidate,
+                            gateway=provider_gateway,
+                            key_resolver=lambda _: KEY,
+                            now_unix_ms=NOW,
+                            persistence_connection=connection,
+                        )
+                    self.assertEqual(provider_gateway.adapters["fake"].calls, 0)
+                    self.assertEqual(_count(connection, "a2_decision_operations"), 0)
+                finally:
+                    connection.close()
+
+    def test_malformed_tenant_scope_is_rejected_before_provider_or_persistence(self):
+        invalid_values = (None, "", "   ", " tenant", "tenant ", True, 123, [], {})
+        scope_fields = (
+            "organization_id",
+            "tenant_id",
+            "workspace_id",
+            "project_id",
+            "environment_id",
+        )
+        for field in scope_fields:
+            for value in invalid_values:
+                with self.subTest(field=field, value=value):
+                    connection = sqlite3.connect(":memory:")
+                    try:
+                        initialize_sql_store(connection)
+                        candidate = request()
+                        candidate[field] = value
+                        provider_gateway = gateway()
+                        with self.assertRaisesRegex(ValueError, field):
+                            execute_release_decision(
+                                candidate,
+                                gateway=provider_gateway,
+                                key_resolver=lambda _: KEY,
+                                now_unix_ms=NOW,
+                                persistence_connection=connection,
+                            )
+                        self.assertEqual(provider_gateway.adapters["fake"].calls, 0)
+                        self.assertEqual(_count(connection, "a2_decision_operations"), 0)
+                        self.assertEqual(
+                            _count(connection, "a2_decision_operation_audit"),
+                            0,
+                        )
+                    finally:
+                        connection.close()
+
+    def test_store_rejects_scope_type_coercion_without_mutation(self):
+        valid_scope = {field: request()[field] for field in (
+            "organization_id",
+            "tenant_id",
+            "workspace_id",
+            "project_id",
+            "environment_id",
+        )}
+        for value in (True, 123, ["tenant-a"], {"id": "tenant-a"}, " tenant-a", "tenant-a "):
+            with self.subTest(value=value):
+                connection = sqlite3.connect(":memory:")
+                try:
+                    initialize_sql_store(connection)
+                    scope = dict(valid_scope)
+                    scope["tenant_id"] = value
+                    with self.assertRaisesRegex(ValueError, "tenant_id"):
+                        reserve_decision_operation(
+                            connection,
+                            scope=scope,
+                            idempotency_key="scope-coercion",
+                            request_hash="sha256:request",
+                            snapshot_id="snapshot",
+                            snapshot_hash="sha256:snapshot",
+                            provider_id="unit",
+                            model_id="semantic-1",
+                            created_at="2026-07-12T00:00:00Z",
+                        )
+                    self.assertEqual(_count(connection, "a2_decision_operations"), 0)
+                    self.assertEqual(
+                        _count(connection, "a2_decision_operation_audit"),
+                        0,
+                    )
+                finally:
+                    connection.close()
+
+    def test_malformed_provider_leases_are_rejected_before_persistence_or_provider_call(self):
+        for value in (0, -1, True, False, "60", 1.5, None, 10**100):
+            with self.subTest(value=value):
+                connection = sqlite3.connect(":memory:")
+                try:
+                    initialize_sql_store(connection)
+                    provider_gateway = gateway()
+                    with self.assertRaisesRegex(ValueError, "lease_seconds"):
+                        execute_release_decision(
+                            request(),
+                            gateway=provider_gateway,
+                            key_resolver=lambda _: KEY,
+                            now_unix_ms=NOW,
+                            persistence_connection=connection,
+                            lease_seconds=value,
+                        )
+                    self.assertEqual(provider_gateway.adapters["fake"].calls, 0)
+                    self.assertEqual(_count(connection, "a2_decision_operations"), 0)
+                    self.assertEqual(_count(connection, "a2_decision_operation_audit"), 0)
+                finally:
+                    connection.close()
+
+    def test_authorize_provider_call_rejects_malformed_lease_without_mutation(self):
+        scope = {field: request()[field] for field in (
+            "organization_id", "tenant_id", "workspace_id", "project_id", "environment_id",
+        )}
+        for index, value in enumerate((0, -1, True, False, "60", 1.5, None, 10**100)):
+            with self.subTest(value=value):
+                connection = sqlite3.connect(":memory:")
+                try:
+                    initialize_sql_store(connection)
+                    operation = reserve_decision_operation(
+                        connection,
+                        scope=scope,
+                        idempotency_key=f"invalid-lease-{index}",
+                        request_hash="sha256:request",
+                        snapshot_id="snapshot",
+                        snapshot_hash="sha256:snapshot",
+                        provider_id="unit",
+                        model_id="semantic-1",
+                        created_at="2026-07-12T00:00:00Z",
+                    )
+                    with self.assertRaisesRegex(ValueError, "lease_seconds"):
+                        authorize_provider_call(
+                            connection,
+                            operation_id=operation["operation_id"],
+                            scope=scope,
+                            created_at="2026-07-12T00:00:00Z",
+                            worker_id="provider",
+                            lease_seconds=value,
+                        )
+                    stored = connection.execute(
+                        """SELECT status, lease_owner, lease_expires_at, fencing_token,
+                                  attempt_count, provider_call_id
+                           FROM a2_decision_operations"""
+                    ).fetchone()
+                    self.assertEqual(stored, ("reserved", None, None, 0, 0, None))
+                    authorized_audits = connection.execute(
+                        """SELECT COUNT(*) FROM a2_decision_operation_audit
+                           WHERE event_type = 'provider_call_authorized'"""
+                    ).fetchone()[0]
+                    self.assertEqual(authorized_audits, 0)
+                finally:
+                    connection.close()
+
+    def test_malformed_worker_ids_are_rejected_before_persistence_or_provider_call(self):
+        for value in (None, "", "   ", True, 123, [], {}, "a" * 257):
+            with self.subTest(value=value):
+                connection = sqlite3.connect(":memory:")
+                try:
+                    initialize_sql_store(connection)
+                    provider_gateway = gateway()
+                    with self.assertRaisesRegex(ValueError, "worker_id"):
+                        execute_release_decision(
+                            request(),
+                            gateway=provider_gateway,
+                            key_resolver=lambda _: KEY,
+                            now_unix_ms=NOW,
+                            persistence_connection=connection,
+                            worker_id=value,
+                        )
+                    self.assertEqual(provider_gateway.adapters["fake"].calls, 0)
+                    self.assertEqual(_count(connection, "a2_decision_operations"), 0)
+                    self.assertEqual(_count(connection, "a2_decision_operation_audit"), 0)
+                finally:
+                    connection.close()
+
+    def test_authorize_provider_call_rejects_malformed_worker_without_mutation(self):
+        scope = {field: request()[field] for field in (
+            "organization_id", "tenant_id", "workspace_id", "project_id", "environment_id",
+        )}
+        for index, value in enumerate((None, "", "   ", True, 123, [], {}, "a" * 257)):
+            with self.subTest(value=value):
+                connection = sqlite3.connect(":memory:")
+                try:
+                    initialize_sql_store(connection)
+                    operation = reserve_decision_operation(
+                        connection,
+                        scope=scope,
+                        idempotency_key=f"invalid-worker-{index}",
+                        request_hash="sha256:request",
+                        snapshot_id="snapshot",
+                        snapshot_hash="sha256:snapshot",
+                        provider_id="unit",
+                        model_id="semantic-1",
+                        created_at="2026-07-12T00:00:00Z",
+                    )
+                    with self.assertRaisesRegex(ValueError, "worker_id"):
+                        authorize_provider_call(
+                            connection,
+                            operation_id=operation["operation_id"],
+                            scope=scope,
+                            created_at="2026-07-12T00:00:00Z",
+                            worker_id=value,
+                        )
+                    stored = connection.execute(
+                        """SELECT status, lease_owner, lease_expires_at, fencing_token,
+                                  attempt_count, provider_call_id
+                           FROM a2_decision_operations"""
+                    ).fetchone()
+                    self.assertEqual(stored, ("reserved", None, None, 0, 0, None))
+                    authorized_audits = connection.execute(
+                        """SELECT COUNT(*) FROM a2_decision_operation_audit
+                           WHERE event_type = 'provider_call_authorized'"""
+                    ).fetchone()[0]
+                    self.assertEqual(authorized_audits, 0)
+                finally:
+                    connection.close()
+
+    def test_malformed_provider_call_controls_are_rejected_before_provider_call(self):
+        cases = (
+            ("timeout_seconds", None),
+            ("timeout_seconds", 0),
+            ("timeout_seconds", -1),
+            ("timeout_seconds", True),
+            ("timeout_seconds", "30"),
+            ("timeout_seconds", float("nan")),
+            ("timeout_seconds", float("inf")),
+            ("timeout_seconds", {}),
+            ("max_cost_usd", None),
+            ("max_cost_usd", -1),
+            ("max_cost_usd", True),
+            ("max_cost_usd", "1"),
+            ("max_cost_usd", float("nan")),
+            ("max_cost_usd", float("inf")),
+            ("max_cost_usd", {}),
+        )
+        for field, value in cases:
+            with self.subTest(field=field, value=value):
+                candidate = request()
+                candidate[field] = value
+                provider_gateway = gateway()
+                adapter = provider_gateway.adapters["fake"]
+                with self.assertRaisesRegex(ValueError, field):
+                    execute_release_decision(
+                        candidate,
+                        gateway=provider_gateway,
+                        key_resolver=lambda _: KEY,
+                        now_unix_ms=NOW,
+                    )
+                self.assertEqual(adapter.calls, 0)
+
+    def test_malformed_required_modalities_are_rejected_before_provider_call(self):
+        for required_modalities in (
+            None,
+            [],
+            "image",
+            {"image": True},
+            [None],
+            ["text", None],
+            [""],
+            ["text", "unknown"],
+        ):
+            with self.subTest(required_modalities=required_modalities):
+                candidate = request()
+                candidate["required_modalities"] = required_modalities
+                provider_gateway = gateway()
+                adapter = provider_gateway.adapters["fake"]
+                with self.assertRaisesRegex(ValueError, "required_modalities"):
+                    execute_release_decision(
+                        candidate,
+                        gateway=provider_gateway,
+                        key_resolver=lambda _: KEY,
+                        now_unix_ms=NOW,
+                    )
+                self.assertEqual(adapter.calls, 0)
+
     def test_round34_legacy_taxonomy_identity_requires_explicit_governed_migration(self):
         from services.judge.release_decision_store import (
             migrate_legacy_taxonomy_policy_identity,
@@ -487,14 +956,14 @@ class ReleaseDecisionOrchestratorTests(unittest.TestCase):
             (-1, "block", "disagreement_review_receipt_stale"),
         ):
             with self.subTest(reviewed_at=reviewed_at):
-                candidate = request()
+                candidate = grounded_request()
                 candidate["evaluation_quality_proof"] = signed_quality_proof(
                     candidate, disagreement="reviewed",
                     reviewer_identity_digest=reviewer,
                     reviewed_at_unix_ms=reviewed_at,
                 )
                 result = execute_release_decision(
-                    candidate, gateway=gateway(), key_resolver=lambda _: KEY,
+                    candidate, gateway=grounded_gateway(candidate), key_resolver=lambda _: KEY,
                     now_unix_ms=NOW,
                 )
                 self.assertEqual(result["a3_consumption"]["display_decision"], decision)
@@ -595,10 +1064,11 @@ class ReleaseDecisionOrchestratorTests(unittest.TestCase):
         )
         for overrides, decision, blocker in cases:
             with self.subTest(blocker=blocker):
-                candidate = request()
+                candidate = grounded_request()
                 candidate["evaluation_quality_proof"] = signed_quality_proof(candidate, **overrides)
                 result = execute_release_decision(
-                    candidate, gateway=gateway(), key_resolver=lambda _: KEY, now_unix_ms=NOW,
+                    candidate, gateway=grounded_gateway(candidate),
+                    key_resolver=lambda _: KEY, now_unix_ms=NOW,
                 )
                 self.assertEqual(result["a3_consumption"]["display_decision"], decision)
                 if blocker:
@@ -636,7 +1106,7 @@ class ReleaseDecisionOrchestratorTests(unittest.TestCase):
         )
 
     def test_ed25519_quality_proof_is_verified(self):
-        candidate = request()
+        candidate = grounded_request()
         private_key = Ed25519PrivateKey.generate()
         proof = signed_quality_proof(candidate)
         proof["algorithm"] = "ed25519"
@@ -651,7 +1121,7 @@ class ReleaseDecisionOrchestratorTests(unittest.TestCase):
 
         result = execute_release_decision(
             candidate,
-            gateway=gateway(),
+            gateway=grounded_gateway(candidate),
             key_resolver=lambda key_id: public_key if key_id == "quality-ed25519-key-1" else KEY,
             now_unix_ms=NOW,
             quality_allowed_issuers=frozenset({"a2-calibration-service"}),
@@ -833,6 +1303,24 @@ class ReleaseDecisionOrchestratorTests(unittest.TestCase):
             result["release_gate"]["blocking_reasons"],
         )
 
+    def test_text_only_snapshot_citation_cannot_allow_undisclosed_evidence(self):
+        result = execute_release_decision(
+            request(),
+            gateway=gateway(),
+            key_resolver=lambda _: KEY,
+            now_unix_ms=NOW,
+        )
+
+        self.assertEqual(result["a3_consumption"]["display_decision"], "block")
+        self.assertIn(
+            "semantic_evidence_not_disclosed",
+            result["release_gate"]["blocking_reasons"],
+        )
+        self.assertIn(
+            "semantic_evidence_ref_ungrounded",
+            result["release_gate"]["blocking_reasons"],
+        )
+
     def test_undisclosed_multimodal_evidence_cannot_be_cited(self):
         pipeline, evidence = image_pipeline_and_evidence(disclosure=False)
         citation = evidence["blocks"][0]["citation_id"]
@@ -870,9 +1358,9 @@ class ReleaseDecisionOrchestratorTests(unittest.TestCase):
         )
 
     def test_authenticated_normal_path_produces_allow_ledger_and_a3_handoff(self):
-        original_request = request()
+        original_request = grounded_request()
         original_json = json.dumps(original_request, sort_keys=True)
-        provider_gateway = gateway()
+        provider_gateway = grounded_gateway(original_request)
         result = execute_release_decision(
             original_request, gateway=provider_gateway, key_resolver=lambda _: KEY, now_unix_ms=NOW
         )
@@ -901,20 +1389,19 @@ class ReleaseDecisionOrchestratorTests(unittest.TestCase):
             self.assertFalse(result["a3_consumption"]["release_ready"])
 
     def test_abstention_requires_review(self):
-        response = {
-            "output_text": json.dumps(
-                {
-                    "passed": False,
-                    "score": 0.5,
-                    "reason": "ambiguous evidence",
-                    "failure_classes": [],
-                    "evidence_refs": ["snapshot"],
-                    "abstained": True,
-                }
+        candidate = grounded_request()
+        result = execute_release_decision(
+            candidate,
+            gateway=grounded_gateway(
+                candidate,
+                passed=False,
+                score=0.5,
+                reason="ambiguous evidence",
+                abstained=True,
             ),
-            "usage": {},
-        }
-        result = execute_release_decision(request(), gateway=gateway(response), key_resolver=lambda _: KEY, now_unix_ms=NOW)
+            key_resolver=lambda _: KEY,
+            now_unix_ms=NOW,
+        )
         self.assertEqual(result["decision_ledger"]["records"][0]["decision"], "review")
         self.assertTrue(result["a3_consumption"]["review_required"])
 
@@ -949,16 +1436,17 @@ class ReleaseDecisionOrchestratorTests(unittest.TestCase):
         connection = sqlite3.connect(":memory:")
         try:
             initialize_sql_store(connection)
+            candidate = grounded_request()
             result = execute_release_decision(
-                request(),
-                gateway=gateway(),
+                candidate,
+                gateway=grounded_gateway(candidate),
                 key_resolver=lambda _: KEY,
                 now_unix_ms=NOW,
                 persistence_connection=connection,
             )
             repeated = execute_release_decision(
-                request(),
-                gateway=gateway(),
+                candidate,
+                gateway=grounded_gateway(candidate),
                 key_resolver=lambda _: KEY,
                 now_unix_ms=NOW,
                 persistence_connection=connection,
@@ -980,14 +1468,15 @@ class ReleaseDecisionOrchestratorTests(unittest.TestCase):
         connection = sqlite3.connect(":memory:")
         try:
             initialize_sql_store(connection)
-            first_gateway = gateway()
+            candidate = grounded_request()
+            first_gateway = grounded_gateway(candidate)
             first = execute_release_decision(
-                request(), gateway=first_gateway, key_resolver=lambda _: KEY, now_unix_ms=NOW,
+                candidate, gateway=first_gateway, key_resolver=lambda _: KEY, now_unix_ms=NOW,
                 persistence_connection=connection,
             )
-            second_gateway = gateway()
+            second_gateway = grounded_gateway(candidate)
             replay = execute_release_decision(
-                request(), gateway=second_gateway, key_resolver=lambda _: KEY, now_unix_ms=NOW,
+                candidate, gateway=second_gateway, key_resolver=lambda _: KEY, now_unix_ms=NOW,
                 persistence_connection=connection,
             )
             self.assertEqual(first_gateway.adapters["fake"].calls, 1)
@@ -1063,6 +1552,89 @@ class ReleaseDecisionOrchestratorTests(unittest.TestCase):
         finally:
             crashed.close()
             normal.close()
+
+    def test_recovery_rejects_malformed_operation_id_before_claim(self):
+        connection = sqlite3.connect(":memory:")
+        try:
+            initialize_sql_store(connection)
+
+            def fail(point):
+                if point == "after_provider_outcome_committed":
+                    raise OSError("stop before release commit")
+
+            with self.assertRaisesRegex(OSError, "before release commit"):
+                execute_release_decision(
+                    request(),
+                    gateway=gateway(),
+                    key_resolver=lambda _: KEY,
+                    now_unix_ms=NOW,
+                    persistence_connection=connection,
+                    persistence_failure_injector=fail,
+                )
+            for value in MALFORMED_OPERATION_IDS:
+                with self.subTest(value=value):
+                    with self.assertRaisesRegex(ValueError, "operation_id"):
+                        recover_release_decision(
+                            connection,
+                            operation_id=value,
+                            scope=request(),
+                            now="2026-07-12T00:00:01Z",
+                        )
+                    self.assertEqual(
+                        connection.execute(
+                            """SELECT status, recovery_owner, recovery_lease_expires_at,
+                                      recovery_generation
+                               FROM a2_decision_operations"""
+                        ).fetchone(),
+                        ("provider_completed", None, None, 0),
+                    )
+                    self.assertEqual(_count(connection, "a2_release_decisions"), 0)
+                    self.assertEqual(_count(connection, "a2_release_decision_audit"), 0)
+                    self.assertEqual(_count(connection, "a2_decision_outbox"), 0)
+        finally:
+            connection.close()
+
+    def test_recovery_rejects_malformed_now_before_claim(self):
+        connection = sqlite3.connect(":memory:")
+        try:
+            initialize_sql_store(connection)
+
+            def fail(point):
+                if point == "after_provider_outcome_committed":
+                    raise OSError("stop before release commit")
+
+            with self.assertRaisesRegex(OSError, "before release commit"):
+                execute_release_decision(
+                    request(),
+                    gateway=gateway(),
+                    key_resolver=lambda _: KEY,
+                    now_unix_ms=NOW,
+                    persistence_connection=connection,
+                    persistence_failure_injector=fail,
+                )
+            operation_id = connection.execute(
+                "SELECT operation_id FROM a2_decision_operations"
+            ).fetchone()[0]
+            for value in MALFORMED_TIMESTAMPS:
+                with self.subTest(value=value):
+                    with self.assertRaisesRegex(ValueError, "now"):
+                        recover_release_decision(
+                            connection,
+                            operation_id=operation_id,
+                            scope=request(),
+                            now=value,
+                        )
+                    self.assertEqual(
+                        connection.execute(
+                            """SELECT status, recovery_owner, recovery_lease_expires_at,
+                                      recovery_generation
+                               FROM a2_decision_operations"""
+                        ).fetchone(),
+                        ("provider_completed", None, None, 0),
+                    )
+                    self.assertEqual(_count(connection, "a2_release_decisions"), 0)
+        finally:
+            connection.close()
 
     def test_provider_completed_recovery_preserves_normalized_duplicate_policy(self):
         connection = sqlite3.connect(":memory:")
@@ -1170,6 +1742,70 @@ class ReleaseDecisionOrchestratorTests(unittest.TestCase):
                 )
         finally:
             connection.close()
+
+    def test_recovery_rejects_malformed_or_rebound_identity_before_claiming_lease(self):
+        for field, value, message in (
+            ("idempotency_key", 123, "idempotency_key"),
+            ("idempotency_key", "different-decision-key", "idempotency key changed"),
+            ("request_hash", 123, "request hash"),
+            ("request_hash", "sha256:not-a-digest", "request hash"),
+        ):
+            with self.subTest(field=field, value=value):
+                connection = sqlite3.connect(":memory:")
+                try:
+                    initialize_sql_store(connection)
+
+                    def fail(point):
+                        if point == "after_provider_outcome_committed":
+                            raise OSError("stop")
+
+                    with self.assertRaises(OSError):
+                        execute_release_decision(
+                            request(), gateway=gateway(), key_resolver=lambda _: KEY,
+                            now_unix_ms=NOW, persistence_connection=connection,
+                            persistence_failure_injector=fail,
+                        )
+                    operation_id = connection.execute(
+                        "SELECT operation_id FROM a2_decision_operations"
+                    ).fetchone()[0]
+                    scope = {
+                        key: request()[key] for key in (
+                            "organization_id", "tenant_id", "workspace_id",
+                            "project_id", "environment_id",
+                        )
+                    }
+                    envelope = json.loads(connection.execute(
+                        "SELECT recovery_envelope_json FROM a2_provider_outcomes"
+                    ).fetchone()[0])
+                    envelope[field] = value
+                    connection.execute(
+                        "UPDATE a2_provider_outcomes SET recovery_envelope_json = ?, "
+                        "recovery_envelope_hash = ?",
+                        (
+                            json.dumps(envelope, sort_keys=True, separators=(",", ":")),
+                            stable_hash(envelope),
+                        ),
+                    )
+                    connection.commit()
+
+                    with self.assertRaisesRegex(ValueError, message):
+                        recover_release_decision(
+                            connection,
+                            operation_id=operation_id,
+                            scope=scope,
+                            now="2026-07-12T00:00:01Z",
+                        )
+                    self.assertEqual(
+                        connection.execute(
+                            """SELECT recovery_owner, recovery_generation
+                               FROM a2_decision_operations"""
+                        ).fetchone(),
+                        (None, 0),
+                    )
+                    self.assertEqual(_count(connection, "a2_release_decisions"), 0)
+                    self.assertEqual(_count(connection, "a2_decision_outbox"), 0)
+                finally:
+                    connection.close()
 
     def test_recovery_envelope_rejects_inconsistent_citation_states(self):
         for status, blockers, semantic_present, message in (
@@ -1801,7 +2437,180 @@ class ReleaseDecisionOrchestratorTests(unittest.TestCase):
         finally:
             connection.close()
 
-    def test_reconciled_completion_atomically_recovers_decision(self):
+    def test_reconciliation_rejects_malformed_operation_id_before_remote_lookup(self):
+        connection = sqlite3.connect(":memory:")
+        interrupted = ProviderGateway(
+            [ProviderDefinition(
+                "unit", "fake", "local", "", frozenset({"text"}), frozenset({"tenant-a"}),
+                reconciliation_mode="provider_status_lookup",
+            )],
+            {"fake": ProcessInterruptedAdapter()},
+            response_validator=validate_semantic_judge_output,
+        )
+        try:
+            initialize_sql_store(connection)
+            with self.assertRaises(KeyboardInterrupt):
+                execute_release_decision(
+                    request(),
+                    gateway=interrupted,
+                    key_resolver=lambda _: KEY,
+                    now_unix_ms=NOW,
+                    persistence_connection=connection,
+                )
+            provider_gateway = reconciliation_gateway()
+            for value in MALFORMED_OPERATION_IDS:
+                with self.subTest(value=value):
+                    with self.assertRaisesRegex(ValueError, "operation_id"):
+                        reconcile_release_decision(
+                            request(),
+                            gateway=provider_gateway,
+                            key_resolver=lambda _: KEY,
+                            now_unix_ms=NOW,
+                            connection=connection,
+                            operation_id=value,
+                            now="2026-07-12T00:00:01Z",
+                        )
+                    self.assertEqual(
+                        provider_gateway.adapters["fake"].reconciliation_calls,
+                        0,
+                    )
+                    self.assertEqual(
+                        connection.execute(
+                            """SELECT status, reconciliation_owner,
+                                      reconciliation_lease_expires_at,
+                                      reconciliation_attempt_count
+                               FROM a2_decision_operations"""
+                        ).fetchone(),
+                        ("recovery_required", None, None, 0),
+                    )
+                    self.assertEqual(
+                        _count(connection, "a2_provider_reconciliation_observations"),
+                        0,
+                    )
+        finally:
+            connection.close()
+
+    def test_reconciliation_rejects_malformed_now_before_remote_lookup(self):
+        connection = sqlite3.connect(":memory:")
+        interrupted = ProviderGateway(
+            [ProviderDefinition(
+                "unit", "fake", "local", "", frozenset({"text"}), frozenset({"tenant-a"}),
+                reconciliation_mode="provider_status_lookup",
+            )],
+            {"fake": ProcessInterruptedAdapter()},
+            response_validator=validate_semantic_judge_output,
+        )
+        try:
+            initialize_sql_store(connection)
+            with self.assertRaises(KeyboardInterrupt):
+                execute_release_decision(
+                    request(),
+                    gateway=interrupted,
+                    key_resolver=lambda _: KEY,
+                    now_unix_ms=NOW,
+                    persistence_connection=connection,
+                )
+            operation_id = connection.execute(
+                "SELECT operation_id FROM a2_decision_operations"
+            ).fetchone()[0]
+            provider_gateway = reconciliation_gateway()
+            for value in MALFORMED_TIMESTAMPS:
+                with self.subTest(value=value):
+                    with self.assertRaisesRegex(ValueError, "now"):
+                        reconcile_release_decision(
+                            request(),
+                            gateway=provider_gateway,
+                            key_resolver=lambda _: KEY,
+                            now_unix_ms=NOW,
+                            connection=connection,
+                            operation_id=operation_id,
+                            now=value,
+                        )
+                    self.assertEqual(
+                        provider_gateway.adapters["fake"].reconciliation_calls,
+                        0,
+                    )
+                    self.assertEqual(
+                        connection.execute(
+                            """SELECT status, reconciliation_owner,
+                                      reconciliation_lease_expires_at,
+                                      reconciliation_attempt_count
+                               FROM a2_decision_operations"""
+                        ).fetchone(),
+                        ("recovery_required", None, None, 0),
+                    )
+        finally:
+            connection.close()
+
+    def test_malformed_reconciliation_schedule_is_rejected_before_remote_lookup(self):
+        invalid_values = (
+            "",
+            "not-a-time",
+            True,
+            123,
+            [],
+            {},
+            "2026-07-12T00:00:01Z",
+            "2026-07-12T00:00:00Z",
+            "2026-07-12T00:01:00",
+        )
+        for value in invalid_values:
+            with self.subTest(value=value):
+                connection = sqlite3.connect(":memory:")
+                interrupted = ProviderGateway(
+                    [ProviderDefinition(
+                        "unit", "fake", "local", "", frozenset({"text"}),
+                        frozenset({"tenant-a"}),
+                        reconciliation_mode="provider_status_lookup",
+                    )],
+                    {"fake": ProcessInterruptedAdapter()},
+                    response_validator=validate_semantic_judge_output,
+                )
+                try:
+                    initialize_sql_store(connection)
+                    with self.assertRaises(KeyboardInterrupt):
+                        execute_release_decision(
+                            request(),
+                            gateway=interrupted,
+                            key_resolver=lambda _: KEY,
+                            now_unix_ms=NOW,
+                            persistence_connection=connection,
+                        )
+                    operation_id = connection.execute(
+                        "SELECT operation_id FROM a2_decision_operations"
+                    ).fetchone()[0]
+                    provider_gateway = reconciliation_gateway()
+                    with self.assertRaisesRegex(ValueError, "next_reconcile_at"):
+                        reconcile_release_decision(
+                            request(),
+                            gateway=provider_gateway,
+                            key_resolver=lambda _: KEY,
+                            now_unix_ms=NOW,
+                            connection=connection,
+                            operation_id=operation_id,
+                            now="2026-07-12T00:00:01Z",
+                            next_reconcile_at=value,
+                        )
+                    self.assertEqual(
+                        provider_gateway.adapters["fake"].reconciliation_calls,
+                        0,
+                    )
+                    self.assertEqual(
+                        _count(connection, "a2_provider_reconciliation_observations"),
+                        0,
+                    )
+                    self.assertEqual(
+                        connection.execute(
+                            """SELECT status, reconciliation_owner,
+                                      reconciliation_attempt_count
+                               FROM a2_decision_operations"""
+                        ).fetchone(),
+                        ("recovery_required", None, 0),
+                    )
+                finally:
+                    connection.close()
+
+    def test_reconciliation_rejects_a_different_idempotency_key_before_remote_lookup(self):
         connection = sqlite3.connect(":memory:")
         interrupted = ProviderGateway(
             [ProviderDefinition(
@@ -1818,11 +2627,100 @@ class ReleaseDecisionOrchestratorTests(unittest.TestCase):
                     request(), gateway=interrupted, key_resolver=lambda _: KEY,
                     now_unix_ms=NOW, persistence_connection=connection,
                 )
+            operation_id = connection.execute(
+                "SELECT operation_id FROM a2_decision_operations"
+            ).fetchone()[0]
+            candidate = request()
+            candidate["idempotency_key"] = "different-decision-key"
+            provider_gateway = reconciliation_gateway()
+            with self.assertRaisesRegex(
+                IdempotencyConflictError, "original provider call"
+            ):
+                reconcile_release_decision(
+                    candidate, gateway=provider_gateway, key_resolver=lambda _: KEY,
+                    now_unix_ms=NOW, connection=connection, operation_id=operation_id,
+                    now="2026-07-12T00:00:01Z",
+                )
+            adapter = provider_gateway.adapters["fake"]
+            self.assertEqual(adapter.reconciliation_calls, 0)
+            self.assertEqual(_count(connection, "a2_provider_reconciliation_observations"), 0)
+            row = connection.execute(
+                """SELECT status, reconciliation_owner, reconciliation_attempt_count
+                   FROM a2_decision_operations"""
+            ).fetchone()
+            self.assertEqual(row, ("recovery_required", None, 0))
+        finally:
+            connection.close()
+
+    def test_reconciliation_rejects_changed_request_identity_before_remote_lookup(self):
+        connection = sqlite3.connect(":memory:")
+        interrupted = ProviderGateway(
+            [ProviderDefinition(
+                "unit", "fake", "local", "", frozenset({"text"}), frozenset({"tenant-a"}),
+                reconciliation_mode="provider_status_lookup",
+            )],
+            {"fake": ProcessInterruptedAdapter()},
+            response_validator=validate_semantic_judge_output,
+        )
+        try:
+            initialize_sql_store(connection)
+            with self.assertRaises(KeyboardInterrupt):
+                execute_release_decision(
+                    request(), gateway=interrupted, key_resolver=lambda _: KEY,
+                    now_unix_ms=NOW, persistence_connection=connection,
+                )
+            operation_id = connection.execute(
+                "SELECT operation_id FROM a2_decision_operations"
+            ).fetchone()[0]
+            candidate = request()
+            candidate["policy_version"] = "a2.semantic_release_policy.v2"
+            provider_gateway = reconciliation_gateway()
+            with self.assertRaisesRegex(
+                IdempotencyConflictError, "input does not match original provider call"
+            ):
+                reconcile_release_decision(
+                    candidate, gateway=provider_gateway, key_resolver=lambda _: KEY,
+                    now_unix_ms=NOW, connection=connection, operation_id=operation_id,
+                    now="2026-07-12T00:00:01Z",
+                )
+            adapter = provider_gateway.adapters["fake"]
+            self.assertEqual(adapter.reconciliation_calls, 0)
+            self.assertEqual(_count(connection, "a2_provider_reconciliation_observations"), 0)
+            row = connection.execute(
+                """SELECT status, reconciliation_owner, reconciliation_attempt_count
+                   FROM a2_decision_operations"""
+            ).fetchone()
+            self.assertEqual(row, ("recovery_required", None, 0))
+        finally:
+            connection.close()
+
+    def test_reconciled_completion_atomically_recovers_decision(self):
+        connection = sqlite3.connect(":memory:")
+        interrupted = ProviderGateway(
+            [ProviderDefinition(
+                "unit", "fake", "local", "", frozenset({"text"}), frozenset({"tenant-a"}),
+                reconciliation_mode="provider_status_lookup",
+            )],
+            {"fake": ProcessInterruptedAdapter()},
+            response_validator=validate_semantic_judge_output,
+        )
+        try:
+            initialize_sql_store(connection)
+            candidate = grounded_request()
+            with self.assertRaises(KeyboardInterrupt):
+                execute_release_decision(
+                    candidate, gateway=interrupted, key_resolver=lambda _: KEY,
+                    now_unix_ms=NOW, persistence_connection=connection,
+                )
             operation = connection.execute(
                 """SELECT operation_id, provider_call_id, fencing_token
                    FROM a2_decision_operations"""
             ).fetchone()
-            provider_gateway = reconciliation_gateway("remote_completed")
+            citation = candidate["derived_evidence_records"][0]["blocks"][0]["citation_id"]
+            provider_gateway = reconciliation_gateway(
+                "remote_completed",
+                citation=citation,
+            )
             adapter = provider_gateway.adapters["fake"]
             base = adapter.reconciliation_response
             base.update(
@@ -1844,7 +2742,7 @@ class ReleaseDecisionOrchestratorTests(unittest.TestCase):
                     "provider_endpoint_hash": connection.execute(
                         "SELECT provider_endpoint_hash FROM a2_decision_operations"
                     ).fetchone()[0],
-                    "scope": {field: request()[field] for field in (
+                    "scope": {field: candidate[field] for field in (
                         "organization_id", "tenant_id", "workspace_id",
                         "project_id", "environment_id",
                     )},
@@ -1853,7 +2751,7 @@ class ReleaseDecisionOrchestratorTests(unittest.TestCase):
                 }
             )
             result = reconcile_release_decision(
-                request(), gateway=provider_gateway, key_resolver=lambda _: KEY,
+                candidate, gateway=provider_gateway, key_resolver=lambda _: KEY,
                 now_unix_ms=NOW, connection=connection, operation_id=operation[0],
                 now="2026-07-12T00:00:01Z",
             )
@@ -1872,7 +2770,7 @@ class ReleaseDecisionOrchestratorTests(unittest.TestCase):
         finally:
             connection.close()
 
-    def test_reconciled_remote_completion_still_honors_proof_revocation(self):
+    def test_reconciliation_rejects_changed_key_revocation_before_remote_lookup(self):
         connection = sqlite3.connect(":memory:")
         interrupted = ProviderGateway(
             [ProviderDefinition(
@@ -1913,7 +2811,7 @@ class ReleaseDecisionOrchestratorTests(unittest.TestCase):
                 "provider_generation": operation[2],
             })
             with self.assertRaisesRegex(
-                IdempotencyConflictError, "input changed before commit"
+                IdempotencyConflictError, "input does not match original provider call"
             ):
                 reconcile_release_decision(
                     request(), gateway=provider_gateway, key_resolver=lambda _: KEY,
@@ -1921,12 +2819,22 @@ class ReleaseDecisionOrchestratorTests(unittest.TestCase):
                     now="2026-07-12T00:00:01Z",
                     quality_revoked_key_ids=frozenset({"quality-key-1"}),
                 )
+            self.assertEqual(provider_gateway.adapters["fake"].reconciliation_calls, 0)
+            self.assertEqual(_count(connection, "a2_provider_reconciliation_observations"), 0)
+            self.assertEqual(_count(connection, "a2_provider_outcomes"), 0)
             self.assertEqual(_count(connection, "a2_release_decisions"), 0)
             self.assertEqual(_count(connection, "a2_decision_outbox"), 0)
+            self.assertEqual(
+                connection.execute(
+                    """SELECT status, reconciliation_owner, reconciliation_attempt_count
+                       FROM a2_decision_operations"""
+                ).fetchone(),
+                ("recovery_required", None, 0),
+            )
         finally:
             connection.close()
 
-    def test_reconciled_remote_completion_honors_proof_hash_revocation(self):
+    def test_reconciliation_rejects_changed_proof_revocation_before_remote_lookup(self):
         connection = sqlite3.connect(":memory:")
         candidate = request()
         proof_hash = stable_hash({
@@ -1974,7 +2882,7 @@ class ReleaseDecisionOrchestratorTests(unittest.TestCase):
                 "provider_generation": operation[2],
             })
             with self.assertRaisesRegex(
-                IdempotencyConflictError, "input changed before commit"
+                IdempotencyConflictError, "input does not match original provider call"
             ):
                 policy = {
                     "schema_version": "a2.evaluation_trust_policy.v1",
@@ -1994,8 +2902,18 @@ class ReleaseDecisionOrchestratorTests(unittest.TestCase):
                     now="2026-07-12T00:00:01Z",
                     quality_trust_policy=policy,
                 )
+            self.assertEqual(provider_gateway.adapters["fake"].reconciliation_calls, 0)
+            self.assertEqual(_count(connection, "a2_provider_reconciliation_observations"), 0)
+            self.assertEqual(_count(connection, "a2_provider_outcomes"), 0)
             self.assertEqual(_count(connection, "a2_release_decisions"), 0)
             self.assertEqual(_count(connection, "a2_decision_outbox"), 0)
+            self.assertEqual(
+                connection.execute(
+                    """SELECT status, reconciliation_owner, reconciliation_attempt_count
+                       FROM a2_decision_operations"""
+                ).fetchone(),
+                ("recovery_required", None, 0),
+            )
         finally:
             connection.close()
 
@@ -2054,6 +2972,260 @@ class ReleaseDecisionOrchestratorTests(unittest.TestCase):
             self.assertEqual(_count(connection, "a2_provider_reconciliation_observations"), 1)
         finally:
             connection.close()
+
+    def test_reconciliation_lease_cannot_be_reused_for_another_operation(self):
+        scope = {field: request()[field] for field in (
+            "organization_id", "tenant_id", "workspace_id", "project_id", "environment_id"
+        )}
+        connection = sqlite3.connect(":memory:")
+        try:
+            initialize_sql_store(connection)
+
+            def prepare_operation(key):
+                operation = reserve_decision_operation(
+                    connection, scope=scope, idempotency_key=key,
+                    request_hash=stable_hash({"request": key}),
+                    snapshot_id=stable_hash({"snapshot_id": key}),
+                    snapshot_hash=stable_hash({"snapshot": key}),
+                    provider_id="unit", model_id="semantic-1",
+                    reconciliation_mode="provider_status_lookup",
+                    provider_endpoint_hash=stable_hash({"endpoint": key}),
+                    created_at="2026-07-12T00:00:00Z",
+                )
+                provider_lease = authorize_provider_call(
+                    connection, operation_id=operation["operation_id"], scope=scope,
+                    created_at="2026-07-12T00:00:00Z", worker_id=f"provider-{key}",
+                    lease_seconds=1, logical_call_id=stable_hash({"logical": key}),
+                    payload_hash=stable_hash({"payload": key}),
+                    idempotency_key_hash=stable_hash(key),
+                )
+                mark_operation_recovery_required(
+                    connection, operation_id=operation["operation_id"], scope=scope,
+                    created_at="2026-07-12T00:00:01Z", lease=provider_lease,
+                )
+                reconciliation_lease = claim_provider_reconciliation(
+                    connection, operation_id=operation["operation_id"], scope=scope,
+                    worker_id="shared-reconciler", now="2026-07-12T00:00:01Z",
+                    lease_seconds=60,
+                )
+                return operation, reconciliation_lease
+
+            first_operation, first_lease = prepare_operation("first")
+            _, second_lease = prepare_operation("second")
+            substituted_observation = {
+                **{key: second_lease[key] for key in (
+                    "provider_call_id", "provider_id", "model_id", "logical_call_id",
+                    "snapshot_hash", "payload_hash", "idempotency_key_hash",
+                    "provider_endpoint_hash",
+                )},
+                "operation_id": first_operation["operation_id"],
+                "status": "remote_pending",
+                "retry_authorized": False,
+                "public_safe": True,
+            }
+            with self.assertRaisesRegex(ValueError, "lease identity mismatch"):
+                persist_provider_reconciliation_observation(
+                    connection,
+                    operation_id=first_operation["operation_id"],
+                    scope=scope,
+                    lease=second_lease,
+                    observation=substituted_observation,
+                    observed_at="2026-07-12T00:00:02Z",
+                )
+            self.assertEqual(_count(connection, "a2_provider_reconciliation_observations"), 0)
+            self.assertEqual(
+                connection.execute(
+                    """SELECT reconciliation_owner, reconciliation_generation
+                       FROM a2_decision_operations WHERE operation_id = ?""",
+                    (first_operation["operation_id"],),
+                ).fetchone(),
+                (first_lease["worker_id"], first_lease["reconciliation_generation"]),
+            )
+        finally:
+            connection.close()
+
+    def test_reconciliation_observation_update_failure_rolls_back_transaction(self):
+        scope = {field: request()[field] for field in (
+            "organization_id", "tenant_id", "workspace_id", "project_id", "environment_id"
+        )}
+        connection = sqlite3.connect(":memory:")
+        try:
+            initialize_sql_store(connection)
+            operation = reserve_decision_operation(
+                connection, scope=scope, idempotency_key="ignored-reconciliation-update",
+                request_hash="sha256:request", snapshot_id="snapshot",
+                snapshot_hash="sha256:snapshot", provider_id="unit", model_id="semantic-1",
+                reconciliation_mode="provider_status_lookup",
+                provider_endpoint_hash="sha256:endpoint",
+                created_at="2026-07-12T00:00:00Z",
+            )
+            provider_lease = authorize_provider_call(
+                connection, operation_id=operation["operation_id"], scope=scope,
+                created_at="2026-07-12T00:00:00Z", worker_id="provider", lease_seconds=1,
+                logical_call_id="sha256:logical", payload_hash="sha256:payload",
+                idempotency_key_hash="sha256:key",
+            )
+            mark_operation_recovery_required(
+                connection, operation_id=operation["operation_id"], scope=scope,
+                created_at="2026-07-12T00:00:01Z", lease=provider_lease,
+            )
+            reconciliation_lease = claim_provider_reconciliation(
+                connection, operation_id=operation["operation_id"], scope=scope,
+                worker_id="reconciler", now="2026-07-12T00:00:02Z",
+            )
+            connection.execute(
+                """
+                CREATE TEMP TRIGGER ignore_reconciliation_operation_update
+                BEFORE UPDATE OF last_reconciliation_status ON a2_decision_operations
+                BEGIN
+                  SELECT RAISE(IGNORE);
+                END
+                """
+            )
+            observation = {
+                **{key: reconciliation_lease[key] for key in (
+                    "operation_id", "provider_call_id", "provider_id", "model_id",
+                    "logical_call_id", "snapshot_hash", "payload_hash", "idempotency_key_hash",
+                    "provider_endpoint_hash",
+                )},
+                "status": "remote_pending",
+                "retry_authorized": False,
+                "public_safe": True,
+            }
+            with self.assertRaisesRegex(ValueError, "stale provider reconciliation fence"):
+                persist_provider_reconciliation_observation(
+                    connection, operation_id=operation["operation_id"], scope=scope,
+                    lease=reconciliation_lease, observation=observation,
+                    observed_at="2026-07-12T00:00:03Z",
+                )
+            self.assertEqual(_count(connection, "a2_provider_reconciliation_observations"), 0)
+            self.assertEqual(
+                connection.execute(
+                    """SELECT reconciliation_owner, reconciliation_generation,
+                              last_reconciliation_status, reconciliation_next_at
+                       FROM a2_decision_operations WHERE operation_id = ?""",
+                    (operation["operation_id"],),
+                ).fetchone(),
+                (
+                    reconciliation_lease["worker_id"],
+                    reconciliation_lease["reconciliation_generation"],
+                    None,
+                    None,
+                ),
+            )
+            observed_audits = connection.execute(
+                """SELECT COUNT(*) FROM a2_decision_operation_audit
+                   WHERE event_type = 'provider_reconciliation_observed'"""
+            ).fetchone()[0]
+            self.assertEqual(observed_audits, 0)
+        finally:
+            connection.close()
+
+    def test_persistence_rejects_malformed_reconciliation_schedule_without_mutation(self):
+        scope = {field: request()[field] for field in (
+            "organization_id", "tenant_id", "workspace_id", "project_id", "environment_id"
+        )}
+        invalid_values = (
+            "",
+            "not-a-time",
+            True,
+            123,
+            [],
+            {},
+            "2026-07-12T00:00:04Z",
+            "2026-07-12T00:00:03Z",
+            "2026-07-12T00:01:00",
+        )
+        for index, value in enumerate(invalid_values):
+            with self.subTest(value=value):
+                connection = sqlite3.connect(":memory:")
+                try:
+                    initialize_sql_store(connection)
+                    operation = reserve_decision_operation(
+                        connection,
+                        scope=scope,
+                        idempotency_key=f"invalid-reconciliation-schedule-{index}",
+                        request_hash="sha256:request",
+                        snapshot_id="snapshot",
+                        snapshot_hash="sha256:snapshot",
+                        provider_id="unit",
+                        model_id="semantic-1",
+                        reconciliation_mode="provider_status_lookup",
+                        provider_endpoint_hash="sha256:endpoint",
+                        created_at="2026-07-12T00:00:00Z",
+                    )
+                    provider_lease = authorize_provider_call(
+                        connection,
+                        operation_id=operation["operation_id"],
+                        scope=scope,
+                        created_at="2026-07-12T00:00:00Z",
+                        worker_id="provider",
+                        lease_seconds=1,
+                        logical_call_id="sha256:logical",
+                        payload_hash="sha256:payload",
+                        idempotency_key_hash="sha256:key",
+                    )
+                    mark_operation_recovery_required(
+                        connection,
+                        operation_id=operation["operation_id"],
+                        scope=scope,
+                        created_at="2026-07-12T00:00:01Z",
+                        lease=provider_lease,
+                    )
+                    reconciliation_lease = claim_provider_reconciliation(
+                        connection,
+                        operation_id=operation["operation_id"],
+                        scope=scope,
+                        worker_id="reconciler",
+                        now="2026-07-12T00:00:02Z",
+                    )
+                    observation = {
+                        **{key: reconciliation_lease[key] for key in (
+                            "operation_id",
+                            "provider_call_id",
+                            "provider_id",
+                            "model_id",
+                            "logical_call_id",
+                            "snapshot_hash",
+                            "payload_hash",
+                            "idempotency_key_hash",
+                            "provider_endpoint_hash",
+                        )},
+                        "status": "remote_pending",
+                        "retry_authorized": False,
+                        "public_safe": True,
+                    }
+                    with self.assertRaisesRegex(ValueError, "next_reconcile_at"):
+                        persist_provider_reconciliation_observation(
+                            connection,
+                            operation_id=operation["operation_id"],
+                            scope=scope,
+                            lease=reconciliation_lease,
+                            observation=observation,
+                            observed_at="2026-07-12T00:00:04Z",
+                            next_reconcile_at=value,
+                        )
+                    self.assertEqual(
+                        _count(connection, "a2_provider_reconciliation_observations"),
+                        0,
+                    )
+                    self.assertEqual(
+                        connection.execute(
+                            """SELECT status, reconciliation_owner,
+                                      reconciliation_attempt_count,
+                                      last_reconciliation_status,
+                                      reconciliation_next_at
+                               FROM a2_decision_operations"""
+                        ).fetchone(),
+                        ("recovery_required", "reconciler", 1, None, None),
+                    )
+                    observed_audits = connection.execute(
+                        """SELECT COUNT(*) FROM a2_decision_operation_audit
+                           WHERE event_type = 'provider_reconciliation_observed'"""
+                    ).fetchone()[0]
+                    self.assertEqual(observed_audits, 0)
+                finally:
+                    connection.close()
 
     def test_due_reconciliation_scheduler_respects_order_mode_and_leases(self):
         scope = {field: request()[field] for field in (
@@ -2120,6 +3292,61 @@ class ReleaseDecisionOrchestratorTests(unittest.TestCase):
         finally:
             connection.close()
 
+    def test_due_reconciliation_scheduler_orders_timezone_offsets_by_instant(self):
+        scope = {field: request()[field] for field in (
+            "organization_id", "tenant_id", "workspace_id", "project_id", "environment_id"
+        )}
+        connection = sqlite3.connect(":memory:")
+
+        def recovery_operation(key, next_at):
+            operation = reserve_decision_operation(
+                connection, scope=scope, idempotency_key=key,
+                request_hash=stable_hash({"request": key}),
+                snapshot_id=stable_hash({"snapshot_id": key}),
+                snapshot_hash=stable_hash({"snapshot": key}),
+                provider_id="unit", model_id="semantic-1",
+                reconciliation_mode="provider_status_lookup",
+                provider_endpoint_hash=stable_hash({"endpoint": key}),
+                created_at="2026-07-12T00:00:00Z",
+            )
+            lease = authorize_provider_call(
+                connection, operation_id=operation["operation_id"], scope=scope,
+                created_at="2026-07-12T00:00:00Z", worker_id=f"provider-{key}",
+                lease_seconds=1, logical_call_id=stable_hash({"logical": key}),
+                payload_hash=stable_hash({"payload": key}),
+                idempotency_key_hash=stable_hash(key),
+            )
+            mark_operation_recovery_required(
+                connection, operation_id=operation["operation_id"], scope=scope,
+                created_at="2026-07-12T00:00:01Z", lease=lease,
+            )
+            connection.execute(
+                """UPDATE a2_decision_operations
+                   SET reconciliation_next_at = ? WHERE operation_id = ?""",
+                (next_at, operation["operation_id"]),
+            )
+            connection.commit()
+            return operation["operation_id"]
+
+        try:
+            initialize_sql_store(connection)
+            due = recovery_operation(
+                "offset-due",
+                "2026-07-12T00:30:00+08:00",
+            )
+            recovery_operation(
+                "offset-future",
+                "2026-07-11T20:00:00-05:00",
+            )
+            claimed = claim_due_provider_reconciliation(
+                connection,
+                worker_id="reconciler",
+                now="2026-07-12T00:01:00Z",
+            )
+            self.assertEqual(claimed["operation_id"], due)
+        finally:
+            connection.close()
+
     def test_outbox_delivery_is_fenced_retryable_and_idempotent(self):
         connection = sqlite3.connect(":memory:")
         try:
@@ -2137,6 +3364,7 @@ class ReleaseDecisionOrchestratorTests(unittest.TestCase):
                 connection, worker_id="dispatcher-b", now="2026-07-12T00:00:02Z",
             )
             self.assertEqual(takeover["lease_generation"], first["lease_generation"] + 1)
+            self.assertEqual(takeover["a1_event_handoff"], first["a1_event_handoff"])
             with self.assertRaisesRegex(ValueError, "stale outbox"):
                 settle_decision_outbox(
                     connection, event_id=first["event_id"], worker_id="dispatcher-a",
@@ -2154,6 +3382,7 @@ class ReleaseDecisionOrchestratorTests(unittest.TestCase):
             retry = claim_decision_outbox(
                 connection, worker_id="dispatcher-c", now="2026-07-12T00:01:00Z",
             )
+            self.assertEqual(retry["a1_event_handoff"], first["a1_event_handoff"])
             settle_decision_outbox(
                 connection, event_id=retry["event_id"], worker_id="dispatcher-c",
                 lease_generation=retry["lease_generation"], delivered_at="2026-07-12T00:01:01Z",
@@ -2166,6 +3395,145 @@ class ReleaseDecisionOrchestratorTests(unittest.TestCase):
                 "SELECT delivery_status, attempt_count, delivered_at FROM a2_decision_outbox"
             ).fetchone()
             self.assertEqual(stored, ("delivered", 3, "2026-07-12T00:01:01Z"))
+        finally:
+            connection.close()
+
+    def test_outbox_retry_schedule_compares_timezone_offsets_by_instant(self):
+        connection = sqlite3.connect(":memory:")
+        try:
+            initialize_sql_store(connection)
+            execute_release_decision(
+                request(), gateway=gateway(), key_resolver=lambda _: KEY, now_unix_ms=NOW,
+                persistence_connection=connection,
+            )
+            claimed = claim_decision_outbox(
+                connection,
+                worker_id="dispatcher-a",
+                now="2026-07-12T00:00:00Z",
+            )
+            settle_decision_outbox(
+                connection,
+                event_id=claimed["event_id"],
+                worker_id="dispatcher-a",
+                lease_generation=claimed["lease_generation"],
+                delivered_at="2026-07-12T00:00:01Z",
+                outcome="retry",
+                retry_at="2026-07-11T20:00:00-05:00",
+                error_class="a3_unavailable",
+            )
+            self.assertIsNone(claim_decision_outbox(
+                connection,
+                worker_id="dispatcher-b",
+                now="2026-07-12T08:30:00+08:00",
+            ))
+            retry = claim_decision_outbox(
+                connection,
+                worker_id="dispatcher-b",
+                now="2026-07-12T09:00:00+08:00",
+            )
+            self.assertEqual(retry["event_id"], claimed["event_id"])
+        finally:
+            connection.close()
+
+    def test_outbox_builds_complete_integrity_sealed_a1_evidence_event(self):
+        connection = sqlite3.connect(":memory:")
+        try:
+            initialize_sql_store(connection)
+            execute_release_decision(
+                request(), gateway=gateway(), key_resolver=lambda _: KEY, now_unix_ms=NOW,
+                persistence_connection=connection,
+            )
+            claimed = claim_decision_outbox(
+                connection, worker_id="dispatcher-a", now="2026-07-12T00:00:00Z",
+            )
+            handoff = claimed["a1_event_handoff"]
+            event = handoff["event"]
+            self.assertEqual(
+                set(event),
+                {
+                    "schema_version", "event_id", "tenant_id", "project_id", "run_id",
+                    "source", "event_type", "sequence", "occurred_at", "purpose",
+                    "data_class", "consent", "residency", "retention_class",
+                    "learning_allowed", "payload", "causal_parent", "metadata",
+                    "integrity_sha256",
+                },
+            )
+            self.assertEqual(event["schema_version"], A1_EVENT_SCHEMA_VERSION)
+            self.assertEqual(event["event_id"], claimed["event_id"])
+            self.assertEqual(event["tenant_id"], "tenant-a")
+            self.assertEqual(event["project_id"], "project-a")
+            self.assertEqual(event["run_id"], "run-1")
+            self.assertEqual(event["event_type"], "a2.release_decision.committed.v1")
+            self.assertEqual(event["purpose"], "evidence")
+            self.assertEqual(event["consent"], "product_use_not_training")
+            self.assertFalse(event["learning_allowed"])
+            self.assertEqual(event["causal_parent"], claimed["operation_id"])
+            self.assertEqual(
+                event["metadata"],
+                {
+                    "organization_id": "org-a",
+                    "workspace_id": "workspace-a",
+                    "environment_id": "test",
+                    "case_id": "case-1",
+                    "scenario_id": "A2-S001",
+                },
+            )
+            self.assertEqual(handoff["payload_hash"], stable_hash(event["payload"]))
+            unsealed = {key: value for key, value in event.items() if key != "integrity_sha256"}
+            expected_integrity = hashlib.sha256(
+                json.dumps(
+                    unsealed,
+                    ensure_ascii=False,
+                    sort_keys=True,
+                    separators=(",", ":"),
+                    allow_nan=False,
+                ).encode("utf-8")
+            ).hexdigest()
+            self.assertEqual(event["integrity_sha256"], expected_integrity)
+            self.assertTrue(handoff["idempotency_key"].startswith("a2_release_"))
+            self.assertTrue(handoff["batch_id"].startswith("a2_release_"))
+        finally:
+            connection.close()
+
+    def test_outbox_payload_hash_mismatch_fails_closed_before_lease(self):
+        connection = sqlite3.connect(":memory:")
+        try:
+            initialize_sql_store(connection)
+            execute_release_decision(
+                request(), gateway=gateway(), key_resolver=lambda _: KEY, now_unix_ms=NOW,
+                persistence_connection=connection,
+            )
+            connection.execute(
+                "UPDATE a2_decision_outbox SET payload_hash = ?",
+                ("sha256:" + "0" * 64,),
+            )
+            connection.commit()
+            with self.assertRaisesRegex(A1EventBridgeError, "payload hash mismatch"):
+                claim_decision_outbox(
+                    connection, worker_id="dispatcher-a", now="2026-07-12T00:00:00Z",
+                )
+            stored = connection.execute(
+                "SELECT delivery_status, attempt_count, lease_owner FROM a2_decision_outbox"
+            ).fetchone()
+            self.assertEqual(stored, ("pending", 0, None))
+        finally:
+            connection.close()
+
+    def test_a1_handoff_rejects_secret_bearing_metadata(self):
+        connection = sqlite3.connect(":memory:")
+        try:
+            initialize_sql_store(connection)
+            execute_release_decision(
+                request(), gateway=gateway(), key_resolver=lambda _: KEY, now_unix_ms=NOW,
+                persistence_connection=connection,
+            )
+            claimed = claim_decision_outbox(
+                connection, worker_id="dispatcher-a", now="2026-07-12T00:00:00Z",
+            )
+            tampered = json.loads(json.dumps(claimed["a1_event_handoff"]))
+            tampered["event"]["metadata"]["api_key"] = "must-not-enter-spool"
+            with self.assertRaisesRegex(A1EventBridgeError, "secret-bearing metadata"):
+                verify_release_decision_spool_handoff(tampered)
         finally:
             connection.close()
 
@@ -2197,6 +3565,27 @@ class ReleaseDecisionOrchestratorTests(unittest.TestCase):
                     lease_generation=claimed["lease_generation"],
                     delivered_at="2026-07-12T00:00:01Z", outcome="retry",
                 )
+            with self.assertRaisesRegex(ValueError, "delivered_at"):
+                settle_decision_outbox(
+                    connection, event_id=claimed["event_id"], worker_id="dispatcher-a",
+                    lease_generation=claimed["lease_generation"],
+                    delivered_at="2026-07-12T00:00:01", outcome="delivered",
+                )
+            with self.assertRaisesRegex(ValueError, "retry_at"):
+                settle_decision_outbox(
+                    connection, event_id=claimed["event_id"], worker_id="dispatcher-a",
+                    lease_generation=claimed["lease_generation"],
+                    delivered_at="2026-07-12T00:00:01Z", outcome="retry",
+                    retry_at="2026-07-12T00:00:00Z",
+                )
+            self.assertEqual(
+                connection.execute(
+                    """SELECT delivery_status, lease_owner, lease_generation
+                       FROM a2_decision_outbox WHERE event_id = ?""",
+                    (claimed["event_id"],),
+                ).fetchone(),
+                ("leased", "dispatcher-a", claimed["lease_generation"]),
+            )
             settle_decision_outbox(
                 connection, event_id=claimed["event_id"], worker_id="dispatcher-a",
                 lease_generation=claimed["lease_generation"],
@@ -2301,10 +3690,13 @@ class ReleaseDecisionOrchestratorTests(unittest.TestCase):
                 request(), gateway=gateway(), key_resolver=lambda _: KEY, now_unix_ms=NOW,
                 persistence_connection=connection,
             )
-            dump = "\n".join(connection.iterdump())
+            dump_lines = list(connection.iterdump())
+            persisted_rows = "\n".join(
+                line for line in dump_lines if line.startswith("INSERT INTO")
+            )
             for forbidden in ("final_response", "output_text", "private_refs", "signed_url", "api_key", "Bearer "):
-                self.assertNotIn(forbidden, dump)
-            self.assertIn("a2.release_decision.committed.v1", dump)
+                self.assertNotIn(forbidden, persisted_rows)
+            self.assertIn("a2.release_decision.committed.v1", persisted_rows)
         finally:
             connection.close()
 

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 import sqlite3
 from typing import Any, Callable
 
@@ -14,7 +15,7 @@ from .evaluation_trust_policy import (
     normalize_evaluation_trust_policy,
     verifier_arguments,
 )
-from .provider_gateway import ProviderGateway
+from .provider_gateway import ProviderGateway, validate_idempotency_key
 from .provider_runtime import (
     build_provider_provenance_handoff,
     validate_semantic_judge_output,
@@ -33,6 +34,12 @@ from .release_decision_store import (
     persist_reconciled_provider_outcome,
     persist_release_decision,
     reserve_decision_operation,
+    validate_lease_seconds,
+    validate_next_reconcile_at,
+    validate_operation_id,
+    validate_tenant_scope,
+    validate_timestamp,
+    validate_worker_id,
 )
 from .trusted_spine import (
     build_decision_ledger,
@@ -66,6 +73,22 @@ def execute_release_decision(
     quality_trust_policy: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Execute one fail-closed semantic release decision from authenticated A1 evidence."""
+    lease_seconds = validate_lease_seconds(lease_seconds)
+    worker_id = validate_worker_id(worker_id)
+    created_at = validate_timestamp(request.get("created_at"), field="created_at")
+    idempotency_key = validate_idempotency_key(request.get("idempotency_key"))
+    timeout_seconds = _request_finite_number(
+        request,
+        "timeout_seconds",
+        default=30,
+        allow_zero=False,
+    )
+    max_cost_usd = _request_finite_number(
+        request,
+        "max_cost_usd",
+        default=0,
+        allow_zero=True,
+    )
     scope = _scope(request)
     run_payload, bundle_verification = _authenticated_run(
         request,
@@ -80,8 +103,8 @@ def execute_release_decision(
         run_id=str(request["run_id"]),
         case_id=str(request["case_id"]),
         scenario_id=str(request["scenario_id"]),
-        created_at=str(request["created_at"]),
-        required_modalities=[str(item) for item in request.get("required_modalities", ["text"])],
+        created_at=created_at,
+        required_modalities=_required_modalities(request),
         source_schema_version=str(
             run_payload.get("aggregate_metrics", {}).get("schema_version")
             or request.get("source_schema_version")
@@ -135,7 +158,7 @@ def execute_release_decision(
         "model_id": str(request["model_id"]),
         "modalities": sorted({str(part.get("modality") or "") for part in parts}),
         "payload_hash": provider_payload_hash,
-        "idempotency_key": str(request["idempotency_key"]),
+        "idempotency_key": idempotency_key,
     }
     operation = None
     lease = None
@@ -143,13 +166,13 @@ def execute_release_decision(
         operation = reserve_decision_operation(
             persistence_connection,
             scope=scope,
-            idempotency_key=str(request["idempotency_key"]),
+            idempotency_key=idempotency_key,
             request_hash=request_hash,
             snapshot_id=str(snapshot["snapshot_id"]),
             snapshot_hash=str(snapshot["snapshot_hash"]),
             provider_id=str(request["provider_id"]),
             model_id=str(request["model_id"]),
-            created_at=str(request["created_at"]),
+            created_at=created_at,
             reconciliation_mode=gateway.providers[str(request["provider_id"])].reconciliation_mode,
             provider_endpoint_hash=stable_hash({
                 "provider_id": request["provider_id"],
@@ -163,12 +186,12 @@ def execute_release_decision(
             persistence_connection,
             operation_id=str(operation["operation_id"]),
             scope=scope,
-            created_at=str(request["created_at"]),
+            created_at=created_at,
             worker_id=worker_id,
             lease_seconds=lease_seconds,
             logical_call_id=stable_hash(provider_request_core),
             payload_hash=provider_request_core["payload_hash"],
-            idempotency_key_hash=stable_hash(str(request["idempotency_key"])),
+            idempotency_key_hash=stable_hash(idempotency_key),
         )
     try:
         provider_result = gateway.invoke(
@@ -177,9 +200,9 @@ def execute_release_decision(
             provider_id=str(request["provider_id"]),
             model_id=str(request["model_id"]),
             parts=parts,
-            idempotency_key=str(request["idempotency_key"]),
-            timeout_seconds=float(request.get("timeout_seconds", 30)),
-            max_cost_usd=float(request.get("max_cost_usd", 0)),
+            idempotency_key=idempotency_key,
+            timeout_seconds=timeout_seconds,
+            max_cost_usd=max_cost_usd,
         )
     except BaseException:
         if persistence_connection is not None and operation is not None:
@@ -187,7 +210,7 @@ def execute_release_decision(
                 persistence_connection,
                 operation_id=str(operation["operation_id"]),
                 scope=scope,
-                created_at=str(request["created_at"]),
+                created_at=created_at,
                 lease=lease,
             )
         raise
@@ -208,6 +231,7 @@ def execute_release_decision(
         provider_payload_hash=provider_payload_hash,
         evaluation_quality=evaluation_quality,
         trust_policy_hash=evaluation_trust_policy_hash(trust_policy),
+        idempotency_key=idempotency_key,
     )
     if persistence_connection is not None and operation is not None and lease is not None:
         persist_provider_outcome(
@@ -218,7 +242,7 @@ def execute_release_decision(
             provider_result=provider_result,
             semantic_output=semantic_output,
             recovery_envelope=recovery_envelope,
-            completed_at=str(request["created_at"]),
+            completed_at=created_at,
             failure_injector=persistence_failure_injector,
         )
         if persistence_failure_injector is not None:
@@ -230,7 +254,7 @@ def execute_release_decision(
         persistence = persist_release_decision(
             persistence_connection,
             result,
-            idempotency_key=str(request["idempotency_key"]),
+            idempotency_key=idempotency_key,
             request_hash=request_hash,
             operation_id=str(operation["operation_id"]) if operation else None,
             lease=lease,
@@ -265,6 +289,22 @@ def reconcile_release_decision(
     quality_trust_policy: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Reconcile an uncertain Provider call without invoking or retrying it."""
+    operation_id = validate_operation_id(operation_id)
+    now = validate_timestamp(now, field="now")
+    created_at = validate_timestamp(request.get("created_at"), field="created_at")
+    lease_seconds = validate_lease_seconds(lease_seconds)
+    worker_id = validate_worker_id(worker_id)
+    next_reconcile_at = validate_next_reconcile_at(
+        next_reconcile_at,
+        observed_at=now,
+    )
+    idempotency_key = validate_idempotency_key(request.get("idempotency_key"))
+    timeout_seconds = _request_finite_number(
+        request,
+        "timeout_seconds",
+        default=30,
+        allow_zero=False,
+    )
     scope = _scope(request)
     run_payload, bundle_verification = _authenticated_run(
         request, key_resolver=key_resolver, now_unix_ms=now_unix_ms,
@@ -272,8 +312,8 @@ def reconcile_release_decision(
     )
     snapshot = build_evidence_snapshot(
         run_payload, **scope, run_id=str(request["run_id"]), case_id=str(request["case_id"]),
-        scenario_id=str(request["scenario_id"]), created_at=str(request["created_at"]),
-        required_modalities=[str(item) for item in request.get("required_modalities", ["text"])],
+        scenario_id=str(request["scenario_id"]), created_at=created_at,
+        required_modalities=_required_modalities(request),
         source_schema_version=str(
             run_payload.get("aggregate_metrics", {}).get("schema_version")
             or request.get("source_schema_version") or "unknown"
@@ -281,40 +321,6 @@ def reconcile_release_decision(
         artifact_pipeline_records=_record_list(request, "artifact_pipeline_records"),
         derived_evidence_records=_record_list(request, "derived_evidence_records"),
     )
-    lease = claim_provider_reconciliation(
-        connection, operation_id=operation_id, scope=scope, worker_id=worker_id,
-        now=now, lease_seconds=lease_seconds,
-    )
-    observation = gateway.reconcile(
-        scope=scope, operation_id=operation_id, provider_call_id=lease["provider_call_id"],
-        logical_call_id=lease["logical_call_id"], provider_id=lease["provider_id"],
-        model_id=lease["model_id"], snapshot_hash=lease["snapshot_hash"],
-        payload_hash=lease["payload_hash"], idempotency_key_hash=lease["idempotency_key_hash"],
-        provider_endpoint_hash=lease["provider_endpoint_hash"],
-        provider_generation=lease["fencing_token"],
-        timeout_seconds=float(request.get("timeout_seconds", 30)),
-    )
-    if observation["status"] != "remote_completed":
-        persist_provider_reconciliation_observation(
-            connection, operation_id=operation_id, scope=scope, lease=lease,
-            observation=observation, observed_at=now, next_reconcile_at=next_reconcile_at,
-        )
-        return _reconciliation_blocked(operation_id, observation["status"])
-    semantic_output = observation["normalized_output"]
-    provider_result = {
-        "provider_id": lease["provider_id"],
-        "model_id": lease["model_id"],
-        "status": "completed",
-        "logical_call_id": lease["logical_call_id"],
-        "response_hash": observation["output_hash"],
-        "blockers": [],
-        "usage": {},
-        "evaluation_eligible": True,
-        "release_authority": False,
-        "raw_request_included": False,
-        "raw_response_included": False,
-        "secret_included": False,
-    }
     parts, disclosed_citations = _provider_parts(
         snapshot,
         request.get("judge_prompt"),
@@ -342,6 +348,51 @@ def reconcile_release_decision(
         now_unix_ms=now_unix_ms,
         **verifier_arguments(trust_policy),
     )
+    request_hash = stable_hash(
+        _request_identity(
+            request,
+            snapshot,
+            provider_payload_hash=provider_payload_hash,
+            evaluation_quality=evaluation_quality,
+            trust_policy_hash=evaluation_trust_policy_hash(trust_policy),
+        )
+    )
+    lease = claim_provider_reconciliation(
+        connection, operation_id=operation_id, scope=scope, worker_id=worker_id,
+        now=now, lease_seconds=lease_seconds,
+        expected_idempotency_key_hash=stable_hash(idempotency_key),
+        expected_request_hash=request_hash,
+    )
+    observation = gateway.reconcile(
+        scope=scope, operation_id=operation_id, provider_call_id=lease["provider_call_id"],
+        logical_call_id=lease["logical_call_id"], provider_id=lease["provider_id"],
+        model_id=lease["model_id"], snapshot_hash=lease["snapshot_hash"],
+        payload_hash=lease["payload_hash"], idempotency_key_hash=lease["idempotency_key_hash"],
+        provider_endpoint_hash=lease["provider_endpoint_hash"],
+        provider_generation=lease["fencing_token"],
+        timeout_seconds=timeout_seconds,
+    )
+    if observation["status"] != "remote_completed":
+        persist_provider_reconciliation_observation(
+            connection, operation_id=operation_id, scope=scope, lease=lease,
+            observation=observation, observed_at=now, next_reconcile_at=next_reconcile_at,
+        )
+        return _reconciliation_blocked(operation_id, observation["status"])
+    semantic_output = observation["normalized_output"]
+    provider_result = {
+        "provider_id": lease["provider_id"],
+        "model_id": lease["model_id"],
+        "status": "completed",
+        "logical_call_id": lease["logical_call_id"],
+        "response_hash": observation["output_hash"],
+        "blockers": [],
+        "usage": {},
+        "evaluation_eligible": True,
+        "release_authority": False,
+        "raw_request_included": False,
+        "raw_response_included": False,
+        "secret_included": False,
+    }
     citation_validation = _validate_evidence_refs(
         snapshot,
         semantic_output,
@@ -353,6 +404,7 @@ def reconcile_release_decision(
         bundle_verification=bundle_verification, provider_payload_hash=provider_payload_hash,
         evaluation_quality=evaluation_quality,
         trust_policy_hash=evaluation_trust_policy_hash(trust_policy),
+        idempotency_key=idempotency_key,
     )
     persist_reconciled_provider_outcome(
         connection, operation_id=operation_id, scope=scope, lease=lease,
@@ -378,6 +430,13 @@ def recover_release_decision(
     persistence_failure_injector: FailureInjector | None = None,
 ) -> dict[str, Any]:
     """Recover a provider-completed operation without invoking any Provider."""
+    operation_id = validate_operation_id(operation_id)
+    now = validate_timestamp(now, field="now")
+    lease_seconds = validate_lease_seconds(lease_seconds)
+    worker_id = validate_worker_id(worker_id)
+    envelope = load_decision_recovery_envelope(
+        connection, operation_id=operation_id, scope=scope,
+    )
     lease = claim_decision_recovery(
         connection,
         operation_id=operation_id,
@@ -386,15 +445,12 @@ def recover_release_decision(
         now=now,
         lease_seconds=lease_seconds,
     )
-    envelope = load_decision_recovery_envelope(
-        connection, operation_id=operation_id, scope=scope,
-    )
     result = _build_decision_result(envelope)
     persistence = persist_release_decision(
         connection,
         result,
-        idempotency_key=str(envelope["idempotency_key"]),
-        request_hash=str(envelope["request_hash"]),
+        idempotency_key=envelope["idempotency_key"],
+        request_hash=envelope["request_hash"],
         operation_id=operation_id,
         lease=lease,
         commit_now=now,
@@ -501,10 +557,7 @@ def _request_identity(
 
 
 def _scope(request: dict[str, Any]) -> dict[str, str]:
-    scope = {field: str(request.get(field) or "") for field in SCOPE_FIELDS}
-    if not all(scope.values()):
-        raise ValueError("complete five-field tenant scope is required")
-    return scope
+    return validate_tenant_scope(request)
 
 
 def _record_list(request: dict[str, Any], field: str) -> list[dict[str, Any]]:
@@ -512,6 +565,37 @@ def _record_list(request: dict[str, Any], field: str) -> list[dict[str, Any]]:
     if not isinstance(value, list) or any(not isinstance(item, dict) for item in value):
         raise ValueError(f"{field} must be a list of records")
     return value
+
+
+def _required_modalities(request: dict[str, Any]) -> list[str]:
+    if "required_modalities" not in request:
+        return ["text"]
+    value = request["required_modalities"]
+    if not isinstance(value, list):
+        raise ValueError(
+            "required_modalities must be a non-empty list of supported modality names"
+        )
+    return value
+
+
+def _request_finite_number(
+    request: dict[str, Any],
+    field: str,
+    *,
+    default: int | float,
+    allow_zero: bool,
+) -> float:
+    value = request[field] if field in request else default
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise ValueError(f"{field} must be a finite number")
+    try:
+        number = float(value)
+    except OverflowError as exc:
+        raise ValueError(f"{field} must be a finite number") from exc
+    if not math.isfinite(number) or number < 0 or (number == 0 and not allow_zero):
+        qualifier = "non-negative" if allow_zero else "positive"
+        raise ValueError(f"{field} must be a finite {qualifier} number")
+    return number
 
 
 def _authenticated_run(
@@ -580,10 +664,10 @@ def _validate_evidence_refs(
     snapshot_id = str(snapshot.get("snapshot_id") or "")
     requires_derived = "image" in set(snapshot.get("required_modalities") or [])
     allowed = set(disclosed_citations)
-    if not requires_derived:
-        allowed.add(snapshot_id)
     normalized: list[str] = []
     blockers: list[str] = []
+    if not allowed:
+        blockers.append("semantic_evidence_not_disclosed")
     for reference in semantic_output.get("evidence_refs") or []:
         candidate = snapshot_id if reference == "snapshot" else str(reference)
         normalized.append(candidate)
@@ -614,6 +698,7 @@ def _build_recovery_envelope(
     provider_payload_hash: str,
     evaluation_quality: dict[str, Any],
     trust_policy_hash: str,
+    idempotency_key: str,
 ) -> dict[str, Any]:
     provenance = build_provider_provenance_handoff(
         tenant_scope=scope,
@@ -634,7 +719,7 @@ def _build_recovery_envelope(
     return {
         "schema_version": RECOVERY_ENVELOPE_SCHEMA_VERSION,
         **scope,
-        "idempotency_key": str(request["idempotency_key"]),
+        "idempotency_key": idempotency_key,
         "request_hash": stable_hash(
             _request_identity(
                 request,

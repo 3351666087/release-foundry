@@ -10,7 +10,14 @@ from .result_persistence import stable_hash
 
 
 REVIEW_OUTCOMES = {"confirm", "overturn", "abstain", "escalate"}
-LEARNING_PURPOSES = {"judge_calibration", "regression_generation", "failure_classification"}
+LEARNING_PURPOSES = {
+    "judge_calibration",
+    "regression_generation",
+    "failure_classification",
+    "reward_model_training",
+    "preference_optimization",
+    "action_value_training",
+}
 
 
 def open_review_case(
@@ -27,6 +34,7 @@ def open_review_case(
         raise ValueError("required approvals must be one or two")
     normalized = _scope(scope)
     decision = _decision(connection, record_id, normalized)
+    created = _canonical_timestamp(created_at, "created_at")
     review_id = stable_hash({"record_id": record_id, "scope": normalized, "reason_code": reason_code})
     connection.execute(
         """
@@ -40,7 +48,7 @@ def open_review_case(
             review_id, record_id, normalized["organization_id"], normalized["tenant_id"],
             normalized["workspace_id"], normalized["project_id"], normalized["environment_id"],
             decision["decision"], decision["record_hash"], reason_code, required_approvals,
-            created_at, created_at,
+            created, created,
         ),
     )
     connection.commit()
@@ -68,7 +76,8 @@ def claim_review_case(
     if not reviewer_id_hash or lease_seconds <= 0:
         raise ValueError("reviewer identity hash and positive lease are required")
     normalized = _scope(scope)
-    current = _timestamp(now)
+    claimed_at = _canonical_timestamp(now, "now")
+    current = _timestamp(claimed_at)
     expires = (current + timedelta(seconds=lease_seconds)).isoformat().replace("+00:00", "Z")
     connection.execute("BEGIN IMMEDIATE")
     try:
@@ -92,7 +101,14 @@ def claim_review_case(
                 lease_expires_at = ?, updated_at = ?
             WHERE review_id = ? AND lease_generation = ?
             """,
-            (reviewer_id_hash, generation, expires, now, review_id, row["lease_generation"]),
+            (
+                reviewer_id_hash,
+                generation,
+                expires,
+                claimed_at,
+                review_id,
+                row["lease_generation"],
+            ),
         )
         if cursor.rowcount != 1:
             raise ValueError("review case lease contention")
@@ -123,6 +139,7 @@ def submit_review(
     if outcome not in REVIEW_OUTCOMES:
         raise ValueError("unsupported review outcome")
     normalized = _scope(scope)
+    submitted = _canonical_timestamp(submitted_at, "submitted_at")
     connection.execute("BEGIN IMMEDIATE")
     try:
         row = _review(connection, str(lease["review_id"]), normalized)
@@ -132,7 +149,7 @@ def submit_review(
             or int(row["lease_generation"]) != int(lease["lease_generation"])
         ):
             raise ValueError("stale review lease")
-        if not row["lease_expires_at"] or _timestamp(row["lease_expires_at"]) <= _timestamp(submitted_at):
+        if not row["lease_expires_at"] or _timestamp(row["lease_expires_at"]) <= _timestamp(submitted):
             raise ValueError("review lease expired")
         if outcome == "overturn":
             if not superseding_record_id:
@@ -148,7 +165,7 @@ def submit_review(
             "outcome": outcome,
             "reason_code": reason_code,
             "superseding_record_id": superseding_record_id,
-            "submitted_at": submitted_at,
+            "submitted_at": submitted,
         }
         event_hash = stable_hash(event_core)
         event_id = stable_hash({"review_id": row["review_id"], "event_hash": event_hash})
@@ -166,12 +183,12 @@ def submit_review(
                 normalized["tenant_id"], normalized["workspace_id"], normalized["project_id"],
                 normalized["environment_id"], lease["reviewer_id_hash"],
                 lease["lease_generation"], outcome, reason_code, superseding_record_id,
-                event_hash, submitted_at,
+                event_hash, submitted,
             ),
         )
         resolution = _resolve_review(
             connection, row=row, event_id=event_id, outcome=outcome,
-            superseding_record_id=superseding_record_id, submitted_at=submitted_at,
+            superseding_record_id=superseding_record_id, submitted_at=submitted,
         )
         candidate = None
         learning_blocked_reason = None
@@ -179,11 +196,11 @@ def submit_review(
             _write_resolution(
                 connection, row=row, scope=normalized, resolution_type="review_consensus",
                 final_outcome=outcome, superseding_record_id=superseding_record_id,
-                approval_count=resolution["approval_count"], resolved_at=submitted_at,
+                approval_count=resolution["approval_count"], resolved_at=submitted,
             )
             candidate = _create_learning_candidate(
                 connection, row=row, event_id=event_id, scope=normalized,
-                outcome=outcome, learning=learning, created_at=submitted_at,
+                outcome=outcome, learning=learning, created_at=submitted,
             )
         elif learning is not None:
             learning_blocked_reason = "review_not_completed_or_conflict_requires_arbitration"
@@ -221,6 +238,7 @@ def resolve_arbitration(
     if final_outcome not in {"confirm", "overturn"}:
         raise ValueError("arbitration must conclusively confirm or overturn")
     normalized = _scope(scope)
+    resolved = _canonical_timestamp(resolved_at, "resolved_at")
     connection.execute("BEGIN IMMEDIATE")
     try:
         row = _review(connection, review_id, normalized)
@@ -246,7 +264,7 @@ def resolve_arbitration(
         resolution = _write_resolution(
             connection, row=row, scope=normalized, resolution_type="arbitration",
             final_outcome=final_outcome, superseding_record_id=superseding_record_id,
-            approval_count=max(1, int(count)), resolved_at=resolved_at,
+            approval_count=max(1, int(count)), resolved_at=resolved,
             arbitrator_id_hash=arbitrator_id_hash,
         )
         connection.execute(
@@ -255,7 +273,7 @@ def resolve_arbitration(
             SET status = 'completed', updated_at = ?
             WHERE review_id = ? AND status = 'arbitration'
             """,
-            (resolved_at, review_id),
+            (resolved, review_id),
         )
         connection.commit()
     except Exception:
@@ -315,7 +333,8 @@ def claim_review_resolution_outbox(
     """Claim one committed review resolution with monotonic delivery fencing."""
     if not worker_id or lease_seconds <= 0:
         raise ValueError("worker identity and positive lease are required")
-    expires = (_timestamp(now) + timedelta(seconds=lease_seconds)).isoformat().replace("+00:00", "Z")
+    claimed_at = _canonical_timestamp(now, "now")
+    expires = (_timestamp(claimed_at) + timedelta(seconds=lease_seconds)).isoformat().replace("+00:00", "Z")
     connection.execute("BEGIN IMMEDIATE")
     try:
         row = connection.execute(
@@ -323,12 +342,15 @@ def claim_review_resolution_outbox(
             SELECT * FROM a2_review_resolution_outbox
             WHERE (
               delivery_status IN ('pending', 'retry')
-              OR (delivery_status = 'leased' AND lease_expires_at <= ?)
-            ) AND available_at <= ?
-            ORDER BY created_at, event_id
+              OR (
+                delivery_status = 'leased'
+                AND julianday(lease_expires_at) <= julianday(?)
+              )
+            ) AND julianday(available_at) <= julianday(?)
+            ORDER BY julianday(created_at), event_id
             LIMIT 1
             """,
-            (now, now),
+            (claimed_at, claimed_at),
         ).fetchone()
         if row is None:
             connection.commit()
@@ -373,6 +395,16 @@ def settle_review_resolution_outbox(
         raise ValueError("outbox outcome must be delivered, retry, or dead")
     if outcome == "retry" and not retry_at:
         raise ValueError("retry_at is required for retry")
+    settled_at_utc = _canonical_timestamp(settled_at, "settled_at")
+    settled = _timestamp(settled_at_utc)
+    retry_at_utc = (
+        _canonical_timestamp(retry_at, "retry_at") if retry_at is not None else None
+    )
+    retry = _timestamp(retry_at_utc) if retry_at_utc is not None else None
+    if retry is not None and retry <= settled:
+        raise ValueError("retry_at must be later than settled_at")
+    available_at = retry_at_utc or settled_at_utc
+    delivered_at = settled_at_utc if outcome == "delivered" else None
     cursor = connection.execute(
         """
         UPDATE a2_review_resolution_outbox
@@ -382,7 +414,7 @@ def settle_review_resolution_outbox(
           AND lease_owner = ? AND lease_generation = ?
         """,
         (
-            outcome, retry_at or settled_at, settled_at if outcome == "delivered" else None,
+            outcome, available_at, delivered_at,
             error_class, event_id, worker_id, lease_generation,
         ),
     )
@@ -567,7 +599,7 @@ def _resolve_review(
             SELECT outcome, superseding_record_id
             FROM a2_review_events
             WHERE review_id = ?
-            ORDER BY created_at, event_id
+            ORDER BY julianday(created_at), event_id
             """,
             (row["review_id"],),
         ).fetchall()
@@ -668,5 +700,25 @@ def _review(connection: sqlite3.Connection, review_id: str, scope: dict[str, str
     return value
 
 
-def _timestamp(value: str) -> datetime:
-    return datetime.fromisoformat(value.replace("Z", "+00:00")).astimezone(timezone.utc)
+def _canonical_timestamp(value: Any, field: str) -> str:
+    try:
+        parsed = _timestamp(value)
+    except ValueError as exc:
+        raise ValueError(
+            f"{field} must be a valid timezone-aware ISO-8601 timestamp"
+        ) from exc
+    return parsed.isoformat().replace("+00:00", "Z")
+
+
+def _timestamp(value: Any) -> datetime:
+    if not isinstance(value, str) or not value.strip():
+        raise ValueError("timestamp must be a timezone-aware ISO-8601 timestamp")
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError as exc:
+        raise ValueError(
+            "timestamp must be a valid timezone-aware ISO-8601 timestamp"
+        ) from exc
+    if parsed.tzinfo is None or parsed.utcoffset() is None:
+        raise ValueError("timestamp must be a timezone-aware ISO-8601 timestamp")
+    return parsed.astimezone(timezone.utc)

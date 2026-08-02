@@ -12,8 +12,8 @@ candidate:
 | Evidence version | `0.2.0-rc.3` |
 | A1 source commit | `1d292047e991995fdf52f0545ffff410ee19a171` |
 | A1 evidence bundle | `sha256:3240e097cc4e793520d9bbb0b2a600081a5440c751bf842cbe3b8cc9e495cd9f` |
-| A2 authority commit | `d3529c356e49ce8502c050f0dad44020031ee0dd` |
-| A2 Decision Ledger head | `sha256:bc608df9825ea316b374797ef76b4921bff4f6cee1943600d0297783e6be6303` |
+| A2 authority commit | `e21ebcb1b09b2a709f5381e02f89933477453d82` |
+| A2 Decision Ledger head | `sha256:93343a7920b06dc0f232aee7b3eb82b793010ca8c2061043682b4e7ebc088797` |
 | A2 grades hash | `sha256:ffeba9ab8d7a2ccfb26ca8e135448cc9a2e6c8ead5b49837f77e5e73606a5304` |
 
 The A3 implementation commit is recorded in

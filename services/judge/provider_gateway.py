@@ -47,6 +47,20 @@ MODEL_OPTION_ALLOWLISTS = {
     "ollama": frozenset({"temperature", "num_predict", "seed", "top_p", "top_k"}),
     "openai_compatible": frozenset({"temperature", "max_tokens", "seed", "top_p"}),
 }
+MAX_IDEMPOTENCY_KEY_LENGTH = 256
+
+
+def validate_idempotency_key(value: Any) -> str:
+    if (
+        not isinstance(value, str)
+        or not value.strip()
+        or len(value) > MAX_IDEMPOTENCY_KEY_LENGTH
+    ):
+        raise ValueError(
+            "idempotency_key must be a non-blank string of at most "
+            f"{MAX_IDEMPOTENCY_KEY_LENGTH} characters"
+        )
+    return value
 
 
 def validate_model_options(protocol: str, options: dict[str, Any]) -> dict[str, Any]:
@@ -213,6 +227,7 @@ class ProviderGateway:
         model_options: dict[str, Any] | None = None,
         credential_generation_marker: str = "",
     ) -> dict[str, Any]:
+        idempotency_key = validate_idempotency_key(idempotency_key)
         if credential_generation_marker and not (
             credential_generation_marker.startswith("hmac-sha256:")
             and len(credential_generation_marker) == 76

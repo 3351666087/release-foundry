@@ -1,5 +1,39 @@
 ﻿# A3 Acceptance Checklist
 
+## Qwen2.5 7B real-model evaluation - 2026-07-23
+
+- [x] Run a larger local model through the same A1/A2/A3 pipeline as the baseline.
+- [x] Preserve the exact sandbox order, amount, tool and Judge semantics.
+- [x] Capture a fresh Run ID, Tool Call, Trace, Judge results and A3 reports.
+- [x] Confirm the 7B model response explicitly identifies the sandbox boundary.
+- [x] Present the real run as a Chinese five-step evidence story before technical tables.
+- [x] Read visible model, run, latency, tool, receipt, Judge and score facts from the imported run.
+- [x] Show real source excerpts and path/line anchors from command launch through A3 export.
+- [x] Explain the observable model-processing boundary without claiming hidden chain-of-thought.
+- [x] Render a dynamic runtime receipt with command, model, HTTP endpoint, latency, Tool Call, Trace, Judges and verdict.
+- [x] Verify desktop and 390 x 844 rendering with no horizontal overflow.
+- [x] Record the 0.5B versus 7B difference as an observation, not a broad ranking claim.
+- [x] Keep model weights, runtime output, secrets and private data out of Git.
+- [ ] Add a repeated multi-scenario benchmark before publishing a model leaderboard.
+
+## Docker local-model refund demo - 2026-07-23
+
+- [x] Keep the fixed failed refund fixture as an offline presentation fallback.
+- [x] Run a real local model through the existing Python SDK adapter in Docker.
+- [x] Restrict the only executable refund tool to one synthetic order and amount.
+- [x] Record that no real order, payment provider, bank, WeChat Pay, or Alipay mutation occurs.
+- [x] Generate a fresh A1 RunResult with one Tool Call and four ordered Trace events.
+- [x] Grade the same case with the existing five A2 Judges without changing A2 semantics.
+- [x] Preserve the same `run_id` and `case_id` across A1, A2, A3, reports, and API import.
+- [x] Export A3 JSON, Markdown, CSV, and a local Hosted Report.
+- [x] Add `live-refund-demo` to the product data-source selector.
+- [x] Repair misleading real-payment model claims and record the repair in Agent metadata.
+- [x] Preserve Chinese text through Windows PowerShell UTF-8 API import.
+- [x] Normalize A1 `agent_output.text` as A3 actual output and deduplicate Tool Calls.
+- [x] Verify desktop and 390 x 844 rendering with four Trace events and one Tool Call.
+- [x] Ignore runtime output and keep generated evidence free of secrets and real customer data.
+- [ ] Connect to a real payment sandbox only after authorization, tenant identity, RBAC, durable audit, and explicit product approval exist.
+
 ## New A3 Lane Goal / Trusted Resource Isolation - 2026-07-12
 
 - [x] Read the new A3 Lane Goal and preserve it as the continuing enterprise
@@ -1559,6 +1593,15 @@
 - [ ] Bind accepted evidence and the terminal review to one exact candidate and A2 Decision Ledger.
 - [ ] Run migrations 023/024 and the complete workflow in authorized target PostgreSQL/VPC/object storage/KMS.
 
+## 2026-07-22 - A1 commercial Compose identity follow-up
+
+- [x] Verify fresh PostgreSQL migration 001-024 and SHA-256 replay ledger.
+- [x] Verify dedicated non-superuser identity runtime login and API readiness.
+- [x] Verify disposable commercial Compose API, MinIO evidence, and worker
+  recovery smoke (`1 passed`).
+- [ ] Do not treat local Compose evidence as hosted deployment, tenant-bound
+  GitHub App proof, production upgrade/rollback proof, or A2 approval.
+
 ## A2 Round 51 Multi-repeat Stability Intake - 2026-07-14
 
 - [x] Re-fetch authoritative main `ccf6ce5`, A1 peer `81f7e9e` and A2 peer/source `7504680`.
@@ -1650,3 +1693,79 @@
 - [x] Pass 519 A3 Node tests, 186 current-main A2 tests, TypeScript, 15-page build and 47 Playwright tests.
 - [x] Pass CL hygiene, commercial gate, diff check and production dependency audits.
 - [x] Keep A2 quality blocked, candidate invalid, production receipts 0 and `production_ready=false`.
+
+## Beginner navigation and onboarding clarity - 2026-07-22
+
+- [x] Increase key Webapp and mobile navigation text sizes while retaining bounded layouts.
+- [x] Group the sidebar into five numbered, collapsible product areas with plain-language purposes.
+- [x] Show the current group, current route, current marker, and module purpose after navigation.
+- [x] Add a persistent project -> run -> review -> release path and next-step cue.
+- [x] Place the first-session workflow before the release verdict on Overview.
+- [x] Keep the read-only demo entry visible before account creation or identity setup.
+- [x] Add current-location and active-subsection behavior to both legacy Dashboard themes.
+- [x] Preserve A1/A2 evidence ownership and all existing release-authority boundaries.
+- [x] Pass 50 Dashboard wiring tests, 24 Webapp Playwright tests, 7 legacy Dashboard Playwright tests, TypeScript, production build, and diff hygiene.
+
+## 2026-07-22 - A1/A3 acceptance remediation
+
+- [x] Rebase context confirmed against remote `main` `c30a37e`.
+- [x] Fix installer secret-source parity for private env files and inherited
+  process variables.
+- [x] Fix the dashboard zero-gradient and fail-badge visual contracts.
+- [x] Require an installed and runnable WSL distribution in WSL probes.
+- [x] Honor `CARGO_TARGET_DIR` in the Rust verifier contract.
+- [x] Add explicit capability skips for missing Docker, Go, Node/npm,
+  TypeScript, and Cargo toolchains.
+- [x] A1/integration verification: `1358 passed, 68 skipped, 0 failed`.
+- [x] A3 verification: `532 passed, 1 skipped, 0 failed`.
+- [x] Full Playwright verification: `48 passed, 0 failed`.
+- [x] Preserve the external Docker/WSL environment boundary and do not claim
+  live PostgreSQL or Compose qualification.
+- [x] Preserve A2 judge, Decision Ledger, and release-authority semantics.
+- [x] Record remediation details in `docs/a3/acceptance_remediation_20260722.md`.
+
+## Beginner refund demonstration - 2026-07-23
+
+- [x] Derive one synthetic refund case from the existing A1/A2 compatibility contract.
+- [x] Preserve A1 Trace and tool-call absence without inventing a successful refund result.
+- [x] Preserve A2 score 42, FAIL, `missing_required_tool`, Judge evidence, and remediation semantics.
+- [x] Add `refund-demo` to the fixture-backed API and Webapp source selector.
+- [x] Preserve the selected source across product navigation.
+- [x] Add a direct no-login demo entry from the login page.
+- [x] Add plain-language Judge, rubric, failure-class, and Trace labels while retaining raw IDs.
+- [x] Explain automated Judge -> human review -> delivery gate and keep unavailable write actions disabled.
+- [x] Increase targeted login, evidence, Trace, Judge, and action type sizes and keep controls at least 44px high.
+- [x] Add a Chinese beginner walkthrough with click order, talk track, questions, and non-production boundaries.
+- [x] Add a word-for-word 10-12 minute script, 5-minute compressed script, likely Q&A, speaking boundaries, and local failure recovery steps.
+- [x] Save and inspect desktop and 390 x 844 screenshots without incoherent overlap or horizontal overflow.
+- [x] Pass TypeScript, Next.js build, focused A3/A1/A2 contract tests, and refund navigation Playwright tests.
+- [x] Keep the demo fully redacted and avoid key, token, cookie, email, private identity, or real customer data.
+- [ ] Replace synthetic refund evidence only after an authorized real sandbox run produces a redacted A1 Trace and matching A2 GradeResult.
+- [ ] Enable live review actions only after hosted identity, RBAC, persistent audit storage, and authorization receipts are available.
+
+## A1 email authentication integration - 2026-07-24
+
+- [x] Fetch and merge A1 `780e94fc` without altering A1 identity semantics.
+- [x] Replace old binding verification calls with dedicated registration and login routes.
+- [x] Keep `challenge_id` and `intent_id` in component state only.
+- [x] Submit the six-digit code as `proof` and never log or persist it.
+- [x] Accept only same-origin HTTPS and the trusted `303 /console` handoff.
+- [x] Add both email login and email registration UI states.
+- [x] Keep Google/GitHub initial sign-in disabled and truthfully labelled.
+- [x] Update public-safe API Reference, contract tests, and redacted capability snapshot.
+- [x] Add stale-build detection, health polling, local runtime logs, and a desktop restart shortcut.
+- [x] Pass 124 focused Node contracts, focused A1 Go identity contracts, TypeScript, Next.js build, focused Playwright, both CL guards, and browser overflow inspection.
+- [x] Add an A1 browser-cookie identity read endpoint and use it as the A3 client identity gate.
+- [x] Add an A1 browser-cookie logout endpoint that revokes PostgreSQL sessions and clears both cookies.
+- [x] Verify one local HTTPS origin for A3 and `/v1/*` through Caddy.
+- [x] Run PostgreSQL migrations 001-026 and verify local Mailpit OTP delivery.
+- [x] Restrict Caddy to the exported Webapp directory and return `404` for repository, docs, `.env.local`, and `.local-runtime` paths.
+- [x] Make browser logout idempotent when the server already reports an unauthenticated session.
+- [x] Calibrate the TypeScript SaaS route-gap registry to A1 Google/GitHub initial-login browser routes without exposing OAuth codes or cookies to the generic client.
+- [x] Merge A1 `6897997` and preserve applied migration immutability by restoring `026` and applying the new OAuth digest-rotation authority as `027`.
+- [x] Upgrade the existing Docker PostgreSQL volume through migration `027` without deleting the persisted principal or session history.
+- [x] Pass final A3 Node `536/536` with one explicit opt-in skip, Go all-package tests, TypeScript SDK `654/654`, Webapp typecheck and 15-page build.
+- [x] Pass CL hygiene with zero findings, Commercial CL with zero blockers/advisories, live HTTPS route isolation checks, and browser rendering checks.
+- [ ] Deploy the same-origin topology to an authorized hosted environment with server-side document-route protection.
+- [ ] Configure the production identity delivery worker, SMTP/Vault secret references, and delivery receipts.
+- [ ] Complete production Google/GitHub first-login coordinator and callback wiring in A1.

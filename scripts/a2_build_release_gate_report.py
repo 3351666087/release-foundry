@@ -62,9 +62,14 @@ def main() -> int:
     parser.add_argument("--commercial-readiness", default="fixtures/a2/results/a2_commercial_readiness_report.json")
     parser.add_argument("--evidence-readiness", default="fixtures/a2/results/a2_evidence_readiness_report.json")
     parser.add_argument("--calibration-matrix", default="fixtures/a2/results/a2_g3_calibration_matrix.json")
+    parser.add_argument("--case-book", default="fixtures/a2/results/a2_case_book.json")
     parser.add_argument("--regression-replay", default="fixtures/a2/results/a2_regression_replay_report.json")
     parser.add_argument("--scenario-selection", default="fixtures/a2/results/a2_scenario_selection_report.json")
     parser.add_argument("--a1-evidence-index", default="docs/a1/api_calibration/real_api_evidence_index.json")
+    parser.add_argument(
+        "--judge-versions",
+        default="fixtures/a2/results/a2_judge_versions.json",
+    )
     parser.add_argument(
         "--modality-scope",
         action="append",
@@ -114,6 +119,8 @@ def main() -> int:
             dataset_manifest_hash=args.dataset_manifest_hash,
             review_conservation_hash=args.multimodal_review_conservation_hash,
         ),
+        judge_version_registry=_read_optional_json(Path(args.judge_versions)),
+        case_book_report=_read_json(Path(args.case_book)),
     )
     text = json.dumps(report, indent=2) + "\n"
     output = Path(args.output)

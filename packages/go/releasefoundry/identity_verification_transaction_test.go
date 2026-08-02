@@ -107,7 +107,7 @@ func TestIdentityVerificationTransactionDoesNotConsumeReceiptWhenMutationRollsBa
 
 	start, err := service.Start(context.Background(), IdentityVerificationStartRequest{
 		Channel: IdentityVerificationEmail, Identifier: "transaction@example.test",
-		Purpose: IdentityVerificationBinding, TenantID: "tenant-transaction",
+		Purpose: IdentityVerificationRegistration, TenantID: "tenant-transaction",
 	})
 	if err != nil {
 		t.Fatalf("start verification: %v", err)
@@ -116,7 +116,7 @@ func TestIdentityVerificationTransactionDoesNotConsumeReceiptWhenMutationRollsBa
 	request := IdentityVerificationCompleteRequest{
 		ChallengeID: start.ChallengeID, Code: code,
 		Channel: IdentityVerificationEmail, Identifier: "transaction@example.test",
-		Purpose: IdentityVerificationBinding, TenantID: "tenant-transaction",
+		Purpose: IdentityVerificationRegistration, TenantID: "tenant-transaction",
 	}
 	if _, err := service.Complete(context.Background(), request); err == nil {
 		t.Fatal("expected the first identity mutation to roll back")

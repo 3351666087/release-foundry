@@ -2,7 +2,11 @@
 
 from __future__ import annotations
 
+import math
 from typing import Any
+
+from .evidence_readiness import verify_evidence_readiness_artifact
+from .regression_replay import verify_regression_replay_artifact
 
 
 COMMERCIAL_GOAL_SOURCE = "ReleaseFoundry_Commercial_Grade_Goals_CN.pdf"
@@ -17,59 +21,129 @@ def build_commercial_readiness_report(
     semantic_harness_report: dict[str, Any] | None = None,
     regression_replay_report: dict[str, Any] | None = None,
     evidence_readiness_report: dict[str, Any] | None = None,
+    releasefoundry_case_map: dict[str, Any] | None = None,
+    semantic_collection_packet: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Summarize A2's commercial-grade readiness from deterministic fixtures."""
+    coverage_report = _as_dict(coverage_report)
+    calibration_matrix = _as_dict(calibration_matrix)
+    case_book_report = _as_dict(case_book_report)
+    sdk_parity_report = _as_dict(sdk_parity_report)
+    batch_plan_report = _as_dict(batch_plan_report)
+    semantic_harness_report = _as_dict(semantic_harness_report)
+    regression_replay_report = _as_dict(regression_replay_report)
+    evidence_readiness_report = _as_dict(evidence_readiness_report)
+    evidence_readiness_integrity_verified = False
+    try:
+        verify_evidence_readiness_artifact(
+            evidence_readiness_report,
+            calibration_matrix=calibration_matrix,
+            batch_plan_report=batch_plan_report,
+            semantic_harness_report=semantic_harness_report,
+            releasefoundry_case_map=releasefoundry_case_map,
+            semantic_collection_packet=semantic_collection_packet,
+        )
+        evidence_readiness_integrity_verified = True
+    except (TypeError, ValueError):
+        pass
+    regression_replay_integrity_verified = False
+    try:
+        verify_regression_replay_artifact(
+            regression_replay_report,
+            calibration_matrix=calibration_matrix,
+            case_book_report=case_book_report,
+        )
+        regression_replay_integrity_verified = True
+    except (OSError, TypeError, ValueError, KeyError):
+        pass
+
     coverage_stable = _coverage_stable(coverage_report)
-    source_coverage = calibration_matrix.get("source_coverage", {})
+    source_coverage = _as_dict(calibration_matrix.get("source_coverage"))
     releasefoundry_available = _source_available(source_coverage, "releasefoundry_grading")
     releasefoundry_missing = _source_missing(source_coverage, "releasefoundry_grading")
     releasefoundry_ratio = _source_ratio(source_coverage, "releasefoundry_grading")
     llm_ratio = _source_ratio(source_coverage, "llm_judge")
+    cost_ledger_present = _cost_ledger_present(calibration_matrix)
     llm_cost_ready = _llm_cost_ready(calibration_matrix)
     llm_confidence_ready = _llm_confidence_ready(calibration_matrix)
     llm_is_offline_only = _llm_is_offline_only(calibration_matrix)
-    local_llm_mismatches = calibration_matrix.get("agreement_summary", {}).get("local_vs_llm_judge", {}).get(
-        "mismatch_count", 0
+    agreement_summary = _as_dict(calibration_matrix.get("agreement_summary"))
+    local_llm_agreement = _as_dict(agreement_summary.get("local_vs_llm_judge"))
+    local_llm_mismatches = _non_negative_int(
+        local_llm_agreement.get("mismatch_count")
     )
     has_regression_candidates = any(
-        "judge_disagreement_regression" in case.get("calibration_tags", [])
-        for case in calibration_matrix.get("cases", [])
+        "judge_disagreement_regression" in _string_list(case.get("calibration_tags"))
+        for case in _dict_rows(calibration_matrix.get("cases"))
     )
-    case_book_count = int((case_book_report or {}).get("regression_case_count", 0))
-    sdk_parity_passed = bool((sdk_parity_report or {}).get("parity_passed"))
-    sdk_language_count = int((sdk_parity_report or {}).get("sdk_language_count", 0))
-    batch_plan_ready = bool((batch_plan_report or {}).get("plan_ready"))
-    planned_batch_count = int((batch_plan_report or {}).get("batch_count", 0))
-    semantic_harness_ready = bool((semantic_harness_report or {}).get("harness_ready"))
-    semantic_live_evidence = bool((semantic_harness_report or {}).get("live_model_evidence_available"))
-    regression_replay_ready = bool((regression_replay_report or {}).get("replay_ready"))
-    regression_replay_count = int((regression_replay_report or {}).get("replay_case_count", 0))
-    regression_replay_maturity = str((regression_replay_report or {}).get("maturity_status", "missing"))
-    evidence_readiness_ready = bool((evidence_readiness_report or {}).get("ready_for_external_collection"))
-    a1_real_api_evidence_raw = (evidence_readiness_report or {}).get("a1_real_api_evidence", {})
-    a1_real_api_evidence = a1_real_api_evidence_raw if isinstance(a1_real_api_evidence_raw, dict) else {}
-    real_quota_gate_raw = a1_real_api_evidence.get("real_quota_gate", {})
-    real_quota_gate = real_quota_gate_raw if isinstance(real_quota_gate_raw, dict) else {}
-    official_sdk_smoke_raw = (evidence_readiness_report or {}).get("official_sdk_smoke", {})
-    official_sdk_smoke = official_sdk_smoke_raw if isinstance(official_sdk_smoke_raw, dict) else {}
-    releasefoundry_public_merge_gate = (evidence_readiness_report or {}).get("releasefoundry_public_merge_gate", {})
-    releasefoundry_public_merge_status = str(releasefoundry_public_merge_gate.get("status", "unknown"))
-    releasefoundry_public_matrix_merged = bool(releasefoundry_public_merge_gate.get("public_matrix_merged"))
-    releasefoundry_safe_to_mark_c3_met = bool(releasefoundry_public_merge_gate.get("safe_to_mark_c3_met"))
-    releasefoundry_public_missing = int(releasefoundry_public_merge_gate.get("missing_public_observation_count", releasefoundry_missing))
-    semantic_live_merge_gate = (evidence_readiness_report or {}).get("semantic_live_merge_gate", {})
-    semantic_live_merge_status = str(semantic_live_merge_gate.get("status", "unknown"))
-    semantic_audited_live_evidence_merged = bool(semantic_live_merge_gate.get("audited_live_evidence_merged"))
-    semantic_safe_to_mark_c4_met = bool(semantic_live_merge_gate.get("safe_to_mark_c4_met"))
-    semantic_missing_audited = int(semantic_live_merge_gate.get("missing_audited_observation_count", 0))
-    semantic_risk = (semantic_harness_report or {}).get("risk_assessment", {})
-    semantic_false_positive_tracking_ready = bool(semantic_risk.get("tracking_ready"))
-    semantic_risk_status = str(semantic_risk.get("status", "unknown"))
-    semantic_false_positive_candidates = int(semantic_risk.get("false_positive_candidate_count", 0))
-    semantic_false_negative_candidates = int(semantic_risk.get("false_negative_candidate_count", 0))
-    semantic_failure_class_drift_candidates = int(semantic_risk.get("failure_class_drift_candidate_count", 0))
-    semantic_score_delta_reviews = int(semantic_risk.get("score_delta_review_count", 0))
-    semantic_risk_case_count = int(semantic_risk.get("risk_case_count", 0))
+    case_book_count = _non_negative_int(case_book_report.get("regression_case_count"))
+    sdk_parity_passed = _explicit_true(sdk_parity_report.get("parity_passed"))
+    sdk_language_count = _non_negative_int(sdk_parity_report.get("sdk_language_count"))
+    batch_plan_ready = _explicit_true(batch_plan_report.get("plan_ready"))
+    planned_batch_count = _non_negative_int(batch_plan_report.get("batch_count"))
+    semantic_harness_ready = _explicit_true(semantic_harness_report.get("harness_ready"))
+    semantic_live_evidence = _explicit_true(semantic_harness_report.get("live_model_evidence_available"))
+    regression_replay_ready = (
+        regression_replay_integrity_verified
+        and _explicit_true(regression_replay_report.get("replay_ready"))
+    )
+    regression_replay_count = _non_negative_int(regression_replay_report.get("replay_case_count"))
+    regression_replay_maturity = (
+        _string_value(regression_replay_report.get("maturity_status"), "missing")
+        if regression_replay_integrity_verified
+        else "invalid"
+    )
+    evidence_readiness_ready = (
+        evidence_readiness_integrity_verified
+        and _explicit_true(evidence_readiness_report.get("ready_for_external_collection"))
+    )
+    a1_real_api_evidence = _as_dict(evidence_readiness_report.get("a1_real_api_evidence"))
+    real_quota_gate = _as_dict(a1_real_api_evidence.get("real_quota_gate"))
+    official_sdk_smoke = _as_dict(evidence_readiness_report.get("official_sdk_smoke"))
+    releasefoundry_public_merge_gate = _as_dict(evidence_readiness_report.get("releasefoundry_public_merge_gate"))
+    releasefoundry_public_merge_status = _string_value(releasefoundry_public_merge_gate.get("status"), "unknown")
+    releasefoundry_public_matrix_merged = _explicit_true(releasefoundry_public_merge_gate.get("public_matrix_merged"))
+    releasefoundry_safe_to_mark_c3_met = (
+        evidence_readiness_integrity_verified
+        and _explicit_true(releasefoundry_public_merge_gate.get("safe_to_mark_c3_met"))
+    )
+    releasefoundry_public_missing = _non_negative_int(
+        releasefoundry_public_merge_gate.get("missing_public_observation_count"),
+        default=releasefoundry_missing,
+    )
+    semantic_live_merge_gate = _as_dict(evidence_readiness_report.get("semantic_live_merge_gate"))
+    semantic_live_merge_status = _string_value(semantic_live_merge_gate.get("status"), "unknown")
+    semantic_audited_live_evidence_merged = _explicit_true(
+        semantic_live_merge_gate.get("audited_live_evidence_merged")
+    )
+    semantic_safe_to_mark_c4_met = (
+        evidence_readiness_integrity_verified
+        and _explicit_true(semantic_live_merge_gate.get("safe_to_mark_c4_met"))
+    )
+    semantic_missing_audited = _non_negative_int(
+        semantic_live_merge_gate.get("missing_audited_observation_count")
+    )
+    semantic_risk = _as_dict(semantic_harness_report.get("risk_assessment"))
+    semantic_false_positive_tracking_ready = _explicit_true(semantic_risk.get("tracking_ready"))
+    semantic_risk_status = _string_value(semantic_risk.get("status"), "unknown")
+    semantic_false_positive_candidates = _non_negative_int(
+        semantic_risk.get("false_positive_candidate_count")
+    )
+    semantic_false_negative_candidates = _non_negative_int(
+        semantic_risk.get("false_negative_candidate_count")
+    )
+    semantic_failure_class_drift_candidates = _non_negative_int(
+        semantic_risk.get("failure_class_drift_candidate_count")
+    )
+    semantic_score_delta_reviews = _non_negative_int(semantic_risk.get("score_delta_review_count"))
+    semantic_risk_case_count = _non_negative_int(semantic_risk.get("risk_case_count"))
+    real_api_total_records = _non_negative_int(a1_real_api_evidence.get("total_records"))
+    real_api_record_count = _non_negative_int(a1_real_api_evidence.get("real_record_count"))
+    real_api_status_counts = _as_dict(a1_real_api_evidence.get("real_read_status_counts"))
+    real_api_read_ok_count = _non_negative_int(real_api_status_counts.get("ok"))
+    real_api_quota_block_count = _non_negative_int(a1_real_api_evidence.get("quota_block_count"))
+    official_sdk_smoke_ok_count = _non_negative_int(official_sdk_smoke.get("ok_call_count"))
+    official_sdk_smoke_error_count = _non_negative_int(official_sdk_smoke.get("error_call_count"))
 
     gates = [
         _gate(
@@ -104,8 +178,8 @@ def build_commercial_readiness_report(
             "C2",
             "Batch plan and cost ledger",
             "batch generation plan and judge cost ledger exist",
-            bool(calibration_matrix.get("cost_ledger")) and batch_plan_ready,
-            bool(calibration_matrix.get("cost_ledger")) or planned_batch_count > 0,
+            cost_ledger_present and batch_plan_ready,
+            cost_ledger_present or planned_batch_count > 0,
             [
                 "fixtures/a2/results/a2_g3_calibration_matrix.json::cost_ledger",
                 "fixtures/a2/results/a2_batch_plan_report.json",
@@ -158,13 +232,19 @@ def build_commercial_readiness_report(
             "Case book and regression suite",
             "judge disagreements become durable regression fixtures and a reviewer-facing case book",
             regression_replay_ready and regression_replay_maturity == "mature",
-            has_regression_candidates and regression_replay_ready,
+            has_regression_candidates
+            and (case_book_count > 0 or regression_replay_integrity_verified),
             [
                 "calibration_tags.judge_disagreement_regression",
                 "fixtures/a2/results/a2_case_book.json",
                 "fixtures/a2/results/a2_regression_replay_report.json",
             ],
-            _c5_gaps(case_book_count, regression_replay_ready, regression_replay_maturity),
+            _c5_gaps(
+                case_book_count,
+                regression_replay_ready,
+                regression_replay_maturity,
+                regression_replay_integrity_verified,
+            ),
         ),
         _gate(
             "C6",
@@ -207,12 +287,14 @@ def build_commercial_readiness_report(
         ),
         "gate_status": gates,
         "evidence_snapshot": {
-            "assignment_minimums_green": bool(coverage_report.get("meets_assignment_minimums")),
-            "scenario_count": coverage_report.get("scenario_count", 0),
-            "golden_case_count": coverage_report.get("golden_case_count", 0),
-            "executable_run_case_count": coverage_report.get("executable_run_case_count", 0),
-            "failure_class_count": len(coverage_report.get("required_failure_classes_covered", [])),
-            "calibration_case_count": calibration_matrix.get("case_count", 0),
+            "assignment_minimums_green": _explicit_true(coverage_report.get("meets_assignment_minimums")),
+            "scenario_count": _non_negative_int(coverage_report.get("scenario_count")),
+            "golden_case_count": _non_negative_int(coverage_report.get("golden_case_count")),
+            "executable_run_case_count": _non_negative_int(
+                coverage_report.get("executable_run_case_count")
+            ),
+            "failure_class_count": len(_string_list(coverage_report.get("required_failure_classes_covered"))),
+            "calibration_case_count": _non_negative_int(calibration_matrix.get("case_count")),
             "releasefoundry_grading_available": releasefoundry_available,
             "releasefoundry_grading_missing": releasefoundry_missing,
             "releasefoundry_public_merge_status": releasefoundry_public_merge_status,
@@ -224,18 +306,22 @@ def build_commercial_readiness_report(
             "local_vs_llm_mismatch_count": local_llm_mismatches,
             "case_book_regression_count": case_book_count,
             "regression_replay_count": regression_replay_count,
+            "regression_replay_integrity_verified": regression_replay_integrity_verified,
             "regression_replay_ready": regression_replay_ready,
             "regression_replay_maturity": regression_replay_maturity,
+            "evidence_readiness_integrity_verified": evidence_readiness_integrity_verified,
             "evidence_readiness_ready": evidence_readiness_ready,
-            "real_api_evidence_available": bool(a1_real_api_evidence.get("available")),
-            "real_api_total_records": int(a1_real_api_evidence.get("total_records", 0)),
-            "real_api_record_count": int(a1_real_api_evidence.get("real_record_count", 0)),
-            "real_api_read_ok_count": int(a1_real_api_evidence.get("real_read_status_counts", {}).get("ok", 0)),
-            "real_api_quota_block_count": int(a1_real_api_evidence.get("quota_block_count", 0)),
-            "real_api_create_request_blocked": bool(real_quota_gate.get("create_request_blocked")),
-            "official_sdk_smoke_read_only_reachable": bool(official_sdk_smoke.get("read_only_reachable")),
-            "official_sdk_smoke_ok_call_count": int(official_sdk_smoke.get("ok_call_count", 0)),
-            "official_sdk_smoke_error_call_count": int(official_sdk_smoke.get("error_call_count", 0)),
+            "real_api_evidence_available": _explicit_true(a1_real_api_evidence.get("available")),
+            "real_api_total_records": real_api_total_records,
+            "real_api_record_count": real_api_record_count,
+            "real_api_read_ok_count": real_api_read_ok_count,
+            "real_api_quota_block_count": real_api_quota_block_count,
+            "real_api_create_request_blocked": _explicit_true(real_quota_gate.get("create_request_blocked")),
+            "official_sdk_smoke_read_only_reachable": _explicit_true(
+                official_sdk_smoke.get("read_only_reachable")
+            ),
+            "official_sdk_smoke_ok_call_count": official_sdk_smoke_ok_count,
+            "official_sdk_smoke_error_call_count": official_sdk_smoke_error_count,
             "sdk_language_count": sdk_language_count,
             "sdk_parity_passed": sdk_parity_passed,
             "planned_batch_count": planned_batch_count,
@@ -265,7 +351,7 @@ def build_commercial_readiness_report(
             semantic_live_evidence=semantic_live_evidence,
             case_book_count=case_book_count,
             regression_replay_maturity=regression_replay_maturity,
-            real_api_record_count=int(a1_real_api_evidence.get("real_record_count", 0)),
+            real_api_record_count=real_api_record_count,
         ),
         "metadata": {
             "deterministic": True,
@@ -599,46 +685,101 @@ def _growth_point(
 
 def _coverage_stable(report: dict[str, Any]) -> bool:
     return (
-        bool(report.get("meets_assignment_minimums"))
-        and not report.get("coverage_warnings")
-        and not report.get("scenario_quality_warnings")
+        _explicit_true(report.get("meets_assignment_minimums"))
+        and report.get("coverage_warnings") == []
+        and report.get("scenario_quality_warnings") == []
     )
 
 
 def _source_available(source_coverage: dict[str, Any], source: str) -> int:
-    return int(source_coverage.get(source, {}).get("available", 0))
+    return _non_negative_int(_as_dict(source_coverage.get(source)).get("available"))
 
 
 def _source_missing(source_coverage: dict[str, Any], source: str) -> int:
-    return int(source_coverage.get(source, {}).get("missing", 0))
+    return _non_negative_int(_as_dict(source_coverage.get(source)).get("missing"))
 
 
 def _source_ratio(source_coverage: dict[str, Any], source: str) -> float:
-    return float(source_coverage.get(source, {}).get("coverage_ratio", 0.0))
+    value = _finite_number(_as_dict(source_coverage.get(source)).get("coverage_ratio"))
+    return value if value is not None and 0.0 <= value <= 1.0 else 0.0
+
+
+def _cost_ledger_present(matrix: dict[str, Any]) -> bool:
+    ledger = matrix.get("cost_ledger")
+    return isinstance(ledger, list) and any(isinstance(row, dict) for row in ledger)
 
 
 def _llm_cost_ready(matrix: dict[str, Any]) -> bool:
-    for row in matrix.get("cost_ledger", []):
+    for row in _dict_rows(matrix.get("cost_ledger")):
         if row.get("source") == "llm_judge":
-            return int(row.get("sample_count", 0)) > 0 and float(row.get("estimated_usd", 0.0)) > 0
+            estimated_usd = _finite_number(row.get("estimated_usd"))
+            return (
+                _non_negative_int(row.get("sample_count")) > 0
+                and estimated_usd is not None
+                and estimated_usd > 0.0
+            )
     return False
 
 
 def _llm_confidence_ready(matrix: dict[str, Any]) -> bool:
-    llm_sources = [
-        case.get("sources", {}).get("llm_judge", {})
-        for case in matrix.get("cases", [])
-        if case.get("sources", {}).get("llm_judge", {}).get("available")
-    ]
-    return bool(llm_sources) and all(isinstance(source.get("confidence"), (int, float)) for source in llm_sources)
+    llm_sources = []
+    for case in _dict_rows(matrix.get("cases")):
+        source = _as_dict(_as_dict(case.get("sources")).get("llm_judge"))
+        if _explicit_true(source.get("available")):
+            llm_sources.append(source)
+    return bool(llm_sources) and all(
+        (confidence := _finite_number(source.get("confidence"))) is not None
+        and 0.0 <= confidence <= 1.0
+        for source in llm_sources
+    )
 
 
 def _llm_is_offline_only(matrix: dict[str, Any]) -> bool:
     providers = set()
-    for row in matrix.get("cost_ledger", []):
+    for row in _dict_rows(matrix.get("cost_ledger")):
         if row.get("source") == "llm_judge":
-            providers.update(str(provider) for provider in row.get("provider_counts", {}))
+            providers.update(str(provider) for provider in _as_dict(row.get("provider_counts")))
     return providers == {"offline_reference"}
+
+
+def _explicit_true(value: Any) -> bool:
+    return value is True
+
+
+def _non_negative_int(value: Any, *, default: int = 0) -> int:
+    if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+        return default
+    return value
+
+
+def _finite_number(value: Any) -> float | None:
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return None
+    try:
+        number = float(value)
+    except (OverflowError, ValueError):
+        return None
+    return number if math.isfinite(number) else None
+
+
+def _as_dict(value: Any) -> dict[str, Any]:
+    return value if isinstance(value, dict) else {}
+
+
+def _dict_rows(value: Any) -> list[dict[str, Any]]:
+    if not isinstance(value, list):
+        return []
+    return [row for row in value if isinstance(row, dict)]
+
+
+def _string_list(value: Any) -> list[str]:
+    if not isinstance(value, list):
+        return []
+    return [item for item in value if isinstance(item, str)]
+
+
+def _string_value(value: Any, default: str) -> str:
+    return value if isinstance(value, str) else default
 
 
 def _gate(
@@ -696,10 +837,19 @@ def _c3_gaps(releasefoundry_missing: int, releasefoundry_public_merge_status: st
     return gaps
 
 
-def _c5_gaps(case_book_count: int, regression_replay_ready: bool, regression_replay_maturity: str) -> list[str]:
+def _c5_gaps(
+    case_book_count: int,
+    regression_replay_ready: bool,
+    regression_replay_maturity: str,
+    regression_replay_integrity_verified: bool,
+) -> list[str]:
     gaps = []
     if case_book_count == 0:
         gaps.append("Promote local-vs-LLM disagreements into regression fixtures and write the case book.")
+    if not regression_replay_integrity_verified:
+        gaps.append(
+            "Rebuild regression replay from the current calibration matrix and case book before using it for C5."
+        )
     if not regression_replay_ready:
         gaps.append("Add executable replay evidence for every case-book regression seed.")
     if regression_replay_maturity != "mature":

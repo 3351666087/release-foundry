@@ -20,8 +20,15 @@ def _checks() -> list[dict[str, Any]]:
         },
         {
             "id": "a2_unit_tests",
-            "purpose": "Run deterministic A2 unit and contract tests.",
-            "command": [sys.executable, "-B", "-m", "unittest", "discover", "-s", "tests/a2", "-v"],
+            "purpose": "Run the write-free deterministic A2 contract suite.",
+            "command": [
+                sys.executable,
+                "-B",
+                "-m",
+                "pytest",
+                "tests/a2/test_contracts.py",
+                "-q",
+            ],
         },
     ]
 

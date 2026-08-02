@@ -21,7 +21,7 @@
   --brand-2: #7c5cff;
   --brand-3: #38bdf8;
   --accent-grad: #6366f1;
-  --accent-grad-soft: rgba(99, 102, 241, 0.12);
+  --accent-grad-soft: rgba(99, 102, 241, 0.14);
   --nav: #10152a;
   --nav-2: #191f3d;
   --nav-text: #c3cbe4;
@@ -66,6 +66,7 @@ body {
   margin: 0;
   min-width: 320px;
   background: var(--paper);
+  background-attachment: fixed;
   color: var(--ink);
   font-family: inherit;
   font-size: 14px;
@@ -172,8 +173,9 @@ code {
 
 .brand-copy strong {
   color: #fff;
-  font-size: 22px;
+  font-size: 17px;
   line-height: 1;
+  white-space: nowrap;
 }
 
 .brand-copy small {
@@ -375,7 +377,7 @@ code {
   margin-top: 24px;
   padding: 28px 24px 34px;
   overflow: hidden;
-  background: rgba(255, 255, 255, 0.92);
+  background: rgba(255, 255, 255, 0.96);
   border: 1px solid var(--line);
   border-radius: 16px;
   box-shadow: var(--shadow-soft);
@@ -794,7 +796,7 @@ a:focus-visible {
   min-width: 0;
   min-height: 238px;
   padding: 15px;
-  background: var(--surface-strong);
+  background: #ffffff;
   border: 1px solid var(--line-strong);
   border-radius: 11px;
 }
@@ -1135,7 +1137,7 @@ a:focus-visible {
   min-width: 0;
   min-height: 82px;
   padding: 11px;
-  background: var(--surface-strong);
+  background: #fff;
   border: 1px solid var(--line);
   border-radius: 11px;
 }
@@ -1202,7 +1204,7 @@ a:focus-visible {
   min-width: 0;
   min-height: 76px;
   padding: 12px;
-  background: var(--surface-strong);
+  background: #ffffff;
   border: 1px solid var(--line);
   border-radius: 11px;
   transition: transform 140ms ease, box-shadow 140ms ease;
@@ -1497,7 +1499,7 @@ tbody tr:hover td {
   gap: 14px;
   min-width: 0;
   padding: 14px;
-  background: var(--surface-strong);
+  background: #fff;
   border: 1px solid var(--line);
   border-radius: 11px;
   box-shadow: var(--shadow-soft);
@@ -1609,7 +1611,7 @@ tbody tr:hover td {
 
 .case-row.active {
   color: var(--ink);
-  background: rgba(99, 102, 241, 0.08);
+  background: rgba(99, 102, 241, 0.09);
   border-color: transparent;
   box-shadow: inset 3px 0 0 var(--brand), var(--shadow-soft);
 }
@@ -2073,6 +2075,117 @@ pre,
   .report-table {
     overflow-x: auto;
   }
+}
+
+/* Navigation clarity layer: keep the evidence console legible for first-time users. */
+.sidebar-guide {
+  display: grid;
+  gap: 4px;
+  margin-top: 12px;
+  padding: 12px 13px;
+  color: #f4f6ff;
+  background: rgba(124, 92, 255, 0.18);
+  border: 1px solid rgba(99, 102, 241, 0.24);
+  border-left: 4px solid var(--brand);
+  border-radius: 8px;
+}
+
+.sidebar-guide > span {
+  color: #b9c4ff;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0 !important;
+  text-transform: uppercase;
+}
+
+.navigation-context-label { color: var(--brand); }
+
+.sidebar-guide strong {
+  font-size: 14px;
+  line-height: 1.25;
+}
+
+.sidebar-guide small {
+  color: #d6dcf5;
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.nav-group.has-active-child .nav-parent,
+.nav-parent.group-active {
+  color: #fff;
+  background: rgba(124, 92, 255, 0.12);
+}
+
+.nav-parent.group-active::before {
+  opacity: 0.55;
+}
+
+.nav-subitem {
+  min-height: 32px;
+  padding-top: 8px;
+  padding-bottom: 8px;
+  font-size: 12px;
+}
+
+.nav-subitem.active {
+  color: #fff;
+  background: rgba(56, 189, 248, 0.12);
+  border-left-width: 3px;
+}
+
+.navigation-context {
+  display: flex;
+  min-width: 0;
+  min-height: 46px;
+  align-items: center;
+  gap: 9px;
+  margin-top: 14px;
+  padding: 8px 12px;
+  overflow-x: auto;
+  color: var(--ink-soft);
+  background: rgba(255, 255, 255, 0.78);
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--brand);
+  border-radius: 8px;
+  box-shadow: var(--shadow-soft);
+  white-space: nowrap;
+}
+
+.navigation-context > strong {
+  color: var(--ink);
+  font-size: 13px;
+}
+
+.navigation-context > span:not(.navigation-context-label) {
+  color: var(--muted);
+}
+
+.navigation-context > small {
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 11px;
+  text-overflow: ellipsis;
+}
+
+.navigation-context-label {
+  flex: 0 0 auto;
+  padding: 3px 6px;
+  background: var(--surface-hover);
+  border-radius: 4px;
+}
+
+body { font-size: 15px; }
+.caption,
+.muted { font-size: 12px; }
+.panel-header h2,
+.panel-header h3,
+.panel-header h4 { font-size: 15px; }
+
+@media (max-width: 760px) {
+  .navigation-context { margin-top: 10px; padding: 7px 10px; }
+  .navigation-context > small { max-width: 180px; }
+  .sidebar-guide { display: none; }
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -1,0 +1,16 @@
+FROM mirror.gcr.io/library/python:3.12-slim
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PYTHONPATH=/workspace:/workspace/packages/sdk
+
+WORKDIR /workspace
+
+COPY packages/sdk/releasefoundry /workspace/packages/sdk/releasefoundry
+COPY services/runner /workspace/services/runner
+COPY services/judge /workspace/services/judge
+COPY examples/agents/ollama_refund_agent.py /workspace/examples/agents/ollama_refund_agent.py
+COPY scripts/demo/run_live_refund_pipeline.py /workspace/scripts/demo/run_live_refund_pipeline.py
+COPY fixtures/a3/demo/live_refund_scenario_pack.json /workspace/fixtures/a3/demo/live_refund_scenario_pack.json
+
+CMD ["python", "-B", "scripts/demo/run_live_refund_pipeline.py", "--output-dir", "/output"]

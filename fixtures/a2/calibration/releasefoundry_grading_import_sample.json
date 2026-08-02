@@ -4,9 +4,10 @@
   "response": {
     "run": {
       "id": "releasefoundry-run-redacted-001",
-      "dataset": "releasefoundry-dataset-redacted-001",
+      "dataset": 7,
       "result": {
         "status": "completed",
+        "judge_version": "releasefoundry-grader-v1",
         "aggregate_metrics": {
           "total_tests": 2,
           "tests_passed": 1,
@@ -16,6 +17,8 @@
           {
             "test_id": "releasefoundry-pass-control",
             "status": "completed",
+            "started_at": "2026-07-26T01:00:00Z",
+            "completed_at": "2026-07-26T01:00:01Z",
             "action_results": [
               {
                 "action_index": 0,
@@ -23,6 +26,10 @@
                 "action_type": "text",
                 "match_status": "similar",
                 "semantic_similarity": 0.98,
+                "llm_judgment": {
+                  "verdict": "match",
+                  "reason": "The answer asks for the required missing information."
+                },
                 "expected_response": {"text": "Ask for the missing information."},
                 "actual_response": {"text": "I need a little more information before I can complete your request."}
               }
@@ -31,6 +38,8 @@
           {
             "test_id": "releasefoundry-wrong-contract-path",
             "status": "completed",
+            "started_at": "2026-07-26T01:00:02Z",
+            "completed_at": "2026-07-26T01:00:03Z",
             "action_results": [
               {
                 "action_index": 0,
@@ -42,6 +51,12 @@
                 "tool_calls": [
                   {
                     "match_status": "mismatch",
+                    "argument_comparison": {
+                      "status": "mismatch",
+                      "actual_args": {"path": "fixtures/a2/contracts/vendor-alfa.txt"},
+                      "expected_args": {"path": "fixtures/a2/contracts/vendor-alpha.txt"},
+                      "exact_match": false
+                    },
                     "expected": {
                       "tool_name": "file.read",
                       "arguments": {"path": "fixtures/a2/contracts/vendor-alpha.txt"}

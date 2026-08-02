@@ -5,6 +5,7 @@ import json
 import os
 import shutil
 import subprocess
+from functools import lru_cache
 from pathlib import Path
 
 import pytest
@@ -16,7 +17,50 @@ WSL_DISTRIBUTION = os.environ.get("RELEASEFOUNDRY_WSL_DISTRIBUTION", "Ubuntu-24.
 
 
 def _wsl(*arguments: str) -> list[str]:
-    return ["wsl.exe", "-d", WSL_DISTRIBUTION, "--", *arguments]
+    executable = shutil.which("wsl.exe") or shutil.which("wsl")
+    if executable is None:
+        raise RuntimeError("WSL is not installed")
+    return [executable, "-d", WSL_DISTRIBUTION, "--", *arguments]
+
+
+@lru_cache(maxsize=1)
+def _wsl_distribution_is_usable() -> bool:
+    """Require the configured distro, not merely the wsl.exe launcher."""
+    executable = shutil.which("wsl.exe") or shutil.which("wsl")
+    if executable is None:
+        return False
+    try:
+        listed = subprocess.run(
+            [executable, "--list", "--quiet"],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            check=False,
+            timeout=10,
+        )
+        payload = listed.stdout
+        names: set[str] = set()
+        for encoding in ("utf-16", "utf-8", "mbcs"):
+            try:
+                decoded = payload.decode(encoding, errors="ignore")
+            except LookupError:
+                continue
+            names.update(
+                line.replace("\x00", "").strip().lstrip("*").strip()
+                for line in decoded.splitlines()
+                if line.replace("\x00", "").strip()
+            )
+        if WSL_DISTRIBUTION not in names:
+            return False
+        probe = subprocess.run(
+            [executable, "-d", WSL_DISTRIBUTION, "--exec", "/bin/sh", "-c", "true"],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            check=False,
+            timeout=10,
+        )
+        return probe.returncode == 0
+    except (OSError, subprocess.TimeoutExpired):
+        return False
 
 
 def _wsl_path(path: Path) -> str:
@@ -28,7 +72,10 @@ def _wsl_path(path: Path) -> str:
     return f"/mnt/{drive}{tail}"
 
 
-@pytest.mark.skipif(shutil.which("wsl.exe") is None, reason="WSL is required")
+@pytest.mark.skipif(
+    not _wsl_distribution_is_usable(),
+    reason=f"WSL distribution {WSL_DISTRIBUTION!r} is unavailable",
+)
 @pytest.mark.parametrize(
     ("mode", "expected_directory", "expected_code"),
     [
@@ -100,7 +147,10 @@ esac
         assert result == {"status": "rejected", "code": expected_code}
 
 
-@pytest.mark.skipif(shutil.which("wsl.exe") is None, reason="WSL is required")
+@pytest.mark.skipif(
+    not _wsl_distribution_is_usable(),
+    reason=f"WSL distribution {WSL_DISTRIBUTION!r} is unavailable",
+)
 @pytest.mark.parametrize(
     "job",
     [

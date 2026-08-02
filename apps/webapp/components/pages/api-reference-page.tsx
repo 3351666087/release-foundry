@@ -63,15 +63,15 @@ export function ApiReferencePage() {
 
       <section className={styles.upstreamDelta} aria-label={zh ? "上游契约更新" : "Upstream contract delta"}>
         <header>
-          <span>UPSTREAM MAIN INTEGRATION / 2026-07-12</span>
-          <strong>{zh ? "身份会话与可信判定链已进入 main，首次 OAuth 登录仍未完成" : "Identity sessions and the trusted decision spine are in main; initial OAuth sign-in remains incomplete"}</strong>
+          <span>UPSTREAM A1 INTEGRATION / 2026-07-24</span>
+          <strong>{zh ? "邮箱注册、登录态读取与安全退出已接入；首次 OAuth 仍未完成" : "Email auth, session identity read, and secure logout are integrated; initial OAuth remains incomplete"}</strong>
         </header>
         <div>
           <article>
             <span>{zh ? "运行与身份平台" : "Runtime and identity"} · {apiReferenceMeta.a1Sha}</span>
             <strong>{zh ? "安全浏览器会话" : "Secure browser session"}</strong>
-            <p>{zh ? "邮箱 login/recovery 可签发双 HttpOnly Cookie，并支持同源轮换、幂等重放和复用检测。Google/GitHub 仍只有账号绑定。" : "Email login/recovery can issue paired HttpOnly cookies with same-origin rotation, idempotent replay, and reuse detection. Google/GitHub remain account-linking only."}</p>
-            <StatusBadge value={zh ? "main 已集成" : "Integrated in main"} tone="pass" />
+            <p>{zh ? "邮箱注册和登录通过同源 303 签发双 HttpOnly Cookie；控制台用 /v1/me 读取安全登录态，并通过 logout 撤销数据库会话。Google/GitHub 生产首次登录仍是明确缺口。" : "Email auth issues paired HttpOnly cookies through a same-origin 303 handoff. The console reads identity through /v1/me and logout revokes the durable session. Production Google/GitHub first login remains an explicit gap."}</p>
+            <StatusBadge value={zh ? "A3 分支已集成" : "Integrated in A3 branch"} tone="pass" />
           </article>
           <article>
             <span>{zh ? "评测与决策服务" : "Evaluation and decision"} · {apiReferenceMeta.a2Sha}</span>
@@ -188,7 +188,7 @@ export function ApiReferencePage() {
 
       <footer className={styles.sourceFooter}>
         <span>main {apiReferenceMeta.mainSha}</span>
-        <span>{zh ? "运行平台" : "Runtime"} {apiReferenceMeta.a1Sha} · merged to main</span>
+        <span>{zh ? "运行平台" : "Runtime"} {apiReferenceMeta.a1LatestPeerSha} · merged into A3</span>
         <span>{zh ? "评测服务" : "Evaluation"} {apiReferenceMeta.a2Sha} · merged to main</span>
         <span>{zh ? "不包含 key、token、cookie 或真实账号数据" : "No keys, tokens, cookies, or real account data"}</span>
       </footer>

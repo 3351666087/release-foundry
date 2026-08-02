@@ -2,12 +2,15 @@
 
 from __future__ import annotations
 
+import re
 from typing import Any
 
+from .calibration import is_canonical_private_evidence_ref
 from .schemas import CANONICAL_FAILURE_CLASSES
 
 
 REQUIRED_SDK_LANGUAGES = ["python", "typescript"]
+REVIEWER_RECEIPT_PATTERN = re.compile(r"sha256:[a-f0-9]{64}")
 PROMPT_FIELDS = [
     "scenario_id",
     "scenario_family",
@@ -32,6 +35,8 @@ REVIEWED_LIVE_METADATA_FIELDS = [
     "prompt_hash",
     "response_hash",
     "review_status",
+    "reviewer_receipt",
+    "reviewed_at_unix_ms",
     "sdk_language",
 ]
 
@@ -410,11 +415,30 @@ def _live_review_summary(calibration_matrix: dict[str, Any]) -> dict[str, Any]:
 def _is_reviewed_live_semantic_source(source: dict[str, Any]) -> bool:
     if source.get("available") is not True or source.get("status") != "available":
         return False
+    if not is_canonical_private_evidence_ref(source.get("evidence_ref")):
+        return False
     provider = str(source.get("provider", "")).strip().lower()
     if provider in {"", "offline_reference", "offline reference judge samples"}:
         return False
     metadata = source.get("metadata") if isinstance(source.get("metadata"), dict) else {}
     if any(not str(metadata.get(field, "")).strip() for field in REVIEWED_LIVE_METADATA_FIELDS):
+        return False
+    if str(metadata.get("review_status", "")).lower() != "reviewed":
+        return False
+    reviewer_receipt = metadata.get("reviewer_receipt")
+    if (
+        not isinstance(reviewer_receipt, str)
+        or REVIEWER_RECEIPT_PATTERN.fullmatch(reviewer_receipt) is None
+    ):
+        return False
+    if any(
+        not isinstance(metadata.get(field), str)
+        or REVIEWER_RECEIPT_PATTERN.fullmatch(metadata[field]) is None
+        for field in ("prompt_hash", "response_hash")
+    ):
+        return False
+    reviewed_at = metadata.get("reviewed_at_unix_ms")
+    if isinstance(reviewed_at, bool) or not isinstance(reviewed_at, int) or reviewed_at <= 0:
         return False
     cost = source.get("cost") if isinstance(source.get("cost"), dict) else {}
     return (

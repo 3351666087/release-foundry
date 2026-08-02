@@ -8,7 +8,10 @@ from typing import Any
 
 from .calibration import build_calibration_matrix
 from .regression_replay import build_regression_replay_report
-from .release_gate import apply_a1_output_policy_gate
+from .release_gate import (
+    apply_a1_output_policy_gate,
+    normalize_release_gate_report,
+)
 from .release_policy import ReleasePolicyError, evaluate_release_policy_config
 from .result_persistence import build_result_record, stable_hash
 from .runner import DEFAULT_SCENARIO_PACK, grade_run
@@ -30,11 +33,33 @@ A1_RELEASE_GATE_CONTRACT = "A2.release_gate.evaluate"
 DEFAULT_RELEASE_POLICY_CONFIG = Path("fixtures/a2/config/release_policies.json")
 DEFAULT_GRADE_REPORT = Path("fixtures/a2/results/a2_g3_grade_results.json")
 DEFAULT_RELEASE_GATE_REPORT = Path("fixtures/a2/results/a2_release_gate_report.json")
+DEFAULT_COMMERCIAL_READINESS_REPORT = Path(
+    "fixtures/a2/results/a2_commercial_readiness_report.json"
+)
 DEFAULT_EVIDENCE_READINESS_REPORT = Path("fixtures/a2/results/a2_evidence_readiness_report.json")
 DEFAULT_CALIBRATION_MATRIX_REPORT = Path("fixtures/a2/results/a2_g3_calibration_matrix.json")
+DEFAULT_BATCH_PLAN_REPORT = Path("fixtures/a2/results/a2_batch_plan_report.json")
+DEFAULT_SEMANTIC_HARNESS_REPORT = Path(
+    "fixtures/a2/results/a2_semantic_harness_report.json"
+)
+DEFAULT_RELEASEFOUNDRY_CASE_MAP = Path(
+    "fixtures/a2/calibration/releasefoundry_grading_batch_case_map.json"
+)
+DEFAULT_SEMANTIC_COLLECTION_PACKET = Path(
+    "fixtures/a2/calibration/a2_semantic_judge_collection_packet.json"
+)
 DEFAULT_CASE_BOOK_REPORT = Path("fixtures/a2/results/a2_case_book.json")
 DEFAULT_REGRESSION_REPLAY_REPORT = Path("fixtures/a2/results/a2_regression_replay_report.json")
 DEFAULT_REGRESSION_PROMOTION_QUEUE = Path("fixtures/a2/results/a2_regression_promotion_queue.json")
+DEFAULT_SCENARIO_SELECTION_REPORT = Path(
+    "fixtures/a2/results/a2_scenario_selection_report.json"
+)
+DEFAULT_A1_EVIDENCE_INDEX = Path(
+    "docs/a1/api_calibration/real_api_evidence_index.json"
+)
+DEFAULT_JUDGE_VERSION_REGISTRY = Path(
+    "fixtures/a2/results/a2_judge_versions.json"
+)
 
 
 def judge_case(
@@ -181,14 +206,25 @@ def evaluate_release_policy(
         waivers=request.get("waivers") if isinstance(request.get("waivers"), list) else None,
         approvals=request.get("approvals") if isinstance(request.get("approvals"), list) else None,
     )
-    gate_report = dict(request.get("release_gate_report") or _read_json(release_gate_path))
+    raw_gate_report = request.get("release_gate_report")
+    if raw_gate_report is None:
+        raw_gate_report = _read_json(release_gate_path)
+    gate_report = normalize_release_gate_report(raw_gate_report)
     if isinstance(request.get("a1_evidence_index"), dict):
         gate_report = apply_a1_output_policy_gate(gate_report, request["a1_evidence_index"])
     gate_report["policy_evaluation"] = policy_evaluation
     gate_report["a3_release_gate_summary"] = _a3_release_gate_summary(gate_report, policy_evaluation)
+    release_candidate = gate_report.get("release_candidate")
+    if not isinstance(release_candidate, dict):
+        release_candidate = {}
     gate_report["release_candidate"] = {
-        **gate_report.get("release_candidate", {}),
-        "id": str(request.get("release_candidate_id", gate_report.get("release_candidate", {}).get("id", ""))),
+        **release_candidate,
+        "id": str(
+            request.get(
+                "release_candidate_id",
+                release_candidate.get("id", ""),
+            )
+        ),
     }
     return {
         "schema_version": "a2.judge_service.release_policy_response.v1",
@@ -251,9 +287,20 @@ def build_release_unblock_service_report(
     request: dict[str, Any],
     *,
     release_gate_path: str | Path = DEFAULT_RELEASE_GATE_REPORT,
+    commercial_readiness_path: str | Path = DEFAULT_COMMERCIAL_READINESS_REPORT,
     evidence_readiness_path: str | Path = DEFAULT_EVIDENCE_READINESS_REPORT,
+    calibration_matrix_path: str | Path = DEFAULT_CALIBRATION_MATRIX_REPORT,
+    batch_plan_path: str | Path = DEFAULT_BATCH_PLAN_REPORT,
+    semantic_harness_path: str | Path = DEFAULT_SEMANTIC_HARNESS_REPORT,
+    releasefoundry_case_map_path: str | Path = DEFAULT_RELEASEFOUNDRY_CASE_MAP,
+    semantic_collection_packet_path: str
+    | Path = DEFAULT_SEMANTIC_COLLECTION_PACKET,
+    case_book_path: str | Path = DEFAULT_CASE_BOOK_REPORT,
     regression_replay_path: str | Path = DEFAULT_REGRESSION_REPLAY_REPORT,
     regression_promotion_queue_path: str | Path = DEFAULT_REGRESSION_PROMOTION_QUEUE,
+    scenario_selection_path: str | Path = DEFAULT_SCENARIO_SELECTION_REPORT,
+    a1_evidence_index_path: str | Path = DEFAULT_A1_EVIDENCE_INDEX,
+    judge_version_registry_path: str | Path = DEFAULT_JUDGE_VERSION_REGISTRY,
 ) -> dict[str, Any]:
     """Build the public-safe C3/C4/C5 release unblock checklist for A1/A3."""
     release_gate = request.get("release_gate_report") or request.get("release_gate") or _read_json(release_gate_path)
@@ -277,6 +324,32 @@ def build_release_unblock_service_report(
         evidence_readiness,
         regression_replay,
         regression_promotion_queue,
+        release_gate_sources={
+            "commercial_readiness_report": _read_json(
+                commercial_readiness_path
+            ),
+            "evidence_readiness_report": _read_json(
+                evidence_readiness_path
+            ),
+            "calibration_matrix": _read_json(calibration_matrix_path),
+            "batch_plan_report": _read_json(batch_plan_path),
+            "semantic_harness_report": _read_json(semantic_harness_path),
+            "releasefoundry_case_map": _read_json(releasefoundry_case_map_path),
+            "semantic_collection_packet": _read_json(
+                semantic_collection_packet_path
+            ),
+            "regression_replay_report": _read_json(
+                regression_replay_path
+            ),
+            "case_book_report": _read_json(case_book_path),
+            "scenario_selection_report": _read_json(
+                scenario_selection_path
+            ),
+            "a1_evidence_index": _read_json(a1_evidence_index_path),
+            "judge_version_registry": _read_json(
+                judge_version_registry_path
+            ),
+        },
     )
 
 

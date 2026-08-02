@@ -1,5 +1,18 @@
 # A3 -> A1 Identity Verification Contract Change Request
 
+## Resolution update - 2026-07-24
+
+A1 `780e94fc` closes the original browser-context blocker through dedicated
+email registration/login begin and complete routes. Begin now returns
+short-lived `challenge_id` and opaque `intent_id` handles while writing an
+encrypted HttpOnly intent cookie. Complete validates those handles, issues
+Secure HttpOnly access/refresh cookies, and returns an empty `303 /console`.
+
+A3 now consumes that contract. The remaining blockers are browser-cookie
+identity read/logout, one-origin HTTPS deployment, production SMTP/outbox
+runtime, and production Google/GitHub first login. Historical analysis below
+is retained to explain why the contract change was requested.
+
 Date: 2026-07-11
 
 Status: blocking request; A3 does not change A1 implementation in this branch.

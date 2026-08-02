@@ -4,6 +4,7 @@ import Link from "next/link";
 import { Check, CircleSlash2, Clock3, FileCheck2, GitCompareArrows, History, Images, LockKeyhole, ShieldAlert, UserRoundCheck, X } from "lucide-react";
 
 import { array, number, record, string } from "@/lib/api";
+import { failureClassLabel } from "@/lib/evidence-labels";
 import { useI18n } from "@/lib/i18n";
 import { MultimodalEvidenceRequestPanel } from "../multimodal-evidence-request-panel";
 import { DataBoundary, DataTable, EmptyState, formatDate, MetricStrip, PageHeader, Section, StatusBadge } from "../ui";
@@ -47,12 +48,19 @@ export function ReviewPage() {
         />
 
         <section className="review-decision">
-          <div><ShieldAlert size={26} /><span className="eyebrow">{zh ? "当前决策" : "CURRENT DECISION"}</span><h2>{decision}</h2><p>{zh ? "真实批准、拒绝和豁免需要 hosted auth、RBAC 和持久化审计。" : "Live approve, deny, and waiver actions require hosted auth, RBAC, and durable audit."}</p></div>
+          <div><ShieldAlert size={26} /><span className="eyebrow">{zh ? "当前决策" : "CURRENT DECISION"}</span><h2>{decision}</h2><p>{zh ? "自动评测先给出证据和建议；人工审核负责确认高风险例外；交付门禁最后决定能否发布。" : "Automated evaluation supplies evidence, human review resolves high-risk exceptions, and the delivery gate makes the final release decision."}</p></div>
           <div className="review-actions" aria-label="Review actions">
             <button type="button" disabled title={zh ? "等待真实审核执行器" : "Requires live review executor"}><Check size={17} />{zh ? "批准" : "Approve"}</button>
             <button type="button" disabled title={zh ? "等待真实审核执行器" : "Requires live review executor"}><X size={17} />{zh ? "拒绝" : "Deny"}</button>
             <button type="button" disabled title={zh ? "等待真实审核执行器" : "Requires live review executor"}><CircleSlash2 size={17} />{zh ? "申请豁免" : "Request waiver"}</button>
           </div>
+        </section>
+
+        <section className="review-explainer" aria-label={zh ? "审核与交付流程" : "Review and delivery workflow"}>
+          <article><span>01</span><div><strong>{zh ? "自动 Judge" : "Automated judge"}</strong><p>{zh ? "A2 根据场景规则打分，产出 pass/fail 和失败原因。" : "A2 grades against scenario rules and produces pass/fail plus failure reasons."}</p></div><StatusBadge value={zh ? "机器结论" : "machine decision"} tone="info" /></article>
+          <article><span>02</span><div><strong>{zh ? "人工复核" : "Human review"}</strong><p>{zh ? "真人只处理失败、高风险或模型有分歧的案例，并留下可审计记录。" : "People handle failed, high-risk, or disputed cases and leave an auditable record."}</p></div><StatusBadge value={zh ? "治理记录" : "governance record"} tone="warn" /></article>
+          <article><span>03</span><div><strong>{zh ? "交付门禁" : "Delivery gate"}</strong><p>{zh ? "综合 A1 证据、A2 判定和人工记录，决定允许发布还是继续阻断。" : "Combines A1 evidence, A2 authority, and human records to allow or block release."}</p></div><StatusBadge value={decision} tone={decision.includes("block") ? "fail" : "pass"} /></article>
+          <footer><LockKeyhole size={16} /><span>{zh ? "当前按钮不可点不是页面坏了：真实写入仍需要登录身份、角色权限和数据库审计。只读 Demo 可以完整展示判断过程，但不会伪造审批结果。" : "Disabled actions are intentional: live writes still require identity, role permissions, and durable audit storage. The read-only demo shows the decision path without fabricating approval receipts."}</span></footer>
         </section>
 
         <MetricStrip items={[
@@ -267,9 +275,9 @@ export function ReviewPage() {
         </Section>
 
         <div className="content-grid two-one">
-          <Section title={zh ? "审核队列" : "Review queue"} description={zh ? "优先处理失败和高严重度案例" : "Failed and high-severity cases first"} action={<Link className="text-link" href="/runs">{zh ? "查看全部案例" : "View all cases"}</Link>}>
+          <Section title={zh ? "审核队列" : "Review queue"} description={zh ? "优先处理失败和高严重度案例" : "Failed and high-severity cases first"} action={<Link className="text-link" href={{ pathname: "/runs", query: { source: model.source } }}>{zh ? "查看全部案例" : "View all cases"}</Link>}>
             <DataTable headers={[zh ? "案例" : "Case", zh ? "失败分类" : "Failure class", zh ? "严重度" : "Severity", zh ? "分数" : "Score", zh ? "状态" : "State"]} label="Review queue">
-              {model.cases.filter((item) => !item.passed).slice(0, 8).map((item) => <tr key={item.caseId}><td><Link href={{ pathname: "/case", query: { case_id: item.caseId } }}><strong>{item.caseId}</strong><small>{item.title}</small></Link></td><td>{item.failureClass}</td><td><StatusBadge value={item.severity} /></td><td>{item.score}</td><td><StatusBadge value="review_required" tone="warn" /></td></tr>)}
+              {model.cases.filter((item) => !item.passed).slice(0, 8).map((item) => <tr key={item.caseId}><td><Link href={{ pathname: "/case", query: { case_id: item.caseId, source: model.source } }}><strong>{item.caseId}</strong><small>{item.title}</small></Link></td><td><span className="failure-label" title={item.failureClass}>{failureClassLabel(item.failureClass, zh)}</span></td><td><StatusBadge value={item.severity} /></td><td>{item.score}</td><td><StatusBadge value="review_required" tone="warn" /></td></tr>)}
             </DataTable>
           </Section>
 

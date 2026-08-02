@@ -1,4 +1,5 @@
-﻿import json
+﻿import hashlib
+import json
 import re
 import subprocess
 import sys
@@ -9,20 +10,35 @@ from pathlib import Path
 
 from services.judge.batch_plan import build_batch_plan_report
 from services.judge.releasefoundry_collection import build_releasefoundry_grading_collection_packet
+from services.judge.releasefoundry_test_receipts import (
+    build_releasefoundry_test_terminal_receipt,
+    public_releasefoundry_test_scoring_summary,
+    public_releasefoundry_test_terminal_receipt,
+)
 from services.judge.calibration import (
     build_calibration_matrix,
     import_releasefoundry_grading_observations,
     import_semantic_judge_observations,
     merge_calibration_observations,
 )
-from services.judge.casebook import build_case_book_report
+from services.judge.casebook import (
+    build_case_book_report,
+    promote_incident_candidates_to_case_book,
+)
 from services.judge.coverage import build_coverage_report
-from services.judge.evidence_readiness import build_evidence_readiness_report
+from services.judge.evidence_readiness import (
+    _a1_official_api_mutating_index_summary,
+    _a1_official_api_paid_media_summary,
+    _a1_official_api_readonly_manifest_summary,
+    _a1_real_api_evidence_summary,
+    build_evidence_readiness_report,
+)
 from services.judge.incident_regression import build_incident_regression_candidate_report
 from services.judge.readiness import build_commercial_readiness_report
 from services.judge.release_gate import build_release_gate_report
 from services.judge.regression_promotion import build_regression_promotion_queue_report
 from services.judge.regression_replay import build_regression_replay_report
+from services.judge.result_persistence import stable_hash
 from services.judge.runner import grade_run, grade_runs, load_scenario_pack
 from services.judge.scenario_selection import build_scenario_selection_report
 from services.judge.schemas import CANONICAL_FAILURE_CLASSES, LOCAL_FAILURE_CLASS_MAP, canonical_primary_failure_class
@@ -30,12 +46,42 @@ from services.judge.sdk_parity import build_sdk_parity_report
 from services.judge.semantic_collection import build_semantic_judge_collection_packet
 from services.judge.semantic_harness import build_semantic_harness_report
 from services.judge.unblock_checklist import build_release_unblock_checklist
+from scripts.a2_regenerate_fixtures import _load_owner_review_decisions
 
 
 ROOT = Path(__file__).resolve().parents[2]
+VALID_REVIEWER_RECEIPT = "sha256:" + ("a" * 64)
+VALID_REVIEWED_AT_UNIX_MS = 1784700000000
 
 
 class A2ContractTests(unittest.TestCase):
+    def test_owner_review_loader_accepts_list_and_decisions_envelope(self):
+        decision = {
+            "case_id": "sample-a2-s041-poor-retry-recovery",
+            "decision": "approved",
+            "reviewer_receipt": "sha256:" + "a" * 64,
+            "reviewed_at_unix_ms": 1784700000000,
+            "evidence_refs": [],
+        }
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            list_path = Path(tmp_dir) / "owner-review-list.json"
+            list_path.write_text(json.dumps([decision]), encoding="utf-8")
+            self.assertEqual(_load_owner_review_decisions(list_path), [decision])
+
+            envelope_path = Path(tmp_dir) / "owner-review-envelope.json"
+            envelope_path.write_text(
+                json.dumps({"decisions": [decision]}),
+                encoding="utf-8",
+            )
+            self.assertEqual(_load_owner_review_decisions(envelope_path), [decision])
+
+    def test_owner_review_loader_rejects_invalid_shape(self):
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            path = Path(tmp_dir) / "owner-review-invalid.json"
+            path.write_text(json.dumps({"decision": "approved"}), encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "JSON list"):
+                _load_owner_review_decisions(path)
+
     def test_seed_pack_has_20_scenarios_with_tool_policy(self):
         pack = load_scenario_pack(ROOT / "packages/scenarios/a2_g2_seed_pack.json")
         scenarios = pack["scenarios"]
@@ -443,6 +489,20 @@ class A2ContractTests(unittest.TestCase):
         self.assertLessEqual(set(incident_regression_schema["required"]), set(incident_regression))
         self.assertLessEqual(set(regression_promotion_schema["required"]), set(regression_promotion))
         self.assertLessEqual(set(evidence_readiness_schema["required"]), set(evidence_readiness))
+        self.assertIn(
+            "artifact_receipts",
+            multimodal_real_api_smoke_schema["required"],
+        )
+        self.assertIn(
+            "artifact_receipt_status",
+            evidence_readiness_schema["$defs"]["multimodal_real_api_smoke"][
+                "required"
+            ],
+        )
+        self.assertIn(
+            "multimodal_generated_artifact_capabilities",
+            evidence_readiness_schema["required"],
+        )
         self.assertLessEqual(set(release_gate_schema["required"]), set(release_gate))
         self.assertLessEqual(set(unblock_checklist_schema["required"]), set(unblock_checklist))
         self.assertLessEqual(set(scenario_selection_schema["required"]), set(scenario_selection))
@@ -623,6 +683,59 @@ class A2ContractTests(unittest.TestCase):
             evidence_readiness_schema["properties"]["multimodal_real_api_smoke"]["$ref"],
             "#/$defs/multimodal_real_api_smoke",
         )
+        self.assertIn(
+            "releasefoundry_native_media_surface",
+            evidence_readiness_schema["required"],
+        )
+        self.assertEqual(
+            evidence_readiness_schema["properties"]["releasefoundry_native_media_surface"][
+                "$ref"
+            ],
+            "#/$defs/releasefoundry_native_media_surface",
+        )
+        native_media_surface_required = set(
+            evidence_readiness_schema["$defs"]["releasefoundry_native_media_surface"][
+                "required"
+            ]
+        )
+        self.assertLessEqual(
+            native_media_surface_required,
+            set(evidence_readiness["releasefoundry_native_media_surface"]),
+        )
+        self.assertIn("surface_audit_verified", native_media_surface_required)
+        self.assertIn(
+            "caller_native_input_support_proven",
+            native_media_surface_required,
+        )
+        self.assertIn("c3_grading_ready", native_media_surface_required)
+        self.assertEqual(
+            evidence_readiness_schema["properties"][
+                "multimodal_generated_artifact_capabilities"
+            ]["$ref"],
+            "#/$defs/multimodal_generated_artifact_capabilities",
+        )
+        generated_capabilities_required = set(
+            evidence_readiness_schema["$defs"][
+                "multimodal_generated_artifact_capabilities"
+            ]["required"]
+        )
+        self.assertLessEqual(
+            generated_capabilities_required,
+            set(
+                evidence_readiness[
+                    "multimodal_generated_artifact_capabilities"
+                ]
+            ),
+        )
+        self.assertIn(
+            "verified_generated_artifact_modalities",
+            generated_capabilities_required,
+        )
+        self.assertIn(
+            "native_media_surface_binding_verified",
+            generated_capabilities_required,
+        )
+        self.assertIn("probes", generated_capabilities_required)
         self.assertEqual(
             evidence_readiness_schema["properties"]["official_sdk_smoke"]["$ref"],
             "#/$defs/official_sdk_smoke",
@@ -1039,6 +1152,25 @@ class A2ContractTests(unittest.TestCase):
         self.assertEqual(replay["expected_llm_failure_class"], "ignored_tool_result")
         self.assertTrue(all(replay["checks"].values()))
 
+    def test_regression_replay_rejects_duplicate_case_book_entries(self):
+        calibration_matrix = build_calibration_matrix(
+            pack_path=ROOT / "packages/scenarios/a2_g3_full_pack.json",
+            run_dir=ROOT / "fixtures/a2/runs",
+            observations_path=ROOT / "fixtures/a2/calibration/a2_g3_calibration_observations.json",
+        )
+        case_book = build_case_book_report(calibration_matrix)
+        case_book["regression_cases"] = [
+            case_book["regression_cases"][0],
+            dict(case_book["regression_cases"][0]),
+        ]
+
+        with self.assertRaisesRegex(ValueError, "duplicate regression replay case_id"):
+            build_regression_replay_report(
+                calibration_matrix,
+                case_book,
+                pack_path=ROOT / "packages/scenarios/a2_g3_full_pack.json",
+            )
+
     def test_incident_summary_builds_public_safe_regression_candidate(self):
         report = build_incident_regression_candidate_report(
             ROOT / "fixtures/a2/incidents/a2_prod_incident_summary.json",
@@ -1111,6 +1243,144 @@ class A2ContractTests(unittest.TestCase):
         self.assertIn("audited_semantic_judge", item["required_evidence_sources"])
         self.assertNotIn("Bearer ", report_text)
         self.assertNotRegex(report_text, re.compile(r"\b(?:sk-[A-Za-z0-9]{8,}|tp_[A-Za-z0-9_\-]{8,})\b"))
+
+    def test_incident_candidate_requires_explicit_owner_review_before_case_book_promotion(self):
+        calibration_matrix = build_calibration_matrix(
+            pack_path=ROOT / "packages/scenarios/a2_g3_full_pack.json",
+            run_dir=ROOT / "fixtures/a2/runs",
+            observations_path=ROOT / "fixtures/a2/calibration/a2_g3_calibration_observations.json",
+        )
+        case_book = build_case_book_report(calibration_matrix)
+        incident_candidates = build_incident_regression_candidate_report(
+            ROOT / "fixtures/a2/incidents/a2_prod_incident_summary.json",
+            pack_path=ROOT / "packages/scenarios/a2_g3_full_pack.json",
+        )
+
+        without_review = promote_incident_candidates_to_case_book(
+            case_book,
+            incident_candidates,
+            [],
+        )
+
+        self.assertEqual(without_review, case_book)
+        self.assertEqual(without_review["regression_case_count"], 1)
+        self.assertNotIn(
+            "sample-a2-s041-poor-retry-recovery",
+            {case["case_id"] for case in without_review["regression_cases"]},
+        )
+
+    def test_approved_incident_candidate_enters_replay_without_maturity_claim(self):
+        calibration_matrix = build_calibration_matrix(
+            pack_path=ROOT / "packages/scenarios/a2_g3_full_pack.json",
+            run_dir=ROOT / "fixtures/a2/runs",
+            observations_path=ROOT / "fixtures/a2/calibration/a2_g3_calibration_observations.json",
+        )
+        case_book = build_case_book_report(calibration_matrix)
+        incident_candidates = build_incident_regression_candidate_report(
+            ROOT / "fixtures/a2/incidents/a2_prod_incident_summary.json",
+            pack_path=ROOT / "packages/scenarios/a2_g3_full_pack.json",
+        )
+        review = {
+            "case_id": "sample-a2-s041-poor-retry-recovery",
+            "decision": "approved",
+            "reviewer_receipt": "sha256:" + ("a" * 64),
+            "reviewed_at_unix_ms": 1784700000000,
+            "source_incident_candidates_hash": incident_candidates[
+                "artifact_hash"
+            ],
+            "candidate_hash": stable_hash(incident_candidates["candidates"][0]),
+            "evidence_refs": ["docs/evidence/private_refs/a2_case_book_owner_review.redacted.json"],
+        }
+
+        promoted = promote_incident_candidates_to_case_book(
+            case_book,
+            incident_candidates,
+            [review],
+        )
+        replay = build_regression_replay_report(
+            calibration_matrix,
+            promoted,
+            pack_path=ROOT / "packages/scenarios/a2_g3_full_pack.json",
+        )
+
+        self.assertEqual(promoted["regression_case_count"], 2)
+        promoted_case = next(
+            case for case in promoted["regression_cases"]
+            if case["case_id"] == "sample-a2-s041-poor-retry-recovery"
+        )
+        self.assertEqual(promoted_case["promotion"]["decision"], "approved")
+        self.assertTrue(promoted_case["promotion"]["replay_input_approved"])
+        self.assertEqual(promoted["metadata"]["promotion_audit"][0]["outcome"], "promoted")
+        self.assertEqual(promoted["maturity_gate"]["status"], "seed")
+        self.assertEqual(promoted["maturity_gate"]["reviewed_external_evidence_count"], 0)
+        self.assertEqual(replay["replay_case_count"], 2)
+        self.assertTrue(replay["replay_ready"])
+        incident_replay = next(
+            case for case in replay["cases"]
+            if case["case_id"] == "sample-a2-s041-poor-retry-recovery"
+        )
+        self.assertEqual(incident_replay["replay_status"], "passed")
+        self.assertTrue(incident_replay["checks"]["approved_promotion_visible"])
+        self.assertEqual(replay["maturity_status"], "seed")
+        self.assertTrue(replay["release_gate_summary"]["blocks_release"])
+
+    def test_incident_promotion_rejects_unverifiable_owner_receipt(self):
+        calibration_matrix = build_calibration_matrix(
+            pack_path=ROOT / "packages/scenarios/a2_g3_full_pack.json",
+            run_dir=ROOT / "fixtures/a2/runs",
+            observations_path=ROOT / "fixtures/a2/calibration/a2_g3_calibration_observations.json",
+        )
+        case_book = build_case_book_report(calibration_matrix)
+        incident_candidates = build_incident_regression_candidate_report(
+            ROOT / "fixtures/a2/incidents/a2_prod_incident_summary.json",
+            pack_path=ROOT / "packages/scenarios/a2_g3_full_pack.json",
+        )
+
+        with self.assertRaisesRegex(ValueError, "canonical reviewer_receipt"):
+            promote_incident_candidates_to_case_book(
+                case_book,
+                incident_candidates,
+                [
+                    {
+                        "case_id": "sample-a2-s041-poor-retry-recovery",
+                        "decision": "approved",
+                        "reviewer_receipt": "reviewer@example.com",
+                        "reviewed_at_unix_ms": 1784700000000,
+                    }
+                ],
+            )
+
+    def test_failed_regression_replay_is_reported_as_blocking(self):
+        calibration_matrix = build_calibration_matrix(
+            pack_path=ROOT / "packages/scenarios/a2_g3_full_pack.json",
+            run_dir=ROOT / "fixtures/a2/runs",
+            observations_path=ROOT / "fixtures/a2/calibration/a2_g3_calibration_observations.json",
+        )
+        case_book = build_case_book_report(calibration_matrix)
+        broken_case_book = dict(case_book)
+        broken_case_book["regression_cases"] = [
+            dict(case_book["regression_cases"][0], fixture_ref="fixtures/a2/runs/missing.json")
+        ]
+        broken_case_book["artifact_hash"] = stable_hash(
+            {
+                key: value
+                for key, value in broken_case_book.items()
+                if key != "artifact_hash"
+            }
+        )
+        replay = build_regression_replay_report(
+            calibration_matrix,
+            broken_case_book,
+            pack_path=ROOT / "packages/scenarios/a2_g3_full_pack.json",
+        )
+
+        self.assertFalse(replay["replay_ready"])
+        self.assertEqual(replay["failed_count"], 1)
+        self.assertEqual(replay["maturity_gate"]["failed_replay_case_count"], 1)
+        self.assertEqual(replay["release_gate_summary"]["action"], "fix_failed_replays")
+        self.assertTrue(replay["release_gate_summary"]["blocks_release"])
+        self.assertEqual(replay["cases"][0]["replay_status"], "failed")
+        self.assertTrue(replay["cases"][0]["checks"]["replay_error_recorded"])
 
     def test_release_unblock_checklist_tracks_c3_c4_c5_owner_actions(self):
         release_gate = json.loads((ROOT / "fixtures/a2/results/a2_release_gate_report.json").read_text(encoding="utf-8"))
@@ -1194,6 +1464,24 @@ class A2ContractTests(unittest.TestCase):
                         "evidence_ref": "docs/evidence/private_refs/a2_semantic_judge_review.redacted.json"
                         if reviewed
                         else case["fixture_ref"],
+                        "metadata": {
+                            "review_status": "reviewed",
+                            "reviewer_receipt": VALID_REVIEWER_RECEIPT,
+                            "reviewed_at_unix_ms": VALID_REVIEWED_AT_UNIX_MS,
+                            "prompt_template_id": "a2-c5-semantic-review-v1",
+                            "prompt_hash": "sha256:" + ("a" * 64),
+                            "response_hash": "sha256:" + ("b" * 64),
+                            "sdk_language": "python",
+                        }
+                        if reviewed
+                        else {},
+                        "cost": {
+                            "prompt_tokens": 100,
+                            "completion_tokens": 40,
+                            "estimated_usd": 0.01,
+                        }
+                        if reviewed
+                        else {},
                     }
                 )
                 case["calibration_tags"] = list(
@@ -1220,6 +1508,123 @@ class A2ContractTests(unittest.TestCase):
                 {"case_id": case_id, "left_failure_class": "local", "right_failure_class": "llm"}
                 for case_id in target_case_ids
             ]
+            if reviewed:
+                receipt_cases = []
+                reviewed_sources = []
+                for case in matrix["cases"]:
+                    source = case["sources"]["llm_judge"]
+                    source.update(
+                        {
+                            "available": True,
+                            "status": "available",
+                            "source": "llm_judge",
+                            "provider": "reviewed_model_call_sample",
+                            "model": "llm-judge-reviewed-v1",
+                            "evidence_ref": (
+                                "docs/evidence/private_refs/"
+                                "a2_semantic_judge_review.redacted.json"
+                            ),
+                            "metadata": {
+                                "review_status": "reviewed",
+                                "reviewer_receipt": VALID_REVIEWER_RECEIPT,
+                                "reviewed_at_unix_ms": (
+                                    VALID_REVIEWED_AT_UNIX_MS
+                                ),
+                                "prompt_template_id": (
+                                    "a2-c5-semantic-review-v1"
+                                ),
+                                "prompt_hash": "sha256:" + ("a" * 64),
+                                "response_hash": "sha256:" + ("b" * 64),
+                                "sdk_language": "python",
+                            },
+                            "cost": {
+                                "prompt_tokens": 100,
+                                "completion_tokens": 40,
+                                "estimated_usd": 0.01,
+                            },
+                        }
+                    )
+                    metadata = source["metadata"]
+                    receipt_cases.append(
+                        {
+                            "case_id": case["case_id"],
+                            "scenario_id": case["scenario_id"],
+                            "review_status": metadata["review_status"],
+                            "reviewer_receipt": metadata[
+                                "reviewer_receipt"
+                            ],
+                            "reviewed_at_unix_ms": metadata[
+                                "reviewed_at_unix_ms"
+                            ],
+                            "provider": source["provider"],
+                            "model": source["model"],
+                            "passed": source["passed"],
+                            "primary_failure_class": source[
+                                "primary_failure_class"
+                            ],
+                            "score": source["score"],
+                            "confidence": source["confidence"],
+                            "prompt_hash": metadata["prompt_hash"],
+                            "response_hash": metadata["response_hash"],
+                            "sdk_language": metadata["sdk_language"],
+                            "evidence_ref": source["evidence_ref"],
+                            "rationale_sha256": stable_hash(
+                                source["rationale"]
+                            ),
+                        }
+                    )
+                    reviewed_sources.append(source)
+                receipt = {
+                    "schema_version": (
+                        "a2.semantic_human_review_receipt.v1"
+                    ),
+                    "verification_state": "verified",
+                    "review_scope": "a2_c4_semantic_judge_acceptance",
+                    "expected_case_count": len(receipt_cases),
+                    "reviewed_case_count": len(receipt_cases),
+                    "receipt_complete": True,
+                    "public_safe": True,
+                    "raw_review_notes_included": False,
+                    "raw_reviewer_identity_included": False,
+                    "cases": receipt_cases,
+                }
+                receipt_hash = stable_hash(receipt)
+                for source in reviewed_sources:
+                    source["metadata"].update(
+                        {
+                            "semantic_review_receipt_sha256": receipt_hash,
+                            "semantic_review_receipt_schema_version": (
+                                receipt["schema_version"]
+                            ),
+                            "semantic_review_verification_state": (
+                                receipt["verification_state"]
+                            ),
+                            "semantic_review_scope": receipt[
+                                "review_scope"
+                            ],
+                            "semantic_review_expected_case_count": receipt[
+                                "expected_case_count"
+                            ],
+                            "semantic_review_reviewed_case_count": receipt[
+                                "reviewed_case_count"
+                            ],
+                            "semantic_review_receipt_complete": receipt[
+                                "receipt_complete"
+                            ],
+                            "semantic_review_receipt_public_safe": receipt[
+                                "public_safe"
+                            ],
+                            "semantic_review_raw_review_notes_included": (
+                                receipt["raw_review_notes_included"]
+                            ),
+                            "semantic_review_raw_reviewer_identity_included": (
+                                receipt[
+                                    "raw_reviewer_identity_included"
+                                ]
+                            ),
+                        }
+                    )
+                matrix["semantic_human_review_receipt"] = receipt
             return matrix
 
         offline_matrix = matrix_with_three_disagreements(reviewed=False)
@@ -1608,9 +2013,135 @@ class A2ContractTests(unittest.TestCase):
         self.assertTrue(multimodal_smoke["public_safe"])
         self.assertTrue(multimodal_smoke["all_required_modalities_requested"])
         self.assertTrue(multimodal_smoke["real_api_boundary_reached"])
-        self.assertTrue(multimodal_smoke["quota_blocked"])
+        self.assertFalse(multimodal_smoke["quota_blocked"])
+        self.assertEqual(multimodal_smoke["request_status"], "completed")
         self.assertFalse(multimodal_smoke["c3_grading_ready"])
-        self.assertEqual(set(multimodal_smoke["accepted_modalities"]), {"text", "image", "audio", "file", "video"})
+        self.assertEqual(set(multimodal_smoke["requested_modalities"]), {"text", "image", "audio", "file"})
+        self.assertEqual(multimodal_smoke["excluded_modalities"], ["video"])
+        self.assertEqual(
+            set(multimodal_smoke["request_config_accepted_modalities"]),
+            {"text", "image", "audio", "file"},
+        )
+        self.assertEqual(
+            set(multimodal_smoke["observed_artifact_modalities"]),
+            {"text", "image", "file"},
+        )
+        self.assertEqual(multimodal_smoke["accepted_modalities"], ["text"])
+        self.assertEqual(multimodal_smoke["artifact_receipt_status"], "partial")
+        self.assertEqual(multimodal_smoke["artifact_download_verified_count"], 2)
+        self.assertEqual(
+            multimodal_smoke["artifact_reference_modalities"],
+            ["image", "file"],
+        )
+        self.assertEqual(
+            multimodal_smoke["artifact_verified_modalities"],
+            ["image", "file"],
+        )
+        self.assertEqual(
+            multimodal_smoke["artifact_missing_modalities"],
+            ["audio"],
+        )
+        self.assertFalse(
+            multimodal_smoke["artifact_modality_coverage_complete"]
+        )
+        self.assertFalse(multimodal_smoke["ready_for_a2_multimodal_context"])
+        native_media_surface = report["releasefoundry_native_media_surface"]
+        self.assertTrue(
+            report["readiness_checks"]["releasefoundry_native_media_surface_audited"]
+        )
+        self.assertTrue(native_media_surface["surface_audit_verified"])
+        self.assertFalse(native_media_surface["live_session_reached"])
+        self.assertEqual(native_media_surface["live_session_status"], "not_requested")
+        self.assertEqual(native_media_surface["sdk_package_name"], "releasefoundry")
+        self.assertEqual(native_media_surface["sdk_version"], "0.3.1")
+        self.assertEqual(
+            native_media_surface["generated_artifact_capabilities"],
+            {
+                "image": "verified",
+                "audio": "verified",
+                "file": "verified",
+                "video": "provider_unverified",
+            },
+        )
+        self.assertEqual(
+            native_media_surface["caller_native_submission"],
+            {
+                "image": "provider_surface_missing",
+                "audio": "provider_surface_missing",
+                "file": "provider_surface_missing",
+                "video": "provider_unverified",
+            },
+        )
+        self.assertFalse(
+            native_media_surface["caller_native_input_support_proven"]
+        )
+        self.assertFalse(native_media_surface["c3_grading_ready"])
+        generated_capabilities = report[
+            "multimodal_generated_artifact_capabilities"
+        ]
+        self.assertTrue(
+            report["readiness_checks"][
+                "multimodal_generated_artifacts_verified"
+            ]
+        )
+        self.assertEqual(
+            generated_capabilities["aggregation_status"],
+            "verified",
+        )
+        self.assertEqual(generated_capabilities["probe_count"], 3)
+        self.assertEqual(generated_capabilities["verified_probe_count"], 3)
+        self.assertEqual(
+            generated_capabilities["independent_request_count"],
+            3,
+        )
+        self.assertEqual(
+            generated_capabilities[
+                "verified_generated_artifact_modalities"
+            ],
+            ["image", "audio", "file"],
+        )
+        self.assertEqual(
+            generated_capabilities["provider_unverified_modalities"],
+            ["video"],
+        )
+        self.assertEqual(
+            [probe["path"] for probe in generated_capabilities["probes"]],
+            [
+                "docs/evidence/a2_multimodal_image_real_api_smoke.json",
+                (
+                    "docs/evidence/"
+                    "a2_multimodal_audio_real_api_smoke.json"
+                ),
+                "docs/evidence/a2_multimodal_file_real_api_smoke.json",
+            ],
+        )
+        self.assertEqual(
+            len(
+                {
+                    probe["request_content_sha256"]
+                    for probe in generated_capabilities["probes"]
+                }
+            ),
+            3,
+        )
+        self.assertTrue(generated_capabilities["public_safe"])
+        self.assertFalse(generated_capabilities["native_media_uploaded"])
+        self.assertFalse(
+            generated_capabilities["media_upload_api_observed"]
+        )
+        self.assertFalse(
+            generated_capabilities[
+                "caller_native_input_support_proven"
+            ]
+        )
+        self.assertTrue(
+            generated_capabilities["native_media_surface_binding_verified"]
+        )
+        self.assertEqual(
+            generated_capabilities["native_media_surface_path"],
+            "docs/evidence/a2_releasefoundry_native_media_surface.json",
+        )
+        self.assertFalse(generated_capabilities["c3_grading_ready"])
         self.assertIn("list_datasets", report["official_sdk_smoke"]["call_names"])
         self.assertIn("list_requests", report["official_sdk_smoke"]["call_names"])
         self.assertIn("list_agents", report["official_sdk_smoke"]["call_names"])
@@ -1703,6 +2234,121 @@ class A2ContractTests(unittest.TestCase):
         self.assertEqual(official_manifest["read_step_count"], 5)
         self.assertEqual(official_manifest["step_ids"], ["init", "list_datasets", "list_runs"])
         self.assertFalse(official_manifest["raw_payload_values_included"])
+
+    def test_evidence_readiness_manifest_counts_fail_closed_without_crashing(self):
+        malformed_values = [True, "1", -1, 1.0, None, {}, []]
+        public_safety = {
+            "raw_key_material_present": False,
+            "header_values_included": False,
+            "raw_payload_values_included": False,
+            "private_payload_contents_present": False,
+            "request_parameter_values_included": False,
+            "step_record_locations_included": False,
+            "redacted_summary_fields_only": True,
+        }
+        paid_guardrails = {
+            "execute_requires_small_batch": True,
+            "mutating_execute_requires_quota_gate": True,
+            "mutating_requires_include_mutating": True,
+            "paid_media_requires_allow_paid_media": True,
+            "quota_gate_present": True,
+            "raw_records_private": True,
+            "output_policy": {
+                "output_is_private": True,
+                "private_output_required": True,
+                "full_record_stdout_blocked": True,
+            },
+        }
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            root = Path(tmp_dir)
+            for value in malformed_values:
+                with self.subTest(value=value):
+                    real_path = root / "real.json"
+                    real_path.write_text(
+                        json.dumps(
+                            {
+                                "records": [],
+                                "total_records": value,
+                                "quota_block_count": 0,
+                            }
+                        ),
+                        encoding="utf-8",
+                    )
+                    real_summary = _a1_real_api_evidence_summary(real_path)
+                    self.assertFalse(real_summary["available"])
+                    self.assertEqual(real_summary["total_records"], 0)
+                    self.assertIn("total_records", real_summary["notes"][-1])
+
+                    readonly_path = root / "readonly.json"
+                    readonly_path.write_text(
+                        json.dumps(
+                            {
+                                "status": "ok",
+                                "summary": {
+                                    "read_steps": value,
+                                    "ok_or_planned_steps": 0,
+                                    "error_steps": 0,
+                                    "quota_block_count": 0,
+                                },
+                                "public_safety": public_safety,
+                            }
+                        ),
+                        encoding="utf-8",
+                    )
+                    readonly_summary = _a1_official_api_readonly_manifest_summary(readonly_path)
+                    self.assertFalse(readonly_summary["ready_for_a2_evidence_context"])
+                    self.assertEqual(readonly_summary["read_step_count"], 0)
+                    self.assertIn("read_steps", readonly_summary["notes"][-1])
+
+                    mutating_path = root / "mutating.json"
+                    mutating_path.write_text(
+                        json.dumps(
+                            {
+                                "public_safe": True,
+                                "raw_payloads_included": False,
+                                "secret_values_included": False,
+                                "records": [
+                                    {
+                                        "total_steps": value,
+                                        "read_steps": 0,
+                                        "quota_block_count": 0,
+                                    }
+                                ],
+                            }
+                        ),
+                        encoding="utf-8",
+                    )
+                    mutating_summary = _a1_official_api_mutating_index_summary(mutating_path)
+                    self.assertFalse(mutating_summary["ready_for_a2_evidence_context"])
+                    self.assertEqual(mutating_summary["total_steps"], 0)
+                    self.assertIn("records[0].total_steps", mutating_summary["notes"][-1])
+
+                    paid_path = root / "paid.json"
+                    paid_path.write_text(
+                        json.dumps(
+                            {
+                                "status": "ok",
+                                "summary": {
+                                    "total_steps": value,
+                                    "read_steps": 0,
+                                    "mutating_steps": 0,
+                                    "ok_or_planned_steps": 0,
+                                    "error_steps": 0,
+                                    "quota_block_count": 0,
+                                    "estimated_calls": 0,
+                                },
+                                "guardrails": paid_guardrails,
+                                "public_safety": public_safety,
+                            }
+                        ),
+                        encoding="utf-8",
+                    )
+                    paid_summary = _a1_official_api_paid_media_summary(paid_path)
+                    self.assertFalse(paid_summary["ready_for_a2_evidence_context"])
+                    self.assertFalse(paid_summary["safe_for_paid_media_claims"])
+                    self.assertEqual(paid_summary["total_step_count"], 0)
+                    self.assertIn("total_steps", paid_summary["notes"][-1])
 
     def test_evidence_readiness_consumes_a1_official_api_mutating_index_summary(self):
         calibration_matrix = build_calibration_matrix(
@@ -3384,6 +4030,16 @@ GRANT EXECUTE ON FUNCTION a1_bind_verified_identity_credential() TO a1_runtime;
         self.assertTrue(object_storage["a2_policy_implications"]["must_not_mark_c3_from_storage_context"])
 
     def test_c4_semantic_live_gate_requires_reviewed_metadata_cost_and_sdk_coverage(self):
+        collection_packet = json.loads(
+            (
+                ROOT
+                / "fixtures/a2/calibration/a2_semantic_judge_collection_packet.json"
+            ).read_text(encoding="utf-8")
+        )
+        collection_cases = {
+            case["case_id"]: case for case in collection_packet["cases"]
+        }
+
         def reviewed_semantic_matrix(*, complete_metadata: bool, include_typescript: bool) -> dict:
             payload = json.loads((ROOT / "fixtures/a2/calibration/a2_g3_calibration_observations.json").read_text(encoding="utf-8"))
             observations = []
@@ -3396,7 +4052,11 @@ GRANT EXECUTE ON FUNCTION a1_bind_verified_identity_credential() TO a1_runtime;
                     pack_path=ROOT / "packages/scenarios/a2_g3_full_pack.json",
                     case_id=case_id,
                 )
-                sdk_language = "typescript" if include_typescript and index % 2 else "python"
+                sdk_language = (
+                    collection_cases[case_id]["sdk_language"]
+                    if include_typescript
+                    else "python"
+                )
                 observation = {
                     "case_id": case_id,
                     "scenario_id": fixture["scenario_id"],
@@ -3416,13 +4076,150 @@ GRANT EXECUTE ON FUNCTION a1_bind_verified_identity_credential() TO a1_runtime;
                     observation["metadata"] = {
                         "raw_case_id": case_id,
                         "prompt_template_id": "a2_semantic_judge_prompt_v1",
-                        "prompt_hash": f"sha256:prompt-{index}",
-                        "response_hash": f"sha256:response-{index}",
+                        "prompt_hash": (
+                            collection_cases[case_id][
+                                "prompt_material_sha256"
+                            ]
+                        ),
+                        "response_hash": (
+                            "sha256:"
+                            + hashlib.sha256(
+                                f"response:{case_id}:{index}".encode()
+                            ).hexdigest()
+                        ),
                         "review_status": "reviewed",
+                        "reviewer_receipt": VALID_REVIEWER_RECEIPT,
+                        "reviewed_at_unix_ms": VALID_REVIEWED_AT_UNIX_MS,
                         "sdk_language": sdk_language,
+                        "semantic_collection_packet_schema_version": (
+                            collection_packet["schema_version"]
+                        ),
+                        "semantic_collection_packet_id": (
+                            collection_packet["packet_id"]
+                        ),
+                        "semantic_collection_packet_sha256": (
+                            collection_packet["artifact_hash"]
+                        ),
+                        "semantic_collection_dataset_id": (
+                            collection_packet["dataset_id"]
+                        ),
+                        "semantic_collection_case_count": (
+                            collection_packet["case_count"]
+                        ),
+                        "semantic_collection_target_observation_count": (
+                            collection_packet["target_observation_count"]
+                        ),
+                        "semantic_collection_case_id": case_id,
+                        "semantic_collection_case_sdk_language": (
+                            collection_cases[case_id]["sdk_language"]
+                        ),
+                        "semantic_collection_case_prompt_template_id": (
+                            collection_cases[case_id]["prompt_template_id"]
+                        ),
+                        "semantic_collection_case_prompt_material_sha256": (
+                            collection_cases[case_id][
+                                "prompt_material_sha256"
+                            ]
+                        ),
                     }
                 observations.append(observation)
-            payload = merge_calibration_observations(payload, {"observations": observations}, source="llm_judge")
+            incoming = {"observations": observations}
+            if complete_metadata:
+                receipt_cases = []
+                for observation in observations:
+                    metadata = observation["metadata"]
+                    receipt_cases.append(
+                        {
+                            "case_id": observation["case_id"],
+                            "scenario_id": observation["scenario_id"],
+                            "review_status": metadata["review_status"],
+                            "reviewer_receipt": metadata[
+                                "reviewer_receipt"
+                            ],
+                            "reviewed_at_unix_ms": metadata[
+                                "reviewed_at_unix_ms"
+                            ],
+                            "provider": observation["provider"],
+                            "model": observation["model"],
+                            "passed": observation["passed"],
+                            "primary_failure_class": observation[
+                                "primary_failure_class"
+                            ],
+                            "score": observation["score"],
+                            "confidence": observation["confidence"],
+                            "prompt_hash": metadata["prompt_hash"],
+                            "response_hash": metadata["response_hash"],
+                            "sdk_language": metadata["sdk_language"],
+                            "evidence_ref": observation["evidence_ref"],
+                            "rationale_sha256": stable_hash(
+                                observation["rationale"]
+                            ),
+                        }
+                    )
+                review_receipt = {
+                    "schema_version": (
+                        "a2.semantic_human_review_receipt.v1"
+                    ),
+                    "verification_state": "verified",
+                    "review_scope": "a2_c4_semantic_judge_acceptance",
+                    "expected_case_count": len(receipt_cases),
+                    "reviewed_case_count": len(receipt_cases),
+                    "receipt_complete": True,
+                    "public_safe": True,
+                    "raw_review_notes_included": False,
+                    "raw_reviewer_identity_included": False,
+                    "cases": receipt_cases,
+                }
+                review_receipt_hash = stable_hash(review_receipt)
+                for observation in observations:
+                    observation["metadata"].update(
+                        {
+                            "semantic_review_receipt_sha256": (
+                                review_receipt_hash
+                            ),
+                            "semantic_review_receipt_schema_version": (
+                                review_receipt["schema_version"]
+                            ),
+                            "semantic_review_verification_state": (
+                                review_receipt["verification_state"]
+                            ),
+                            "semantic_review_scope": review_receipt[
+                                "review_scope"
+                            ],
+                            "semantic_review_expected_case_count": (
+                                review_receipt["expected_case_count"]
+                            ),
+                            "semantic_review_reviewed_case_count": (
+                                review_receipt["reviewed_case_count"]
+                            ),
+                            "semantic_review_receipt_complete": (
+                                review_receipt["receipt_complete"]
+                            ),
+                            "semantic_review_receipt_public_safe": (
+                                review_receipt["public_safe"]
+                            ),
+                            "semantic_review_raw_review_notes_included": (
+                                review_receipt[
+                                    "raw_review_notes_included"
+                                ]
+                            ),
+                            "semantic_review_raw_reviewer_identity_included": (
+                                review_receipt[
+                                    "raw_reviewer_identity_included"
+                                ]
+                            ),
+                        }
+                    )
+            payload = merge_calibration_observations(
+                payload,
+                incoming,
+                source="llm_judge",
+                semantic_collection_packet=collection_packet,
+            )
+            if complete_metadata:
+                payload[
+                    "semantic_human_review_receipt"
+                ] = review_receipt
             with tempfile.TemporaryDirectory() as tmp_dir:
                 path = Path(tmp_dir) / "semantic_observations.json"
                 path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
@@ -3435,7 +4232,12 @@ GRANT EXECUTE ON FUNCTION a1_bind_verified_identity_credential() TO a1_runtime;
         sdk_parity = build_sdk_parity_report(pack_path=ROOT / "packages/scenarios/a2_g3_full_pack.json")
         incomplete_matrix = reviewed_semantic_matrix(complete_metadata=False, include_typescript=True)
         incomplete_harness = build_semantic_harness_report(incomplete_matrix, sdk_parity)
-        incomplete_readiness = build_evidence_readiness_report(incomplete_matrix, {}, incomplete_harness)
+        incomplete_readiness = build_evidence_readiness_report(
+            incomplete_matrix,
+            {},
+            incomplete_harness,
+            semantic_collection_packet=collection_packet,
+        )
         self.assertEqual(incomplete_harness["reviewed_live_observation_count"], 0)
         self.assertFalse(incomplete_harness["live_model_evidence_available"])
         self.assertEqual(incomplete_readiness["semantic_live_merge_gate"]["status"], "not_audited")
@@ -3451,13 +4253,27 @@ GRANT EXECUTE ON FUNCTION a1_bind_verified_identity_credential() TO a1_runtime;
 
         complete_matrix = reviewed_semantic_matrix(complete_metadata=True, include_typescript=True)
         complete_harness = build_semantic_harness_report(complete_matrix, sdk_parity)
-        complete_readiness = build_evidence_readiness_report(complete_matrix, {}, complete_harness)
+        complete_readiness = build_evidence_readiness_report(
+            complete_matrix,
+            {},
+            complete_harness,
+            semantic_collection_packet=collection_packet,
+        )
         coverage_report = build_coverage_report(ROOT / "packages/scenarios/a2_g3_full_pack.json")
         commercial = build_commercial_readiness_report(
             coverage_report,
             complete_matrix,
+            batch_plan_report={},
             semantic_harness_report=complete_harness,
             evidence_readiness_report=complete_readiness,
+            releasefoundry_case_map=json.loads(
+                (
+                    ROOT
+                    / "fixtures/a2/calibration/"
+                    "releasefoundry_grading_batch_case_map.json"
+                ).read_text(encoding="utf-8")
+            ),
+            semantic_collection_packet=collection_packet,
         )
         self.assertTrue(complete_harness["live_model_evidence_available"])
         self.assertEqual(complete_harness["reviewed_live_observation_count"], 6)
@@ -3470,6 +4286,154 @@ GRANT EXECUTE ON FUNCTION a1_bind_verified_identity_credential() TO a1_runtime;
         self.assertTrue(complete_readiness["semantic_live_merge_gate"]["safe_to_mark_c4_met"])
         gates = {gate["gate"]: gate for gate in commercial["gate_status"]}
         self.assertEqual(gates["C4"]["status"], "met")
+
+    def test_c4_readiness_rejects_self_declared_or_invalid_reviewer_attestations(self):
+        payload = json.loads(
+            (ROOT / "fixtures/a2/calibration/a2_g3_calibration_observations.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        observations = []
+        for index, case in enumerate(payload["cases"]):
+            case_id = case["case_id"]
+            fixture = json.loads((ROOT / case["fixture_ref"]).read_text(encoding="utf-8"))
+            result = grade_run(
+                fixture["scenario_id"],
+                fixture.get("run", fixture),
+                pack_path=ROOT / "packages/scenarios/a2_g3_full_pack.json",
+                case_id=case_id,
+            )
+            observations.append(
+                {
+                    "case_id": case_id,
+                    "scenario_id": fixture["scenario_id"],
+                    "source": "llm_judge",
+                    "status": "available",
+                    "provider": "synthetic readiness bypass probe",
+                    "model": "semantic-judge-synthetic-v1",
+                    "passed": result["passed"],
+                    "primary_failure_class": result["primary_failure_class"],
+                    "score": result["score"],
+                    "confidence": 0.92,
+                    "rationale": "Synthetic row used only to test fail-closed C4 readiness.",
+                    "cost": {
+                        "prompt_tokens": 700 + index,
+                        "completion_tokens": 90 + index,
+                        "estimated_usd": 0.0015,
+                    },
+                    "evidence_ref": (
+                        "docs/evidence/private_refs/"
+                        f"a2_semantic_judge_review.synthetic.json#{case_id}"
+                    ),
+                    "metadata": {
+                        "raw_case_id": case_id,
+                        "prompt_template_id": "a2_semantic_judge_prompt_v1",
+                        "prompt_hash": (
+                            "sha256:"
+                            + hashlib.sha256(
+                                f"prompt:{case_id}:{index}".encode()
+                            ).hexdigest()
+                        ),
+                        "response_hash": (
+                            "sha256:"
+                            + hashlib.sha256(
+                                f"response:{case_id}:{index}".encode()
+                            ).hexdigest()
+                        ),
+                        "review_status": "reviewed",
+                        "reviewer_receipt": VALID_REVIEWER_RECEIPT,
+                        "reviewed_at_unix_ms": VALID_REVIEWED_AT_UNIX_MS,
+                        "sdk_language": "typescript" if index % 2 else "python",
+                    },
+                }
+            )
+        payload = merge_calibration_observations(
+            payload,
+            {"observations": observations},
+            source="llm_judge",
+        )
+
+        invalid_attestations = (
+            ("missing receipt", "reviewer_receipt", None),
+            ("email receipt", "reviewer_receipt", "reviewer@example.com"),
+            ("uppercase receipt", "reviewer_receipt", "sha256:" + ("A" * 64)),
+            ("boolean timestamp", "reviewed_at_unix_ms", True),
+            ("zero timestamp", "reviewed_at_unix_ms", 0),
+            ("unreviewed status", "review_status", "unreviewed"),
+        )
+        sdk_parity = build_sdk_parity_report(
+            pack_path=ROOT / "packages/scenarios/a2_g3_full_pack.json"
+        )
+        for label, field, value in invalid_attestations:
+            with self.subTest(attestation=label):
+                candidate = json.loads(json.dumps(payload))
+                source = next(
+                    item
+                    for item in candidate["observations"]
+                    if item["source"] == "llm_judge"
+                )
+                if value is None:
+                    source["metadata"].pop(field)
+                else:
+                    source["metadata"][field] = value
+                with tempfile.TemporaryDirectory() as tmp_dir:
+                    path = Path(tmp_dir) / "semantic_attestation_bypass.json"
+                    path.write_text(json.dumps(candidate, indent=2) + "\n", encoding="utf-8")
+                    matrix = build_calibration_matrix(
+                        pack_path=ROOT / "packages/scenarios/a2_g3_full_pack.json",
+                        run_dir=ROOT / "fixtures/a2/runs",
+                        observations_path=path,
+                    )
+                harness = build_semantic_harness_report(matrix, sdk_parity)
+                readiness = build_evidence_readiness_report(matrix, {}, harness)
+                self.assertEqual(harness["reviewed_live_observation_count"], 5)
+                self.assertFalse(harness["live_model_evidence_available"])
+                self.assertFalse(
+                    readiness["semantic_live_merge_gate"]["safe_to_mark_c4_met"]
+                )
+
+        invalid_evidence_refs = (
+            ("missing", None),
+            ("URL", "https://example.invalid/semantic.json"),
+            ("absolute path", "/tmp/semantic.json"),
+            ("path traversal", "docs/evidence/private_refs/../semantic.json"),
+            (
+                "surrounding whitespace",
+                " docs/evidence/private_refs/semantic.json#a2-g3-001 ",
+            ),
+            (
+                "invalid fragment",
+                "docs/evidence/private_refs/semantic.json#bad fragment",
+            ),
+            ("non-string", ["docs/evidence/private_refs/semantic.json"]),
+        )
+        for label, value in invalid_evidence_refs:
+            with self.subTest(evidence_ref=label):
+                candidate = json.loads(json.dumps(payload))
+                source = next(
+                    item
+                    for item in candidate["observations"]
+                    if item["source"] == "llm_judge"
+                )
+                if value is None:
+                    source.pop("evidence_ref")
+                else:
+                    source["evidence_ref"] = value
+                with tempfile.TemporaryDirectory() as tmp_dir:
+                    path = Path(tmp_dir) / "semantic_evidence_ref_bypass.json"
+                    path.write_text(json.dumps(candidate, indent=2) + "\n", encoding="utf-8")
+                    matrix = build_calibration_matrix(
+                        pack_path=ROOT / "packages/scenarios/a2_g3_full_pack.json",
+                        run_dir=ROOT / "fixtures/a2/runs",
+                        observations_path=path,
+                    )
+                harness = build_semantic_harness_report(matrix, sdk_parity)
+                readiness = build_evidence_readiness_report(matrix, {}, harness)
+                self.assertEqual(harness["reviewed_live_observation_count"], 5)
+                self.assertFalse(harness["live_model_evidence_available"])
+                self.assertFalse(
+                    readiness["semantic_live_merge_gate"]["safe_to_mark_c4_met"]
+                )
 
     def test_releasefoundry_grading_batch_case_map_covers_calibration_cases(self):
         observations_payload = json.loads(
@@ -3505,6 +4469,25 @@ GRANT EXECUTE ON FUNCTION a1_bind_verified_identity_credential() TO a1_runtime;
         secret_case = next(case for case in packet["cases"] if case["case_id"] == "sample-a2-s048-secret-leak")
         self.assertTrue(secret_case["run_summary"]["contains_secret_like_text"])
         self.assertFalse(secret_case["run_summary"]["public_packet_contains_raw_final_response"])
+        import_command = next(
+            command for command in packet["recommended_commands"] if "a2_import_releasefoundry_grading.py" in command
+        )
+        merge_command = next(
+            command for command in packet["recommended_commands"] if "a2_merge_calibration_observations.py" in command
+        )
+        self.assertIn("--review-status reviewed", import_command)
+        self.assertIn("--require-reviewed", import_command)
+        self.assertIn("--require-complete", import_command)
+        self.assertIn(
+            "--identity-file docs/evidence/private_refs/a2_releasefoundry_dataset_identity.private.json",
+            import_command,
+        )
+        self.assertIn(
+            "--identity-receipt docs/evidence/a2_releasefoundry_dataset_identity_receipt.json",
+            import_command,
+        )
+        self.assertIn("--require-reviewed", merge_command)
+        self.assertIn("--require-complete", merge_command)
         for case in packet["cases"]:
             with self.subTest(case=case["case_id"]):
                 self.assertTrue(case["releasefoundry_test_id"].startswith("releasefoundry-a2-g3-"))
@@ -3525,6 +4508,16 @@ GRANT EXECUTE ON FUNCTION a1_bind_verified_identity_credential() TO a1_runtime;
         self.assertEqual(packet["schema_version"], "a2.semantic_judge_collection_packet.v1")
         self.assertEqual(packet["status"], "ready_for_private_collection")
         self.assertEqual(packet["case_count"], 6)
+        self.assertEqual(
+            packet["artifact_hash"],
+            stable_hash(
+                {
+                    key: value
+                    for key, value in packet.items()
+                    if key != "artifact_hash"
+                }
+            ),
+        )
         self.assertTrue(packet["metadata"]["does_not_claim_c4_met"])
         self.assertTrue(packet["readiness_checks"]["covers_python_and_typescript"])
         self.assertTrue(packet["readiness_checks"]["public_packet_omits_raw_prompt_and_response"])
@@ -3538,10 +4531,31 @@ GRANT EXECUTE ON FUNCTION a1_bind_verified_identity_credential() TO a1_runtime;
         self.assertTrue(secret_case["prompt_public_summary"]["contains_secret_like_text"])
         media_case = next(case for case in packet["cases"] if case["case_id"] == "sample-a2-s031-media-pipeline-unsupported-output")
         self.assertEqual(media_case["sdk_language"], "typescript")
+        import_command = next(
+            command for command in packet["recommended_commands"] if "a2_import_semantic_judge.py" in command
+        )
+        merge_command = next(
+            command for command in packet["recommended_commands"] if "a2_merge_calibration_observations.py" in command
+        )
+        self.assertIn("--require-reviewed", import_command)
+        self.assertIn("--require-complete", import_command)
+        self.assertIn("--collection-packet", import_command)
+        self.assertIn("--require-reviewed", merge_command)
+        self.assertIn("--require-complete", merge_command)
+        self.assertIn("--semantic-collection-packet", merge_command)
         for case in packet["cases"]:
             with self.subTest(case=case["case_id"]):
                 self.assertIn(case["sdk_language"], {"python", "typescript"})
                 self.assertEqual(case["prompt_template_id"], "a2_semantic_judge_prompt_v1")
+                self.assertTrue(
+                    case["prompt_material_sha256"].startswith("sha256:")
+                )
+                self.assertEqual(
+                    case["prompt_material_sha256_12"],
+                    case["prompt_material_sha256"][
+                        len("sha256:") : len("sha256:") + 12
+                    ],
+                )
                 self.assertIn("prompt_hash", case["required_metadata_fields"])
                 self.assertIn("response_hash", case["required_metadata_fields"])
                 self.assertIn("estimated_usd", packet["semantic_judge_contract"]["cost_fields"])
@@ -3694,9 +4708,24 @@ GRANT EXECUTE ON FUNCTION a1_bind_verified_identity_credential() TO a1_runtime;
         evidence = json.loads((ROOT / "fixtures/a2/results/a2_evidence_readiness_report.json").read_text(encoding="utf-8"))
         calibration = json.loads((ROOT / "fixtures/a2/results/a2_g3_calibration_matrix.json").read_text(encoding="utf-8"))
         replay = json.loads((ROOT / "fixtures/a2/results/a2_regression_replay_report.json").read_text(encoding="utf-8"))
+        case_book = json.loads((ROOT / "fixtures/a2/results/a2_case_book.json").read_text(encoding="utf-8"))
         scenario_selection = json.loads((ROOT / "fixtures/a2/results/a2_scenario_selection_report.json").read_text(encoding="utf-8"))
         evidence_index = json.loads((ROOT / "docs/a1/api_calibration/real_api_evidence_index.json").read_text(encoding="utf-8"))
-        report = build_release_gate_report(commercial, evidence, calibration, replay, scenario_selection, evidence_index)
+        judge_registry = json.loads(
+            (ROOT / "fixtures/a2/results/a2_judge_versions.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        report = build_release_gate_report(
+            commercial,
+            evidence,
+            calibration,
+            replay,
+            scenario_selection,
+            evidence_index,
+            judge_version_registry=judge_registry,
+            case_book_report=case_book,
+        )
         expected_report = json.loads((ROOT / "fixtures/a2/results/a2_release_gate_report.json").read_text(encoding="utf-8"))
         report_text = json.dumps(report)
 
@@ -3903,7 +4932,11 @@ GRANT EXECUTE ON FUNCTION a1_bind_verified_identity_credential() TO a1_runtime;
             evidence_ref="docs/evidence/private_refs/a2_releasefoundry_grading_sample.redacted.json",
         )
         payload = json.loads((ROOT / "fixtures/a2/calibration/a2_g3_calibration_observations.json").read_text(encoding="utf-8"))
-        payload = merge_calibration_observations(payload, {"observations": observations}, source="releasefoundry_grading")
+        payload = merge_calibration_observations(
+            payload,
+            {"observations": observations},
+            source="releasefoundry_grading",
+        )
 
         with tempfile.TemporaryDirectory() as tmp_dir:
             path = Path(tmp_dir) / "partial_observations.json"
@@ -4020,14 +5053,126 @@ GRANT EXECUTE ON FUNCTION a1_bind_verified_identity_credential() TO a1_runtime;
     def test_complete_reviewed_releasefoundry_grading_import_marks_c3_safe(self):
         payload = json.loads((ROOT / "fixtures/a2/calibration/a2_g3_calibration_observations.json").read_text(encoding="utf-8"))
         observations = []
+        case_map = {
+            f"releasefoundry-{case['case_id']}": case["case_id"]
+            for case in payload["cases"]
+        }
+        private_run_receipt = build_releasefoundry_test_terminal_receipt(
+            {
+                "id": "synthetic-reviewed-run",
+                "dataset": 7,
+                "result": {
+                    "status": "completed",
+                    "judge_version": "releasefoundry-grader-v1",
+                    "tests": [
+                        {
+                            "test_id": raw_case_id,
+                            "status": "completed",
+                            "started_at": "2026-07-28T08:00:00Z",
+                            "completed_at": "2026-07-28T08:00:01Z",
+                            "action_results": [
+                                {
+                                    "actor": "agent",
+                                    "action_type": "message",
+                                    "actual_response": "Synthetic response evidence.",
+                                    "llm_judgment": {"verdict": "pass"},
+                                }
+                            ],
+                        }
+                        for raw_case_id in case_map
+                    ],
+                },
+            },
+            case_map=case_map,
+            expected_dataset_id=7,
+        )
+        public_run_receipt = public_releasefoundry_test_terminal_receipt(
+            private_run_receipt
+        )
+        run_metadata = {
+            "run_terminal_receipt_schema_version": public_run_receipt[
+                "schema_version"
+            ],
+            "run_terminal_receipt_sha256": stable_hash(public_run_receipt),
+            "run_expected_test_count": public_run_receipt[
+                "expected_test_count"
+            ],
+            "run_verified_test_count": public_run_receipt[
+                "verified_test_count"
+            ],
+            "run_receipt_complete": public_run_receipt["receipt_complete"],
+            "run_dataset_id_verified": public_run_receipt[
+                "run_dataset_id_verified"
+            ],
+            "run_result_terminal_verified": public_run_receipt[
+                "run_result_terminal_verified"
+            ],
+            "server_grading_lifecycle_verified": public_run_receipt[
+                "server_grading_lifecycle_verified"
+            ],
+            "exact_test_set_verified": public_run_receipt[
+                "exact_test_set_verified"
+            ],
+            "all_expected_tests_terminal_scoring_verified": (
+                public_run_receipt[
+                    "all_expected_tests_terminal_scoring_verified"
+                ]
+            ),
+            "observed_judge_version": public_run_receipt[
+                "observed_judge_version"
+            ],
+            "judge_version_source": public_run_receipt[
+                "judge_version_source"
+            ],
+            "judge_version_verified": public_run_receipt[
+                "judge_version_verified"
+            ],
+            "aggregate_marker_used_as_acceptance_authority": (
+                public_run_receipt[
+                    "aggregate_marker_used_as_acceptance_authority"
+                ]
+            ),
+            "run_terminal_receipt_blockers": public_run_receipt["blockers"],
+            "dataset_identity_receipt_schema_version": (
+                "a2.releasefoundry_dataset_identity_receipt.v1"
+            ),
+            "dataset_identity_verified": True,
+            "dataset_identity_receipt_sha256": "sha256:" + ("b" * 64),
+            "dataset_identity_manifest_sha256": "sha256:" + ("c" * 64),
+            "dataset_identity_content_sha256": "sha256:" + ("d" * 64),
+            "dataset_identity_content_collection": "runs",
+            "dataset_identity_content_item_count": len(case_map),
+            "dataset_identity_blockers": [],
+        }
+        test_receipts = {
+            receipt["case_id"]: receipt
+            for receipt in private_run_receipt["tests"]
+        }
         for case in payload["cases"]:
             case_id = case["case_id"]
+            raw_case_id = f"releasefoundry-{case_id}"
             fixture = json.loads((ROOT / case["fixture_ref"]).read_text(encoding="utf-8"))
             result = grade_run(
                 fixture["scenario_id"],
                 fixture.get("run", fixture),
                 pack_path=ROOT / "packages/scenarios/a2_g3_full_pack.json",
                 case_id=case_id,
+            )
+            terminal_summary = public_releasefoundry_test_scoring_summary(
+                test_receipts[case_id]
+            )
+            terminal_summary.update(
+                {
+                    "response_evidence_count": test_receipts[case_id][
+                        "response_evidence_count"
+                    ],
+                    "response_evidence_kinds": test_receipts[case_id][
+                        "response_evidence_kinds"
+                    ],
+                    "grading_signal_count": test_receipts[case_id][
+                        "grading_signal_count"
+                    ],
+                }
             )
             observations.append(
                 {
@@ -4045,13 +5190,24 @@ GRANT EXECUTE ON FUNCTION a1_bind_verified_identity_credential() TO a1_runtime;
                     "cost": {"prompt_tokens": 0, "completion_tokens": 0, "estimated_usd": 0.0},
                     "evidence_ref": "docs/evidence/private_refs/a2_releasefoundry_grading_import.review.synthetic.json",
                     "metadata": {
-                        "raw_case_id": f"releasefoundry-{case_id}",
-                        "run_id": "synthetic-reviewed-run",
+                        "raw_case_id": raw_case_id,
                         "review_status": "reviewed",
+                        "reviewer_receipt": VALID_REVIEWER_RECEIPT,
+                        "reviewed_at_unix_ms": VALID_REVIEWED_AT_UNIX_MS,
+                        **terminal_summary,
+                        **run_metadata,
                     },
                 }
             )
-        payload = merge_calibration_observations(payload, {"observations": observations}, source="releasefoundry_grading")
+        payload = merge_calibration_observations(
+            payload,
+            {
+                "run_terminal_receipt": public_run_receipt,
+                "observations": observations,
+            },
+            source="releasefoundry_grading",
+            require_complete=True,
+        )
 
         with tempfile.TemporaryDirectory() as tmp_dir:
             path = Path(tmp_dir) / "complete_observations.json"
@@ -4089,6 +5245,13 @@ GRANT EXECUTE ON FUNCTION a1_bind_verified_identity_credential() TO a1_runtime;
             semantic_harness_report=semantic_harness,
             regression_replay_report=regression_replay,
             evidence_readiness_report=evidence_readiness,
+            releasefoundry_case_map=json.loads(
+                (
+                    ROOT
+                    / "fixtures/a2/calibration/"
+                    "releasefoundry_grading_batch_case_map.json"
+                ).read_text(encoding="utf-8")
+            ),
         )
 
         releasefoundry_gate = evidence_readiness["releasefoundry_public_merge_gate"]
@@ -4097,16 +5260,158 @@ GRANT EXECUTE ON FUNCTION a1_bind_verified_identity_credential() TO a1_runtime;
         self.assertEqual(releasefoundry_gate["status"], "merged")
         self.assertTrue(releasefoundry_gate["public_matrix_merged"])
         self.assertTrue(releasefoundry_gate["safe_to_mark_c3_met"])
+        self.assertEqual(
+            matrix["releasefoundry_run_terminal_receipt"],
+            public_run_receipt,
+        )
+        self.assertTrue(releasefoundry_gate["run_receipt_artifact_binding_valid"])
+        self.assertEqual(releasefoundry_gate["run_receipt_artifact_blockers"], [])
         self.assertEqual(releasefoundry_gate["current_public_observation_count"], 6)
         self.assertEqual(releasefoundry_gate["merged_public_observation_count"], 6)
         self.assertEqual(releasefoundry_gate["reviewed_public_observation_count"], 6)
+        self.assertEqual(
+            releasefoundry_gate["terminal_scoring_verified_observation_count"],
+            6,
+        )
         self.assertEqual(releasefoundry_gate["missing_public_observation_count"], 0)
         self.assertEqual(releasefoundry_gate["missing_reviewed_observation_count"], 0)
+        self.assertEqual(
+            releasefoundry_gate["missing_terminal_scoring_receipt_count"],
+            0,
+        )
         gates = {gate["gate"]: gate for gate in commercial["gate_status"]}
         self.assertEqual(gates["C3"]["status"], "met")
         self.assertEqual(gates["C3"]["gaps"], [])
         self.assertTrue(commercial["evidence_snapshot"]["releasefoundry_safe_to_mark_c3_met"])
         self.assertEqual(commercial["evidence_snapshot"]["releasefoundry_public_missing_observations"], 0)
+
+    def test_c3_readiness_rejects_self_declared_or_invalid_reviewer_attestations(self):
+        payload = json.loads(
+            (ROOT / "fixtures/a2/calibration/a2_g3_calibration_observations.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        observations = []
+        for case in payload["cases"]:
+            case_id = case["case_id"]
+            fixture = json.loads((ROOT / case["fixture_ref"]).read_text(encoding="utf-8"))
+            result = grade_run(
+                fixture["scenario_id"],
+                fixture.get("run", fixture),
+                pack_path=ROOT / "packages/scenarios/a2_g3_full_pack.json",
+                case_id=case_id,
+            )
+            observations.append(
+                {
+                    "case_id": case_id,
+                    "scenario_id": fixture["scenario_id"],
+                    "source": "releasefoundry_grading",
+                    "status": "available",
+                    "provider": "synthetic readiness bypass probe",
+                    "model": "releasefoundry-server-side",
+                    "passed": result["passed"],
+                    "primary_failure_class": result["primary_failure_class"],
+                    "score": result["score"],
+                    "confidence": 0.99,
+                    "rationale": "Synthetic row used only to test fail-closed C3 readiness.",
+                    "cost": {
+                        "prompt_tokens": 0,
+                        "completion_tokens": 0,
+                        "estimated_usd": 0.0,
+                    },
+                    "evidence_ref": (
+                        "docs/evidence/private_refs/"
+                        "a2_releasefoundry_grading_import.review.synthetic.json"
+                    ),
+                    "metadata": {
+                        "raw_case_id": f"releasefoundry-{case_id}",
+                        "review_status": "reviewed",
+                        "reviewer_receipt": VALID_REVIEWER_RECEIPT,
+                        "reviewed_at_unix_ms": VALID_REVIEWED_AT_UNIX_MS,
+                    },
+                }
+            )
+        payload = merge_calibration_observations(
+            payload,
+            {"observations": observations},
+            source="releasefoundry_grading",
+        )
+
+        invalid_attestations = (
+            ("missing receipt", "reviewer_receipt", None),
+            ("email receipt", "reviewer_receipt", "reviewer@example.com"),
+            ("uppercase receipt", "reviewer_receipt", "sha256:" + ("A" * 64)),
+            ("boolean timestamp", "reviewed_at_unix_ms", True),
+            ("zero timestamp", "reviewed_at_unix_ms", 0),
+        )
+        for label, field, value in invalid_attestations:
+            with self.subTest(attestation=label):
+                candidate = json.loads(json.dumps(payload))
+                source = next(
+                    item
+                    for item in candidate["observations"]
+                    if item["source"] == "releasefoundry_grading"
+                )
+                if value is None:
+                    source["metadata"].pop(field)
+                else:
+                    source["metadata"][field] = value
+                with tempfile.TemporaryDirectory() as tmp_dir:
+                    path = Path(tmp_dir) / "releasefoundry_attestation_bypass.json"
+                    path.write_text(json.dumps(candidate, indent=2) + "\n", encoding="utf-8")
+                    matrix = build_calibration_matrix(
+                        pack_path=ROOT / "packages/scenarios/a2_g3_full_pack.json",
+                        run_dir=ROOT / "fixtures/a2/runs",
+                        observations_path=path,
+                    )
+                harness = build_semantic_harness_report(matrix)
+                readiness = build_evidence_readiness_report(matrix, {}, harness)
+                gate = readiness["releasefoundry_public_merge_gate"]
+                self.assertEqual(gate["reviewed_public_observation_count"], 5)
+                self.assertFalse(gate["public_matrix_merged"])
+                self.assertFalse(gate["safe_to_mark_c3_met"])
+
+        invalid_evidence_refs = (
+            ("missing", None),
+            ("URL", "https://example.invalid/releasefoundry.json"),
+            ("absolute path", "/tmp/releasefoundry.json"),
+            ("path traversal", "docs/evidence/private_refs/../releasefoundry.json"),
+            (
+                "surrounding whitespace",
+                " docs/evidence/private_refs/releasefoundry.json ",
+            ),
+            (
+                "invalid fragment",
+                "docs/evidence/private_refs/releasefoundry.json#bad fragment",
+            ),
+            ("non-string", ["docs/evidence/private_refs/releasefoundry.json"]),
+        )
+        for label, value in invalid_evidence_refs:
+            with self.subTest(evidence_ref=label):
+                candidate = json.loads(json.dumps(payload))
+                source = next(
+                    item
+                    for item in candidate["observations"]
+                    if item["source"] == "releasefoundry_grading"
+                )
+                if value is None:
+                    source.pop("evidence_ref")
+                else:
+                    source["evidence_ref"] = value
+                with tempfile.TemporaryDirectory() as tmp_dir:
+                    path = Path(tmp_dir) / "releasefoundry_evidence_ref_bypass.json"
+                    path.write_text(json.dumps(candidate, indent=2) + "\n", encoding="utf-8")
+                    matrix = build_calibration_matrix(
+                        pack_path=ROOT / "packages/scenarios/a2_g3_full_pack.json",
+                        run_dir=ROOT / "fixtures/a2/runs",
+                        observations_path=path,
+                    )
+                harness = build_semantic_harness_report(matrix)
+                readiness = build_evidence_readiness_report(matrix, {}, harness)
+                gate = readiness["releasefoundry_public_merge_gate"]
+                self.assertEqual(gate["reviewed_public_observation_count"], 5)
+                self.assertFalse(gate["public_matrix_merged"])
+                self.assertFalse(gate["safe_to_mark_c3_met"])
 
     def test_releasefoundry_grading_merge_cli_outputs_reviewed_calibration_payload(self):
         sample = json.loads((ROOT / "fixtures/a2/calibration/releasefoundry_grading_import_sample.json").read_text(encoding="utf-8"))
@@ -4142,29 +5447,122 @@ GRANT EXECUTE ON FUNCTION a1_bind_verified_identity_credential() TO a1_runtime;
         self.assertIn("sample-a2-s010-wrong-arguments", {item["case_id"] for item in merged["observations"]})
 
     def test_releasefoundry_grading_import_cli_outputs_redacted_observations(self):
-        result = subprocess.run(
-            [
-                sys.executable,
-                str(ROOT / "scripts/a2_import_releasefoundry_grading.py"),
-                "--input",
-                str(ROOT / "fixtures/a2/calibration/releasefoundry_grading_import_sample.json"),
-                "--case-map",
-                str(ROOT / "fixtures/a2/calibration/releasefoundry_grading_import_case_map.json"),
-                "--evidence-ref",
-                "docs/evidence/private_refs/a2_releasefoundry_grading_sample.redacted.json",
-                "--review-status",
-                "reviewed",
-            ],
-            cwd=ROOT,
-            capture_output=True,
-            text=True,
-            check=False,
-        )
+        with tempfile.TemporaryDirectory() as temp_dir:
+            identity_file = Path(temp_dir) / "dataset_identity.json"
+            identity_file.write_text(
+                json.dumps(
+                    {
+                        "schema_version": "a2.releasefoundry_dataset_identity_private.v1",
+                        "dataset_id": 7,
+                        "dataset_name": "synthetic-acceptance-dataset",
+                        "dataset_content_sha256": f"sha256:{'0' * 64}",
+                    }
+                ),
+                encoding="utf-8",
+            )
+            identity_receipt = Path(temp_dir) / "dataset_identity_receipt.json"
+            identity_receipt.write_text(
+                json.dumps(
+                    {
+                        "schema_version": (
+                            "a2.releasefoundry_dataset_identity_receipt.v1"
+                        ),
+                        "verification_state": "verified",
+                        "canonicalization_version": "dataset-source-json-v1",
+                        "dataset_id_exact_match": True,
+                        "dataset_name_exact_match": True,
+                        "dataset_content_sha256_exact_match": True,
+                        "dataset_id_hash": stable_hash({"dataset_id": 7}),
+                        "dataset_name_hash": stable_hash(
+                            {
+                                "dataset_name": (
+                                    "synthetic-acceptance-dataset"
+                                )
+                            }
+                        ),
+                        "expected_content_sha256": f"sha256:{'0' * 64}",
+                        "observed_content_sha256": f"sha256:{'0' * 64}",
+                        "content_collection": "runs",
+                        "content_item_count": 2,
+                        "release_authority": False,
+                        "blockers": [],
+                        "public_safe": True,
+                        "binding_action": "verified_existing_pin",
+                        "identity_manifest_sha256": (
+                            "sha256:"
+                            + hashlib.sha256(
+                                identity_file.read_bytes()
+                            ).hexdigest()
+                        ),
+                    },
+                    indent=2,
+                    sort_keys=True,
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    str(ROOT / "scripts/a2_import_releasefoundry_grading.py"),
+                    "--input",
+                    str(ROOT / "fixtures/a2/calibration/releasefoundry_grading_import_sample.json"),
+                    "--case-map",
+                    str(ROOT / "fixtures/a2/calibration/releasefoundry_grading_import_case_map.json"),
+                    "--identity-file",
+                    str(identity_file),
+                    "--identity-receipt",
+                    str(identity_receipt),
+                    "--evidence-ref",
+                    "docs/evidence/private_refs/a2_releasefoundry_grading_sample.redacted.json",
+                    "--review-status",
+                    "reviewed",
+                    "--reviewer-receipt",
+                    VALID_REVIEWER_RECEIPT,
+                    "--reviewed-at-unix-ms",
+                    str(VALID_REVIEWED_AT_UNIX_MS),
+                    "--require-reviewed",
+                ],
+                cwd=ROOT,
+                capture_output=True,
+                text=True,
+                check=False,
+            )
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         payload = json.loads(result.stdout)
-        self.assertEqual(payload["schema_version"], "a2.releasefoundry_grading_import.v1")
+        self.assertEqual(payload["schema_version"], "a2.releasefoundry_grading_import.v2")
         self.assertEqual(payload["observation_count"], 2)
+        self.assertEqual(
+            stable_hash(payload["run_terminal_receipt"]),
+            payload["observations"][0]["metadata"][
+                "run_terminal_receipt_sha256"
+            ],
+        )
+        self.assertTrue(payload["run_terminal_receipt"]["public_safe"])
+        self.assertFalse(
+            payload["run_terminal_receipt"]["raw_server_payload_included"]
+        )
+        self.assertFalse(
+            payload["run_terminal_receipt"]["raw_releasefoundry_identifiers_included"]
+        )
         self.assertEqual(payload["observations"][0]["metadata"]["review_status"], "reviewed")
+        self.assertEqual(
+            payload["observations"][0]["metadata"]["reviewer_receipt"],
+            VALID_REVIEWER_RECEIPT,
+        )
+        self.assertEqual(
+            payload["observations"][0]["metadata"]["reviewed_at_unix_ms"],
+            VALID_REVIEWED_AT_UNIX_MS,
+        )
+        metadata = payload["observations"][0]["metadata"]
+        self.assertTrue(metadata["dataset_identity_verified"])
+        self.assertEqual(
+            metadata["dataset_identity_content_item_count"],
+            2,
+        )
+        self.assertNotIn("dataset_id", metadata)
+        self.assertNotIn("dataset_name", metadata)
+        self.assertNotIn(str(identity_file), result.stdout)
         self.assertNotIn("Bearer ", result.stdout)
         self.assertNotIn("@", result.stdout)
 
@@ -4193,6 +5591,12 @@ GRANT EXECUTE ON FUNCTION a1_bind_verified_identity_credential() TO a1_runtime;
         self.assertTrue(payload["import_ready_when_reviewed"])
         self.assertFalse(payload["safe_to_mark_c3_met"])
         self.assertTrue(payload["redaction_policy"]["omits_unmapped_test_ids"])
+        commands = " ".join(payload["recommended_commands"])
+        self.assertIn("--review-status reviewed", commands)
+        self.assertIn('--reviewer-receipt "$A2_REVIEWER_RECEIPT"', commands)
+        self.assertIn('--reviewed-at-unix-ms "$A2_REVIEWED_AT_UNIX_MS"', commands)
+        self.assertEqual(commands.count("--require-reviewed"), 2)
+        self.assertEqual(commands.count("--require-complete"), 2)
         self.assertNotIn("releasefoundry-pass-control", result.stdout)
         self.assertNotIn("releasefoundry-wrong-contract-path", result.stdout)
         self.assertNotIn("Bearer ", result.stdout)
@@ -4221,7 +5625,8 @@ GRANT EXECUTE ON FUNCTION a1_bind_verified_identity_credential() TO a1_runtime;
         self.assertFalse(plan["writes_files"])
         commands = [" ".join(check["command"]) for check in plan["checks"]]
         self.assertIn("scripts/a2_regenerate_fixtures.py --check", commands[0])
-        self.assertIn("-m unittest discover -s tests/a2", commands[1])
+        self.assertIn("-m pytest tests/a2/test_contracts.py -q", commands[1])
+        self.assertIn("write-free deterministic A2 contract suite", plan["checks"][1]["purpose"])
         self.assertIn("live ReleaseFoundry API calls", plan["excluded_by_design"])
 
     def test_external_evidence_preflight_stays_public_and_actionable(self):
@@ -4265,7 +5670,13 @@ GRANT EXECUTE ON FUNCTION a1_bind_verified_identity_credential() TO a1_runtime;
             "a2_refresh_real_api_evidence_index.py",
             " ".join(preflight["recommended_commands"]["real_api_evidence_refresh"]),
         )
-        self.assertIn("--review-status reviewed", " ".join(preflight["recommended_commands"]["releasefoundry_grading"]))
+        releasefoundry_commands = " ".join(preflight["recommended_commands"]["releasefoundry_grading"])
+        semantic_commands = " ".join(preflight["recommended_commands"]["semantic_judge"])
+        self.assertIn("--review-status reviewed", releasefoundry_commands)
+        self.assertEqual(releasefoundry_commands.count("--require-reviewed"), 2)
+        self.assertEqual(releasefoundry_commands.count("--require-complete"), 2)
+        self.assertEqual(semantic_commands.count("--require-reviewed"), 2)
+        self.assertEqual(semantic_commands.count("--require-complete"), 2)
         self.assertIn("API keys", preflight["redaction_policy"]["never_commit"])
 
     def test_semantic_judge_import_can_replace_offline_llm_rows(self):
@@ -4323,7 +5734,7 @@ GRANT EXECUTE ON FUNCTION a1_bind_verified_identity_credential() TO a1_runtime;
         )
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         payload = json.loads(result.stdout)
-        self.assertEqual(payload["schema_version"], "a2.semantic_judge_import.v1")
+        self.assertEqual(payload["schema_version"], "a2.semantic_judge_import.v2")
         self.assertEqual(payload["observation_count"], 2)
         self.assertNotIn("Bearer ", result.stdout)
         self.assertNotIn("@", result.stdout)
@@ -4362,8 +5773,56 @@ GRANT EXECUTE ON FUNCTION a1_bind_verified_identity_credential() TO a1_runtime;
         self.assertEqual(payload["schema_version"], "a2.multimodal_real_api_smoke.v1")
         self.assertEqual(schema["properties"]["schema_version"]["const"], payload["schema_version"])
         self.assertLessEqual(set(schema["required"]), set(payload))
-        self.assertEqual(set(payload["accepted_modalities"]), {"text", "image", "audio", "file", "video"})
-        self.assertTrue(payload["all_required_modalities_requested"])
+        known_modalities = {"text", "image", "audio", "file", "video"}
+        requested_modalities = set(payload["requested_modalities"])
+        required_modalities = set(payload.get("required_modalities", known_modalities))
+        excluded_modalities = set(payload.get("excluded_modalities", []))
+        request_config_accepted_modalities = set(payload["request_config_accepted_modalities"])
+        observed_artifact_modalities = set(payload["observed_artifact_modalities"])
+        accepted_modalities = set(payload["accepted_modalities"])
+        self.assertLessEqual(requested_modalities, known_modalities)
+        self.assertLessEqual(required_modalities, requested_modalities)
+        self.assertFalse(requested_modalities & excluded_modalities)
+        self.assertLessEqual(request_config_accepted_modalities, requested_modalities)
+        self.assertLessEqual(observed_artifact_modalities, known_modalities)
+        self.assertLessEqual(accepted_modalities, observed_artifact_modalities)
+        self.assertEqual(set(payload["modality_evidence"]), {"text", "image", "audio", "file", "video"})
+        generation_option_by_modality = {
+            "image": "generate_images",
+            "audio": "generate_audio",
+            "file": "generate_files",
+            "video": "generate_videos",
+        }
+        required_generation_enabled = all(
+            payload["generation_options"].get(generation_option_by_modality[modality]) is True
+            for modality in required_modalities - {"text"}
+        )
+        self.assertEqual(
+            payload["all_required_modalities_requested"],
+            required_modalities.issubset(requested_modalities)
+            and required_generation_enabled,
+        )
+        if "video" in excluded_modalities:
+            self.assertFalse(payload["generation_options"]["generate_videos"])
+        if "native_media_uploaded" in payload:
+            self.assertFalse(payload["native_media_uploaded"])
+        if "media_upload_api_observed" in payload:
+            self.assertFalse(payload["media_upload_api_observed"])
+        if "create_request_attempt_count" in payload:
+            self.assertLessEqual(payload["create_request_attempt_count"], 1)
+            self.assertEqual(payload["create_request_retry_count"], 0)
+        self.assertTrue(payload["artifact_receipts_public_safe"])
+        self.assertEqual(
+            payload["artifact_download_attempt_count"],
+            len(payload["artifact_receipts"]),
+        )
+        self.assertEqual(
+            payload["artifact_download_verified_count"],
+            sum(
+                receipt["verification_status"] == "verified"
+                for receipt in payload["artifact_receipts"]
+            ),
+        )
         self.assertTrue(payload["public_safe"])
         self.assertFalse(payload["c3_grading_ready"])
         self.assertEqual(payload["api_call_count"], len(payload["calls"]))
@@ -4371,11 +5830,203 @@ GRANT EXECUTE ON FUNCTION a1_bind_verified_identity_credential() TO a1_runtime;
         self.assertNotRegex(payload_text, re.compile(r"tp_[A-Za-z0-9_\-]+"))
         self.assertNotRegex(payload_text, re.compile(r"releasefoundry_live_[A-Za-z0-9_\-]+"))
         self.assertNotIn("Bearer ", payload_text)
-        self.assertNotIn("signed_url", payload_text.lower())
+        self.assertNotRegex(
+            payload_text.lower(),
+            re.compile(r'"(?:signed_url|download_url|presigned_url)"\s*:'),
+        )
+        self.assertNotRegex(
+            payload_text.lower(),
+            re.compile(r"(?:x-amz-signature|x-goog-signature|[?&](?:sig|token)=)"),
+        )
         self.assertNotIn("@", payload_text)
+        for receipt in payload["artifact_receipts"]:
+            self.assertEqual(
+                set(receipt),
+                {
+                    "modality",
+                    "verification_status",
+                    "sha256",
+                    "byte_size",
+                    "response_mime",
+                },
+            )
         for call in payload["calls"]:
             self.assertNotIn("payload", call)
             self.assertNotIn("response", call)
+
+    def test_audio_real_api_smoke_records_verified_generated_artifact(self):
+        evidence_path = (
+            ROOT / "docs/evidence/a2_multimodal_audio_real_api_smoke.json"
+        )
+        schema = json.loads(
+            (
+                ROOT
+                / "docs/a2/schemas/multimodal_real_api_smoke.schema.json"
+            ).read_text(encoding="utf-8")
+        )
+        payload_text = evidence_path.read_text(encoding="utf-8")
+        payload = json.loads(payload_text)
+
+        self.assertLessEqual(set(schema["required"]), set(payload))
+        self.assertEqual(payload["required_modalities"], ["text", "audio"])
+        self.assertEqual(payload["requested_modalities"], ["text", "audio"])
+        self.assertEqual(
+            payload["observed_artifact_modalities"],
+            ["text", "audio"],
+        )
+        self.assertTrue(payload["all_required_modalities_requested"])
+        self.assertTrue(payload["request_reused"])
+        self.assertEqual(payload["create_request_attempt_count"], 0)
+        self.assertEqual(payload["create_request_retry_count"], 0)
+        self.assertEqual(payload["mutation_guard_status"], "reused_exact_request")
+        self.assertEqual(payload["request_status"], "completed")
+        self.assertTrue(payload["wait_completed"])
+        self.assertTrue(payload["dataset_request_binding_verified"])
+        self.assertEqual(payload["artifact_origin"], "releasefoundry_generated_dataset")
+        self.assertEqual(payload["artifact_receipt_status"], "verified")
+        self.assertEqual(payload["artifact_reference_count"], 1)
+        self.assertEqual(payload["artifact_download_attempt_count"], 1)
+        self.assertEqual(payload["artifact_download_verified_count"], 1)
+        self.assertEqual(payload["artifact_reference_modalities"], ["audio"])
+        self.assertEqual(payload["artifact_verified_modalities"], ["audio"])
+        self.assertEqual(payload["artifact_missing_modalities"], [])
+        self.assertTrue(payload["artifact_modality_coverage_complete"])
+        self.assertEqual(
+            payload["artifact_receipts"],
+            [
+                {
+                    "byte_size": 383938,
+                    "modality": "audio",
+                    "response_mime": "audio/mpeg",
+                    "sha256": (
+                        "9c51ee4e38ca14e41c5202c15eb06c673ff587cd7a728"
+                        "bf251309b69c3fe3a48"
+                    ),
+                    "verification_status": "verified",
+                }
+            ],
+        )
+        self.assertEqual(payload["accepted_modalities"], ["text"])
+        self.assertFalse(payload["native_media_uploaded"])
+        self.assertFalse(payload["media_upload_api_observed"])
+        self.assertFalse(payload["c3_grading_ready"])
+        self.assertTrue(payload["public_safe"])
+        self.assertNotRegex(payload_text, re.compile(r"tp_[A-Za-z0-9_\-]+"))
+        self.assertNotIn("Bearer ", payload_text)
+        self.assertNotRegex(
+            payload_text.lower(),
+            re.compile(r"(?:x-amz-signature|x-goog-signature|[?&](?:sig|token)=)"),
+        )
+        self.assertNotIn("@", payload_text)
+
+    def test_independent_image_and_file_smokes_record_complete_real_receipts(self):
+        schema = json.loads(
+            (
+                ROOT
+                / "docs/a2/schemas/multimodal_real_api_smoke.schema.json"
+            ).read_text(encoding="utf-8")
+        )
+        cases = (
+            (
+                "image",
+                ROOT
+                / "docs/evidence/a2_multimodal_image_real_api_smoke.json",
+                "image/",
+            ),
+            (
+                "file",
+                ROOT
+                / "docs/evidence/a2_multimodal_file_real_api_smoke.json",
+                "text/",
+            ),
+        )
+
+        for modality, evidence_path, mime_prefix in cases:
+            with self.subTest(modality=modality):
+                payload_text = evidence_path.read_text(encoding="utf-8")
+                payload = json.loads(payload_text)
+
+                self.assertLessEqual(set(schema["required"]), set(payload))
+                self.assertEqual(
+                    payload["required_modalities"],
+                    ["text", modality],
+                )
+                self.assertEqual(
+                    payload["requested_modalities"],
+                    ["text", modality],
+                )
+                self.assertEqual(
+                    payload["observed_artifact_modalities"],
+                    ["text", modality],
+                )
+                self.assertTrue(payload["all_required_modalities_requested"])
+                self.assertFalse(payload["request_reused"])
+                self.assertEqual(payload["create_request_attempt_count"], 1)
+                self.assertEqual(payload["create_request_retry_count"], 0)
+                self.assertEqual(
+                    payload["mutation_guard_status"],
+                    "created_once",
+                )
+                self.assertEqual(payload["request_status"], "completed")
+                self.assertTrue(payload["wait_completed"])
+                self.assertTrue(payload["dataset_request_binding_verified"])
+                self.assertEqual(
+                    payload["artifact_origin"],
+                    "releasefoundry_generated_dataset",
+                )
+                self.assertEqual(payload["artifact_receipt_status"], "verified")
+                self.assertEqual(
+                    payload["artifact_reference_modalities"],
+                    [modality],
+                )
+                self.assertEqual(
+                    payload["artifact_verified_modalities"],
+                    [modality],
+                )
+                self.assertEqual(payload["artifact_missing_modalities"], [])
+                self.assertTrue(
+                    payload["artifact_modality_coverage_complete"]
+                )
+                self.assertEqual(payload["artifact_reference_count"], 1)
+                self.assertEqual(
+                    payload["artifact_download_attempt_count"],
+                    1,
+                )
+                self.assertEqual(
+                    payload["artifact_download_verified_count"],
+                    1,
+                )
+                self.assertEqual(len(payload["artifact_receipts"]), 1)
+                receipt = payload["artifact_receipts"][0]
+                self.assertEqual(receipt["modality"], modality)
+                self.assertEqual(
+                    receipt["verification_status"],
+                    "verified",
+                )
+                self.assertGreater(receipt["byte_size"], 0)
+                self.assertRegex(receipt["sha256"], r"^[0-9a-f]{64}$")
+                self.assertTrue(
+                    receipt["response_mime"].startswith(mime_prefix)
+                )
+                self.assertEqual(payload["accepted_modalities"], ["text"])
+                self.assertFalse(payload["native_media_uploaded"])
+                self.assertFalse(payload["media_upload_api_observed"])
+                self.assertFalse(payload["c3_grading_ready"])
+                self.assertTrue(payload["public_safe"])
+                self.assertNotRegex(
+                    payload_text,
+                    re.compile(r"tp_[A-Za-z0-9_\-]+"),
+                )
+                self.assertNotIn("Bearer ", payload_text)
+                self.assertNotRegex(
+                    payload_text.lower(),
+                    re.compile(
+                        r"(?:x-amz-signature|x-goog-signature|"
+                        r"[?&](?:sig|token)=)"
+                    ),
+                )
+                self.assertNotIn("@", payload_text)
+
     def test_real_api_evidence_index_matches_public_safe_schema(self):
         evidence_path = ROOT / "docs/a1/api_calibration/real_api_evidence_index.json"
         schema = json.loads((ROOT / "docs/a2/schemas/evidence_index.schema.json").read_text(encoding="utf-8"))

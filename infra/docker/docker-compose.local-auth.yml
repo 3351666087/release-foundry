@@ -1,0 +1,125 @@
+name: releasefoundry-local-auth
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: releasefoundry
+      POSTGRES_USER: releasefoundry
+      POSTGRES_HOST_AUTH_METHOD: trust
+    ports:
+      - "127.0.0.1:15433:5432"
+    volumes:
+      - releasefoundry-local-auth-postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U releasefoundry -d releasefoundry"]
+      interval: 3s
+      timeout: 3s
+      retries: 30
+
+  postgres-migrate:
+    build:
+      context: ../..
+      dockerfile: infra/docker/Dockerfile.migrations
+    environment:
+      RELEASEFOUNDRY_POSTGRES_HOST: postgres
+      RELEASEFOUNDRY_POSTGRES_DB: releasefoundry
+      RELEASEFOUNDRY_POSTGRES_USER: releasefoundry
+      RELEASEFOUNDRY_POSTGRES_PASSWORD_FILE: /run/local-secrets/postgres-password
+      RELEASEFOUNDRY_POSTGRES_RUNTIME_PASSWORD_FILE: /run/local-secrets/postgres-runtime-password
+      RELEASEFOUNDRY_POSTGRES_MIGRATION: /migrations/a1_control_plane_postgres_migration.sql
+      RELEASEFOUNDRY_POSTGRES_MIGRATION_DIR: /migrations/ordered
+    volumes:
+      - ../../.local-runtime/local-auth:/run/local-secrets:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
+  postgres-seed:
+    image: postgres:16-alpine
+    environment:
+      PGHOST: postgres
+      PGDATABASE: releasefoundry
+      PGUSER: releasefoundry
+    command: ["psql", "--set", "ON_ERROR_STOP=1", "--file", "/seed/local-auth-seed.sql"]
+    volumes:
+      - ./local-auth-seed.sql:/seed/local-auth-seed.sql:ro
+    depends_on:
+      postgres-migrate:
+        condition: service_completed_successfully
+    restart: "no"
+
+  mailpit:
+    image: axllent/mailpit:v1.27
+    ports:
+      - "127.0.0.1:18025:8025"
+    healthcheck:
+      test: ["CMD", "/mailpit", "readyz"]
+      interval: 3s
+      timeout: 3s
+      retries: 30
+
+  api:
+    image: releasefoundry/a1-go-runtime:local-auth
+    build:
+      context: ../..
+      dockerfile: infra/docker/Dockerfile.go-runtime
+    environment:
+      RELEASEFOUNDRY_ENVIRONMENT: development
+      RELEASEFOUNDRY_GO_API_ADDR: 0.0.0.0:8787
+      RELEASEFOUNDRY_GO_BACKEND: postgres
+      RELEASEFOUNDRY_POSTGRES_DSN: postgresql://releasefoundry@postgres:5432/releasefoundry?sslmode=disable
+      RELEASEFOUNDRY_IDENTITY_RUNTIME: postgres
+      RELEASEFOUNDRY_IDENTITY_POSTGRES_DSN: postgresql://releasefoundry_identity_runtime:${RELEASEFOUNDRY_POSTGRES_RUNTIME_SECRET}@postgres:5432/releasefoundry?sslmode=disable
+      RELEASEFOUNDRY_IDENTITY_SESSION_HMAC_ACTIVE_VERSION: local-v1
+      RELEASEFOUNDRY_IDENTITY_SESSION_HMAC_LEGACY_VERSION: local-v1
+      RELEASEFOUNDRY_IDENTITY_SESSION_HMAC_KEY: ${RELEASEFOUNDRY_IDENTITY_SESSION_HMAC_KEY}
+      RELEASEFOUNDRY_IDENTITY_LIFECYCLE_RECEIPT_ACTIVE_VERSION: local-v1
+      RELEASEFOUNDRY_IDENTITY_LIFECYCLE_RECEIPT_KEY: ${RELEASEFOUNDRY_IDENTITY_LIFECYCLE_RECEIPT_KEY}
+      RELEASEFOUNDRY_IDENTITY_LIFECYCLE_RECEIPT_LOOKUP_ACTIVE_VERSION: local-v1
+      RELEASEFOUNDRY_IDENTITY_LIFECYCLE_RECEIPT_LOOKUP_KEY: ${RELEASEFOUNDRY_IDENTITY_LIFECYCLE_RECEIPT_LOOKUP_KEY}
+      RELEASEFOUNDRY_IDENTITY_VERIFICATION_ENABLED: "true"
+      RELEASEFOUNDRY_IDENTITY_VERIFICATION_HMAC_KEY: ${RELEASEFOUNDRY_IDENTITY_VERIFICATION_HMAC_KEY}
+      RELEASEFOUNDRY_IDENTITY_VERIFICATION_ORGANIZATION_ID: 11111111-1111-4111-8111-111111111111
+      RELEASEFOUNDRY_IDENTITY_VERIFICATION_PROJECT_ID: 33333333-3333-4333-8333-333333333333
+      RELEASEFOUNDRY_IDENTITY_SESSION_COOKIE_TRUSTED_PROXY_CIDRS: 172.16.0.0/12
+      RELEASEFOUNDRY_IDENTITY_LOCAL_MAIL_ENABLED: "true"
+      RELEASEFOUNDRY_IDENTITY_LOCAL_MAIL_HOST: mailpit
+      RELEASEFOUNDRY_IDENTITY_LOCAL_MAIL_PORT: "1025"
+      RELEASEFOUNDRY_IDENTITY_LOCAL_MAIL_FROM: no-reply@releasefoundry.local
+      RELEASEFOUNDRY_IDENTITY_LOCAL_MAIL_CONSOLE_URL: http://127.0.0.1:18025
+    ports:
+      - "127.0.0.1:18787:8787"
+    depends_on:
+      postgres-seed:
+        condition: service_completed_successfully
+      mailpit:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "/usr/local/bin/releasefoundry-healthcheck", "http://127.0.0.1:8787/healthz", "postgres_repository_v0"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 10s
+
+  web:
+    image: caddy:2.10-alpine
+    ports:
+      - "127.0.0.1:4443:4443"
+    volumes:
+      - ./Caddyfile.local-auth:/etc/caddy/Caddyfile:ro
+      - ../../apps/webapp/out:/srv/apps/webapp/out:ro
+      - ../../.local-runtime/local-auth/caddy-data:/data
+      - ../../.local-runtime/local-auth/caddy-config:/config
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--no-check-certificate", "--quiet", "--spider", "https://localhost:4443/__health"]
+      interval: 3s
+      timeout: 3s
+      retries: 30
+
+volumes:
+  releasefoundry-local-auth-postgres:

@@ -1,6 +1,7 @@
 """A2 local deterministic judges."""
 
 from .batch_plan import build_batch_plan_report
+from .blind_version_comparison import build_blind_version_comparison
 from .calibration import (
     build_calibration_matrix,
     import_releasefoundry_grading_observations,
@@ -48,6 +49,9 @@ from .provider_runtime import (
     validate_semantic_judge_output,
     verify_authenticated_evidence_bundle,
 )
+from .probability_calibration import build_probability_calibration_report
+from .uncertainty_evaluation import evaluate_with_uncertainty_routing
+from .uncertainty_router import build_uncertainty_route
 from .unblock_checklist import build_release_unblock_checklist
 from .service_wrapper import (
     CALIBRATION_EVALUATE_ENDPOINT,
@@ -75,6 +79,11 @@ from .schemas import FailureAnalysis, GradeResult
 from .trace_integrity import TraceIntegrityJudge
 from .tool_policy import ToolPolicyJudge
 from .versioning import build_judge_version_registry
+from .unified_label import (
+    adapt_grade_result_to_unified_label,
+    build_unified_judge_label,
+    verify_unified_judge_label,
+)
 
 __all__ = [
     "FailureAnalysis",
@@ -102,6 +111,7 @@ __all__ = [
     "ToolPolicyJudge",
     "StrictFakeAdapter",
     "build_batch_plan_report",
+    "build_blind_version_comparison",
     "build_calibration_matrix",
     "build_case_book_report",
     "build_commercial_readiness_report",
@@ -124,8 +134,12 @@ __all__ = [
     "build_decision_record",
     "build_local_smoke_evidence",
     "build_provider_provenance_handoff",
+    "build_probability_calibration_report",
+    "build_uncertainty_route",
+    "evaluate_with_uncertainty_routing",
     "build_evidence_snapshot",
     "build_trusted_spine_handoff",
+    "build_unified_judge_label",
     "default_provider_catalog",
     "validate_semantic_judge_output",
     "verify_authenticated_evidence_bundle",
@@ -146,5 +160,7 @@ __all__ = [
     "post_internal_release_policy_evaluate",
     "replay_regressions",
     "select_project_scenarios",
+    "adapt_grade_result_to_unified_label",
+    "verify_unified_judge_label",
     "write_jsonl",
 ]

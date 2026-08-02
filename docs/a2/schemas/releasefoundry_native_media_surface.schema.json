@@ -1,0 +1,409 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "A2ReleaseFoundryNativeMediaSurface",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "generated_at",
+    "sdk",
+    "static_audit",
+    "live_session",
+    "generated_artifact_capabilities",
+    "generated_artifact_evidence",
+    "caller_native_submission",
+    "upload_method_observed",
+    "immutable_media_url_parameter_observed",
+    "undocumented_endpoint_probed",
+    "mutation_attempt_count",
+    "native_media_uploaded",
+    "caller_native_input_support_proven",
+    "c3_grading_ready",
+    "public_safe",
+    "notes"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "a2.releasefoundry_native_media_surface.v1"
+    },
+    "generated_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "sdk": {
+      "type": "object",
+      "required": [
+        "package_name",
+        "version",
+        "artifact_path",
+        "artifact_sha256",
+        "source_file_sha256"
+      ],
+      "properties": {
+        "package_name": {
+          "const": "releasefoundry"
+        },
+        "version": {
+          "type": "string"
+        },
+        "artifact_path": {
+          "type": "string",
+          "pattern": "^docs/a1/_pypi_artifacts/"
+        },
+        "artifact_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "source_file_sha256": {
+          "type": "object",
+          "required": [
+            "releasefoundry/client.py",
+            "releasefoundry/eval.py",
+            "releasefoundry/run_builder.py"
+          ],
+          "additionalProperties": {
+            "$ref": "#/$defs/sha256"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "static_audit": {
+      "type": "object",
+      "required": [
+        "status",
+        "expected_surface_matches",
+        "surface_fingerprint_sha256",
+        "public_client_methods",
+        "upload_method_names_observed",
+        "dataset_ingestion_method_names_observed",
+        "immutable_media_url_parameters_observed",
+        "generic_payload_parameters_observed",
+        "accepted_inputs",
+        "add_user_file",
+        "eval_runner"
+      ],
+      "properties": {
+        "status": {
+          "enum": [
+            "completed",
+            "review_required"
+          ]
+        },
+        "expected_surface_matches": {
+          "type": "boolean"
+        },
+        "surface_fingerprint_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "public_client_methods": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/method"
+          }
+        },
+        "upload_method_names_observed": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "dataset_ingestion_method_names_observed": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "immutable_media_url_parameters_observed": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "generic_payload_parameters_observed": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "accepted_inputs": {
+          "type": "object",
+          "required": [
+            "observed",
+            "classification"
+          ],
+          "properties": {
+            "observed": {
+              "type": "boolean"
+            },
+            "classification": {
+              "enum": [
+                "agent_capability_declaration_not_media_transport",
+                "not_observed"
+              ]
+            }
+          },
+          "additionalProperties": false
+        },
+        "add_user_file": {
+          "type": "object",
+          "required": [
+            "observed",
+            "parameters",
+            "records_file_path",
+            "file_io_calls_observed",
+            "classification"
+          ],
+          "properties": {
+            "observed": {
+              "type": "boolean"
+            },
+            "parameters": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "records_file_path": {
+              "type": "boolean"
+            },
+            "file_io_calls_observed": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "classification": {
+              "enum": [
+                "metadata_only",
+                "not_observed",
+                "transport_or_unknown_review_required"
+              ]
+            }
+          },
+          "additionalProperties": false
+        },
+        "eval_runner": {
+          "type": "object",
+          "required": [
+            "action_content_read",
+            "agent_respond_receives_content",
+            "native_file_action_call_observed",
+            "classification"
+          ],
+          "properties": {
+            "action_content_read": {
+              "type": "boolean"
+            },
+            "agent_respond_receives_content": {
+              "type": "boolean"
+            },
+            "native_file_action_call_observed": {
+              "type": "boolean"
+            },
+            "classification": {
+              "enum": [
+                "text_content_only_observed",
+                "transport_or_unknown_review_required"
+              ]
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "live_session": {
+      "type": "object",
+      "required": [
+        "requested",
+        "attempted",
+        "reached",
+        "status",
+        "api_call_count",
+        "mutation_attempt_count"
+      ],
+      "properties": {
+        "requested": {
+          "type": "boolean"
+        },
+        "attempted": {
+          "type": "boolean"
+        },
+        "reached": {
+          "type": "boolean"
+        },
+        "status": {
+          "enum": [
+            "not_requested",
+            "ok",
+            "error"
+          ]
+        },
+        "error_type": {
+          "type": "string"
+        },
+        "api_call_count": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "mutation_attempt_count": {
+          "const": 0
+        }
+      },
+      "additionalProperties": false
+    },
+    "generated_artifact_capabilities": {
+      "$ref": "#/$defs/capability_map"
+    },
+    "generated_artifact_evidence": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "path",
+          "sha256",
+          "verified_modalities"
+        ],
+        "properties": {
+          "path": {
+            "type": "string",
+            "pattern": "^docs/evidence/"
+          },
+          "sha256": {
+            "type": "string",
+            "pattern": "^$|^[0-9a-f]{64}$"
+          },
+          "verified_modalities": {
+            "type": "array",
+            "items": {
+              "enum": [
+                "image",
+                "audio",
+                "file",
+                "video"
+              ]
+            }
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "caller_native_submission": {
+      "type": "object",
+      "required": [
+        "image",
+        "audio",
+        "file",
+        "video"
+      ],
+      "properties": {
+        "image": {
+          "$ref": "#/$defs/submission_status"
+        },
+        "audio": {
+          "$ref": "#/$defs/submission_status"
+        },
+        "file": {
+          "$ref": "#/$defs/submission_status"
+        },
+        "video": {
+          "const": "provider_unverified"
+        }
+      },
+      "additionalProperties": false
+    },
+    "upload_method_observed": {
+      "type": "boolean"
+    },
+    "immutable_media_url_parameter_observed": {
+      "type": "boolean"
+    },
+    "undocumented_endpoint_probed": {
+      "const": false
+    },
+    "mutation_attempt_count": {
+      "const": 0
+    },
+    "native_media_uploaded": {
+      "const": false
+    },
+    "caller_native_input_support_proven": {
+      "const": false
+    },
+    "c3_grading_ready": {
+      "const": false
+    },
+    "public_safe": {
+      "const": true
+    },
+    "notes": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  },
+  "$defs": {
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "method": {
+      "type": "object",
+      "required": [
+        "name",
+        "parameters"
+      ],
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "parameters": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "capability_map": {
+      "type": "object",
+      "required": [
+        "image",
+        "audio",
+        "file",
+        "video"
+      ],
+      "properties": {
+        "image": {
+          "$ref": "#/$defs/generated_status"
+        },
+        "audio": {
+          "$ref": "#/$defs/generated_status"
+        },
+        "file": {
+          "$ref": "#/$defs/generated_status"
+        },
+        "video": {
+          "const": "provider_unverified"
+        }
+      },
+      "additionalProperties": false
+    },
+    "generated_status": {
+      "enum": [
+        "verified",
+        "not_verified"
+      ]
+    },
+    "submission_status": {
+      "enum": [
+        "provider_surface_missing",
+        "provider_surface_observed_requires_validation",
+        "sdk_surface_changed_review_required"
+      ]
+    }
+  },
+  "additionalProperties": false
+}

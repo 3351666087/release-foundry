@@ -2,7 +2,9 @@
   "schema_version": "a2.regression_replay.v1",
   "replay_id": "a2_case_book_regression_replay",
   "source_case_book": "a2_case_book",
+  "source_case_book_hash": "sha256:376bb1b0412b3e7d015f4fd9079b26eaf1dc9e55eef2e154dbf4321d28623f66",
   "source_matrix": "a2_g3_calibration_matrix",
+  "source_matrix_hash": "sha256:9f461aab0683cf0581ff86eef4dcf12e9780a983b32a4f0269717255afb9b204",
   "dataset_id": "a2-g3-calibration",
   "replay_case_count": 1,
   "passed_count": 1,
@@ -88,5 +90,6 @@
       "This report replays current local judge behavior; it does not resolve judge disagreements by itself.",
       "C5 remains partial until the case book covers more reviewed ReleaseFoundry/local/LLM disagreements."
     ]
-  }
+  },
+  "artifact_hash": "sha256:3bfa09754b0db9016b2afa978cf9d5983a4e3fce74319bdfadbd9523445c1bae"
 }

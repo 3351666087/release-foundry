@@ -56,31 +56,32 @@ var identityDeliveryCommandIdentifierPattern = regexp.MustCompile(
 )
 
 type identityDeliveryCommandConfig struct {
-	postgresDSN        string
-	tenantID           string
-	projectID          string
-	leaseOwner         string
-	vaultURL           string
-	emailRelayURL      string
-	smsRelayURL        string
-	mtlsProfileMode    string
-	vaultMTLS          identityDeliveryMTLSFileProfile
-	relayMTLS          identityDeliveryMTLSFileProfile
-	healthAddress      string
-	batchSize          int
-	maxOpenConnections int
-	maxAttempts        int
-	pollInterval       time.Duration
-	leaseDuration      time.Duration
-	heartbeatInterval  time.Duration
-	providerTimeout    time.Duration
-	vaultTimeout       time.Duration
-	storeTimeout       time.Duration
-	telemetryTimeout   time.Duration
-	baseBackoff        time.Duration
-	maxBackoff         time.Duration
-	readinessTimeout   time.Duration
-	shutdownTimeout    time.Duration
+	postgresDSN            string
+	tenantID               string
+	projectID              string
+	leaseOwner             string
+	vaultURL               string
+	emailRelayURL          string
+	smsRelayURL            string
+	browserVerificationURL string
+	mtlsProfileMode        string
+	vaultMTLS              identityDeliveryMTLSFileProfile
+	relayMTLS              identityDeliveryMTLSFileProfile
+	healthAddress          string
+	batchSize              int
+	maxOpenConnections     int
+	maxAttempts            int
+	pollInterval           time.Duration
+	leaseDuration          time.Duration
+	heartbeatInterval      time.Duration
+	providerTimeout        time.Duration
+	vaultTimeout           time.Duration
+	storeTimeout           time.Duration
+	telemetryTimeout       time.Duration
+	baseBackoff            time.Duration
+	maxBackoff             time.Duration
+	readinessTimeout       time.Duration
+	shutdownTimeout        time.Duration
 }
 
 type identityDeliveryDaemonRunner interface {
@@ -198,10 +199,11 @@ func runIdentityDeliveryCommand(
 		timeout:  config.vaultTimeout,
 	}
 	emailRelay := &identityDeliveryHTTPAdapter{
-		endpoint: config.emailRelayURL,
-		channel:  releasefoundry.IdentityVerificationEmail,
-		client:   providerClient,
-		timeout:  config.providerTimeout,
+		endpoint:               config.emailRelayURL,
+		channel:                releasefoundry.IdentityVerificationEmail,
+		client:                 providerClient,
+		timeout:                config.providerTimeout,
+		browserVerificationURL: config.browserVerificationURL,
 	}
 	smsRelay := &identityDeliveryHTTPAdapter{
 		endpoint: config.smsRelayURL,
@@ -502,6 +504,7 @@ func identityDeliveryCommandConfigFromEnv(
 		{"RELEASEFOUNDRY_IDENTITY_DELIVERY_VAULT_URL", &config.vaultURL},
 		{"RELEASEFOUNDRY_IDENTITY_DELIVERY_EMAIL_RELAY_URL", &config.emailRelayURL},
 		{"RELEASEFOUNDRY_IDENTITY_DELIVERY_SMS_RELAY_URL", &config.smsRelayURL},
+		{"RELEASEFOUNDRY_IDENTITY_VERIFICATION_BROWSER_URL", &config.browserVerificationURL},
 	}
 	for _, item := range required {
 		*item.destination, err = identityDeliveryRequiredEnv(lookup, item.key)
@@ -596,6 +599,13 @@ func (config identityDeliveryCommandConfig) validate() error {
 		if err := validateIdentityDeliveryEndpoint(value); err != nil {
 			return fmt.Errorf("%s is invalid", key)
 		}
+	}
+	if _, err := releasefoundry.BuildIdentityVerificationBrowserURL(
+		config.browserVerificationURL,
+		"ivc_000000000000000000000000000000000000",
+		releasefoundry.IdentityVerificationBinding,
+	); err != nil {
+		return errors.New("RELEASEFOUNDRY_IDENTITY_VERIFICATION_BROWSER_URL is invalid")
 	}
 	if config.mtlsProfileMode != identityDeliveryMTLSProfileModeSeparate &&
 		config.mtlsProfileMode != identityDeliveryMTLSProfileModeShared {

@@ -6,6 +6,10 @@
     "schema_version",
     "report_id",
     "dataset_id",
+    "source_matrix_hash",
+    "source_batch_plan_hash",
+    "source_semantic_harness_hash",
+    "source_case_map_hash",
     "status",
     "ready_for_external_collection",
     "readiness_checks",
@@ -28,16 +32,23 @@
     "releasefoundry_public_merge_gate",
     "official_sdk_smoke",
     "multimodal_real_api_smoke",
+    "releasefoundry_native_media_surface",
+    "multimodal_generated_artifact_capabilities",
     "semantic_judge_preflight",
     "semantic_live_merge_gate",
     "batch_plan_refs",
     "redaction_policy",
-    "metadata"
+    "metadata",
+    "artifact_hash"
   ],
   "properties": {
     "schema_version": { "const": "a2.evidence_readiness.v1" },
     "report_id": { "type": "string" },
     "dataset_id": { "type": "string" },
+    "source_matrix_hash": { "$ref": "#/$defs/hash" },
+    "source_batch_plan_hash": { "$ref": "#/$defs/hash" },
+    "source_semantic_harness_hash": { "$ref": "#/$defs/hash" },
+    "source_case_map_hash": { "$ref": "#/$defs/hash" },
     "status": { "type": "string" },
     "ready_for_external_collection": { "type": "boolean" },
     "readiness_checks": { "$ref": "#/$defs/boolean_map" },
@@ -63,13 +74,24 @@
     "releasefoundry_public_merge_gate": { "type": "object" },
     "official_sdk_smoke": { "$ref": "#/$defs/official_sdk_smoke" },
     "multimodal_real_api_smoke": { "$ref": "#/$defs/multimodal_real_api_smoke" },
+    "releasefoundry_native_media_surface": {
+      "$ref": "#/$defs/releasefoundry_native_media_surface"
+    },
+    "multimodal_generated_artifact_capabilities": {
+      "$ref": "#/$defs/multimodal_generated_artifact_capabilities"
+    },
     "semantic_judge_preflight": { "$ref": "#/$defs/preflight" },
     "semantic_live_merge_gate": { "type": "object" },
     "batch_plan_refs": { "$ref": "#/$defs/string_array" },
     "redaction_policy": { "type": "object" },
-    "metadata": { "type": "object" }
+    "metadata": { "type": "object" },
+    "artifact_hash": { "$ref": "#/$defs/hash" }
   },
   "$defs": {
+    "hash": {
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$"
+    },
     "boolean_map": {
       "type": "object",
       "additionalProperties": { "type": "boolean" }
@@ -222,8 +244,24 @@
         "available",
         "path",
         "schema_version",
+        "request_content_sha256",
+        "requested_modalities",
+        "request_config_accepted_modalities",
+        "observed_artifact_modalities",
         "accepted_modalities",
+        "modality_evidence",
         "generation_options",
+        "artifact_receipt_status",
+        "artifact_reference_modalities",
+        "artifact_verified_modalities",
+        "artifact_missing_modalities",
+        "artifact_modality_coverage_complete",
+        "artifact_reference_count",
+        "artifact_download_attempt_count",
+        "artifact_download_verified_count",
+        "artifact_receipts",
+        "artifact_receipts_public_safe",
+        "request_status",
         "api_call_count",
         "ok_call_count",
         "error_call_count",
@@ -235,6 +273,9 @@
         "create_request_reached",
         "wait_completed",
         "dataset_id_present",
+        "dataset_request_binding_verified",
+        "native_media_uploaded",
+        "media_upload_api_observed",
         "public_safe",
         "c3_grading_ready"
       ],
@@ -242,13 +283,56 @@
         "available": { "type": "boolean" },
         "path": { "type": "string" },
         "schema_version": { "type": "string" },
+        "request_content_sha256": {
+          "type": "string",
+          "pattern": "^(?:|[0-9a-f]{64})$"
+        },
         "generated_at": { "type": "string" },
         "sdk_source": { "type": "string" },
         "base_url": { "type": "string" },
         "private_ref": { "type": "string" },
         "private_ref_sha256_12": { "type": "string" },
+        "requested_modalities": { "$ref": "#/$defs/string_array" },
+        "request_config_accepted_modalities": { "$ref": "#/$defs/string_array" },
+        "observed_artifact_modalities": { "$ref": "#/$defs/string_array" },
         "accepted_modalities": { "$ref": "#/$defs/string_array" },
+        "modality_evidence": { "type": "object" },
         "generation_options": { "type": "object" },
+        "artifact_origin": { "type": "string" },
+        "artifact_receipt_status": {
+          "enum": [
+            "dataset_unavailable",
+            "download_disabled",
+            "request_not_completed",
+            "request_failed",
+            "dataset_binding_failed",
+            "signed_dataset_fetch_failed",
+            "signed_dataset_binding_failed",
+            "no_signed_artifact_urls",
+            "verified",
+            "partial",
+            "failed"
+          ]
+        },
+        "artifact_reference_modalities": {
+          "$ref": "#/$defs/generated_artifact_modality_array"
+        },
+        "artifact_verified_modalities": {
+          "$ref": "#/$defs/generated_artifact_modality_array"
+        },
+        "artifact_missing_modalities": {
+          "$ref": "#/$defs/generated_artifact_modality_array"
+        },
+        "artifact_modality_coverage_complete": { "type": "boolean" },
+        "artifact_reference_count": { "type": "integer", "minimum": 0 },
+        "artifact_download_attempt_count": { "type": "integer", "minimum": 0 },
+        "artifact_download_verified_count": { "type": "integer", "minimum": 0 },
+        "artifact_receipts": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/artifact_receipt" }
+        },
+        "artifact_receipts_public_safe": { "type": "boolean" },
+        "request_status": { "type": "string" },
         "api_call_count": { "type": "integer", "minimum": 0 },
         "ok_call_count": { "type": "integer", "minimum": 0 },
         "error_call_count": { "type": "integer", "minimum": 0 },
@@ -262,12 +346,321 @@
         "create_request_reached": { "type": "boolean" },
         "wait_completed": { "type": "boolean" },
         "dataset_id_present": { "type": "boolean" },
+        "dataset_request_binding_verified": { "type": "boolean" },
+        "native_media_uploaded": { "const": false },
+        "media_upload_api_observed": { "const": false },
         "public_safe": { "type": "boolean" },
         "ready_for_a2_multimodal_context": { "type": "boolean" },
         "c3_grading_ready": { "type": "boolean" },
+        "invalid_artifact_receipt_fields": { "$ref": "#/$defs/string_array" },
         "notes": { "$ref": "#/$defs/string_array" }
       },
       "additionalProperties": true
+    },
+    "releasefoundry_native_media_surface": {
+      "type": "object",
+      "required": [
+        "available",
+        "path",
+        "schema_version",
+        "sdk_package_name",
+        "sdk_version",
+        "sdk_artifact_sha256",
+        "static_audit_status",
+        "expected_surface_matches",
+        "surface_fingerprint_sha256",
+        "live_session_requested",
+        "live_session_attempted",
+        "live_session_reached",
+        "live_session_status",
+        "live_session_api_call_count",
+        "mutation_attempt_count",
+        "generated_artifact_capabilities",
+        "generated_artifact_evidence_count",
+        "generated_artifact_evidence",
+        "caller_native_submission",
+        "upload_method_observed",
+        "immutable_media_url_parameter_observed",
+        "undocumented_endpoint_probed",
+        "native_media_uploaded",
+        "caller_native_input_support_proven",
+        "surface_audit_verified",
+        "public_safe",
+        "c3_grading_ready",
+        "invalid_fields",
+        "notes"
+      ],
+      "properties": {
+        "available": { "type": "boolean" },
+        "path": {
+          "type": "string",
+          "pattern": "^(?:|docs/evidence/[A-Za-z0-9._/-]+\\.json)$"
+        },
+        "schema_version": {
+          "type": "string",
+          "pattern": "^(?:|a2\\.releasefoundry_native_media_surface\\.v1)$"
+        },
+        "sdk_package_name": { "type": "string" },
+        "sdk_version": { "type": "string" },
+        "sdk_artifact_sha256": {
+          "type": "string",
+          "pattern": "^(?:|[0-9a-f]{64})$"
+        },
+        "static_audit_status": {
+          "enum": ["", "completed", "review_required"]
+        },
+        "expected_surface_matches": { "type": "boolean" },
+        "surface_fingerprint_sha256": {
+          "type": "string",
+          "pattern": "^(?:|[0-9a-f]{64})$"
+        },
+        "live_session_requested": { "type": "boolean" },
+        "live_session_attempted": { "type": "boolean" },
+        "live_session_reached": { "type": "boolean" },
+        "live_session_status": {
+          "enum": ["", "not_requested", "ok", "error"]
+        },
+        "live_session_api_call_count": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "mutation_attempt_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "generated_artifact_capabilities": {
+          "$ref": "#/$defs/native_media_generated_capability_map"
+        },
+        "generated_artifact_evidence_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "generated_artifact_evidence": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/native_media_generated_artifact_evidence"
+          }
+        },
+        "caller_native_submission": {
+          "$ref": "#/$defs/native_media_submission_map"
+        },
+        "upload_method_observed": { "type": "boolean" },
+        "immutable_media_url_parameter_observed": { "type": "boolean" },
+        "undocumented_endpoint_probed": { "type": "boolean" },
+        "native_media_uploaded": { "const": false },
+        "caller_native_input_support_proven": { "const": false },
+        "surface_audit_verified": { "type": "boolean" },
+        "public_safe": { "type": "boolean" },
+        "c3_grading_ready": { "const": false },
+        "invalid_fields": { "$ref": "#/$defs/string_array" },
+        "reason": { "type": "string" },
+        "notes": { "$ref": "#/$defs/string_array" }
+      },
+      "additionalProperties": false
+    },
+    "native_media_generated_capability_map": {
+      "type": "object",
+      "required": ["image", "audio", "file", "video"],
+      "properties": {
+        "image": { "enum": ["verified", "not_verified"] },
+        "audio": { "enum": ["verified", "not_verified"] },
+        "file": { "enum": ["verified", "not_verified"] },
+        "video": { "const": "provider_unverified" }
+      },
+      "additionalProperties": false
+    },
+    "native_media_submission_map": {
+      "type": "object",
+      "required": ["image", "audio", "file", "video"],
+      "properties": {
+        "image": {
+          "enum": [
+            "provider_surface_missing",
+            "sdk_surface_changed_review_required"
+          ]
+        },
+        "audio": {
+          "enum": [
+            "provider_surface_missing",
+            "sdk_surface_changed_review_required"
+          ]
+        },
+        "file": {
+          "enum": [
+            "provider_surface_missing",
+            "sdk_surface_changed_review_required"
+          ]
+        },
+        "video": { "const": "provider_unverified" }
+      },
+      "additionalProperties": false
+    },
+    "native_media_generated_artifact_evidence": {
+      "type": "object",
+      "required": [
+        "path",
+        "sha256",
+        "verified_modalities",
+        "content_hash_verified"
+      ],
+      "properties": {
+        "path": {
+          "type": "string",
+          "pattern": "^docs/evidence/[A-Za-z0-9._/-]+\\.json$"
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "verified_modalities": {
+          "$ref": "#/$defs/generated_artifact_modality_array"
+        },
+        "content_hash_verified": { "const": true }
+      },
+      "additionalProperties": false
+    },
+    "multimodal_generated_artifact_capabilities": {
+      "type": "object",
+      "required": [
+        "artifact_origin",
+        "aggregation_status",
+        "probe_count",
+        "verified_probe_count",
+        "independent_request_count",
+        "required_verified_modalities",
+        "verified_generated_artifact_modalities",
+        "provider_unverified_modalities",
+        "all_expected_modalities_verified",
+        "native_media_uploaded",
+        "media_upload_api_observed",
+        "caller_native_input_support_proven",
+        "native_media_surface_path",
+        "native_media_surface_binding_verified",
+        "public_safe",
+        "c3_grading_ready",
+        "probes",
+        "invalid_probe_fields",
+        "notes"
+      ],
+      "properties": {
+        "artifact_origin": { "const": "releasefoundry_generated_dataset" },
+        "aggregation_status": {
+          "enum": ["verified", "incomplete", "invalid"]
+        },
+        "probe_count": { "type": "integer", "minimum": 0 },
+        "verified_probe_count": { "type": "integer", "minimum": 0 },
+        "independent_request_count": { "type": "integer", "minimum": 0 },
+        "required_verified_modalities": {
+          "$ref": "#/$defs/generated_artifact_modality_array"
+        },
+        "verified_generated_artifact_modalities": {
+          "$ref": "#/$defs/generated_artifact_modality_array"
+        },
+        "provider_unverified_modalities": {
+          "type": "array",
+          "items": { "const": "video" },
+          "uniqueItems": true
+        },
+        "all_expected_modalities_verified": { "type": "boolean" },
+        "native_media_uploaded": { "const": false },
+        "media_upload_api_observed": { "const": false },
+        "caller_native_input_support_proven": { "const": false },
+        "native_media_surface_path": {
+          "type": "string",
+          "pattern": "^(?:|docs/evidence/[A-Za-z0-9._/-]+\\.json)$"
+        },
+        "native_media_surface_binding_verified": { "type": "boolean" },
+        "public_safe": { "type": "boolean" },
+        "c3_grading_ready": { "const": false },
+        "probes": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/multimodal_generated_artifact_probe"
+          }
+        },
+        "invalid_probe_fields": { "$ref": "#/$defs/string_array" },
+        "notes": { "$ref": "#/$defs/string_array" }
+      },
+      "additionalProperties": false
+    },
+    "multimodal_generated_artifact_probe": {
+      "type": "object",
+      "required": [
+        "path",
+        "request_content_sha256",
+        "request_status",
+        "dataset_request_binding_verified",
+        "artifact_receipts",
+        "verified_generated_artifact_modalities",
+        "valid_for_aggregation"
+      ],
+      "properties": {
+        "path": {
+          "type": "string",
+          "pattern": "^(?:|docs/evidence/[A-Za-z0-9._/-]+\\.json)$"
+        },
+        "request_content_sha256": {
+          "type": "string",
+          "pattern": "^(?:|[0-9a-f]{64})$"
+        },
+        "request_status": { "type": "string" },
+        "dataset_request_binding_verified": { "type": "boolean" },
+        "artifact_receipts": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/artifact_receipt" }
+        },
+        "verified_generated_artifact_modalities": {
+          "$ref": "#/$defs/generated_artifact_modality_array"
+        },
+        "valid_for_aggregation": { "type": "boolean" }
+      },
+      "additionalProperties": false
+    },
+    "generated_artifact_modality_array": {
+      "type": "array",
+      "items": {
+        "enum": ["image", "audio", "file"]
+      },
+      "uniqueItems": true
+    },
+    "artifact_receipt": {
+      "type": "object",
+      "required": [
+        "modality",
+        "verification_status",
+        "sha256",
+        "byte_size",
+        "response_mime"
+      ],
+      "properties": {
+        "modality": {
+          "enum": ["", "image", "audio", "video", "file"]
+        },
+        "verification_status": {
+          "enum": [
+            "",
+            "verified",
+            "download_failed",
+            "invalid_url",
+            "invalid_redirect",
+            "size_limit_exceeded",
+            "empty_body"
+          ]
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^$|^[0-9a-f]{64}$"
+        },
+        "byte_size": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "response_mime": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
     },
     "a1_official_api_readonly_manifest": {
       "type": "object",

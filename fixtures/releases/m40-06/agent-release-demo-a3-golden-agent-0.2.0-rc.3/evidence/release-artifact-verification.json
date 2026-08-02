@@ -3,7 +3,7 @@
   "status": "passed",
   "process_exit_code": 0,
   "release_version": "0.2.0-rc.3",
-  "manifest_hash": "56a816cbca8ea43a337b53568073eb055e3dac44e360fc5aa3e305351464855f",
+  "manifest_hash": "bea4b5affba2382bd5f8a07c1572b31044b31fa436ded8830a94e930206829b9",
   "manifest_hash_passed": true,
   "artifact_set_hash_passed": true,
   "artifacts": {
@@ -19,7 +19,7 @@
         "required": true,
         "content_type": "application/json",
         "schema_version": "a3.audit_bundle_index.v1",
-        "sha256": "20c71b3c3cd8d8984f36febd63a8109f04d19fe30ae42a8d167bc11cf99ea132",
+        "sha256": "e63892417c4368b0a2915f645284d48565e7fa74fed880cc069ff1264dccfd60",
         "byte_size": 14060,
         "status": "passed",
         "message": "Artifact hash and byte size match."
@@ -32,7 +32,7 @@
         "required": true,
         "content_type": "application/json",
         "schema_version": "a3.candidate_delivery_binding.v1",
-        "sha256": "029ba279fe2cef9442d7406949fa659501bc9e59961909561bc8b12d3f04ffec",
+        "sha256": "fa0826fd28978d3374206f82a6340192be68dede773d17b204e9c391d56a32b2",
         "byte_size": 1831,
         "status": "passed",
         "message": "Artifact hash and byte size match."
@@ -45,7 +45,7 @@
         "required": true,
         "content_type": "application/json",
         "schema_version": "a2.shared_candidate_identity.v2",
-        "sha256": "ca7faa1ad582d626ee930d1d5a2e20bdd5b15209f002951e86e1dc6240e7f386",
+        "sha256": "3bc7044b0936f5a4cdca9c60220b11a17553d71066eede515ffa7048911df27b",
         "byte_size": 1287,
         "status": "passed",
         "message": "Artifact hash and byte size match."
@@ -58,7 +58,7 @@
         "required": true,
         "content_type": "application/json",
         "schema_version": "a2.shared_candidate_identity.v2",
-        "sha256": "835d7a2184c6ed697d1c94940e07369ac88ef6b941ef5c196d8d6920f7715fb5",
+        "sha256": "47080deb2b085433cf5c97f09d53aa951095712596ece572cd86107d52958766",
         "byte_size": 1410,
         "status": "passed",
         "message": "Artifact hash and byte size match."
@@ -71,7 +71,7 @@
         "required": true,
         "content_type": "application/json",
         "schema_version": "a3.deployment_probe.v1",
-        "sha256": "4dc9d1316a2c3ad3e1d979a7b730659f2f077dbb65f14b4a2d1098a88b2be64c",
+        "sha256": "802948ff19b160d85e6f853284684e2938370c3f30bf02fddcf6d800abbc57c3",
         "byte_size": 1980,
         "status": "passed",
         "message": "Artifact hash and byte size match."
@@ -97,7 +97,7 @@
         "required": true,
         "content_type": "application/json",
         "schema_version": "a2.candidate_trusted_spine.v1",
-        "sha256": "9fd305038728b4f8e1797c343ed7cd2cf899157a0e8875f5214e1edb093f7270",
+        "sha256": "b959176378cc66f714d5631a6b721f037e6f4649dde90d235b17741a3dde453d",
         "byte_size": 22164,
         "status": "passed",
         "message": "Artifact hash and byte size match."
@@ -110,7 +110,7 @@
         "required": true,
         "content_type": "text/markdown",
         "schema_version": null,
-        "sha256": "9b5673740f81bb8c1e3d6c27134e304439ca6d475a243059c6ea6eb1145309b9",
+        "sha256": "607502fd758ce30abc7474a38a3f122693d23e05d1551931131225410cd4bee4",
         "byte_size": 4398,
         "status": "passed",
         "message": "Artifact hash and byte size match."
@@ -123,7 +123,7 @@
         "required": true,
         "content_type": "text/markdown",
         "schema_version": null,
-        "sha256": "d5e28a904feab0a69be87704c16a5323d6c37b1313a99c594ecf2afac155048e",
+        "sha256": "30c8630b300cff8ae776e019954767b88756ff2a263ab8426ba516e3b5aba291",
         "byte_size": 3461,
         "status": "passed",
         "message": "Artifact hash and byte size match."
@@ -149,7 +149,7 @@
         "required": true,
         "content_type": "application/json",
         "schema_version": "a3.audit_archive_manifest.v1",
-        "sha256": "dd331807a1ef14ee90181f0fd12974e208bac82893f610a3be0e0cfcfc4e7094",
+        "sha256": "de1e15a8750c90d79fb531265f3b71b0e5ec84d97ea52d625b7a88caee6e65e8",
         "byte_size": 10919,
         "status": "passed",
         "message": "Artifact hash and byte size match."
@@ -162,7 +162,7 @@
         "required": true,
         "content_type": "application/json",
         "schema_version": "a3.audit_archive_verification.v1",
-        "sha256": "1dab057463eca912da44417aba115a1bfddac69453e7efcd870c2a7d5e55c9cd",
+        "sha256": "971aac88588b195f958edaac3cc84c3c5986a487571334cbd9ffbcdc7b2f2d14",
         "byte_size": 9372,
         "status": "passed",
         "message": "Artifact hash and byte size match."
@@ -175,7 +175,7 @@
         "required": true,
         "content_type": "application/json",
         "schema_version": "a3.audit_bundle_verification.v1",
-        "sha256": "67f2034be3081d937486ea15e3aa9a35d69e2f79fd3bdcf1ff4e6c07d1d6409b",
+        "sha256": "c53b88b4d9bd04b44f2ca8beefb0013397c29e228f4996b3cd5775508e30489c",
         "byte_size": 10922,
         "status": "passed",
         "message": "Artifact hash and byte size match."
@@ -183,7 +183,7 @@
     ]
   },
   "findings": [],
-  "verified_at": "2026-07-20T14:39:32.963Z",
+  "verified_at": "2026-08-02T15:51:21.804Z",
   "safety": {
     "raw_artifact_content_included": false,
     "raw_secret_values_allowed": false,

@@ -1,0 +1,25 @@
+{
+  "blockers": [
+    "human_adjudicated_mapping_required"
+  ],
+  "canonicalization_version": "dataset-source-json-v1",
+  "case_contract_set_sha256": "sha256:d7849fdfb42a4eeb8bd7ae91b44fb3ef0a4ff28ef14cd922b4972657f35b5b75",
+  "case_count": 6,
+  "dataset_content_sha256": "sha256:f8fb1a1bad31f39d281c9848b194cee71c06e95a9723b7a17f87f81a1cee347c",
+  "exact_identity_verified": false,
+  "global_assignment_margin": 4,
+  "human_adjudicated": false,
+  "human_review_required": true,
+  "mapping_authority": "machine_proposal_only",
+  "mapping_proposal_sha256": "sha256:f53d2e670b809a7fa8ff1f08b7bd2dd3508702be5202eb47517bb016c91b7f1d",
+  "mapping_state": "machine_proposed",
+  "minimum_case_assignment_margin": 1,
+  "minimum_matched_anchor_count": 2,
+  "paid_create_run_allowed": false,
+  "public_safe": true,
+  "release_authority": false,
+  "request_sha256": "sha256:e744b275012f39587fcc31769668dfb21e32d70a7c9c325b67584c4e1a7941ef",
+  "schema_version": "a2.releasefoundry_dataset_mapping_receipt.v1",
+  "training_authority": false,
+  "unique_global_assignment": true
+}

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
+import shutil
 import socket
 import subprocess
 import sys
@@ -45,6 +46,9 @@ def _wait_for_health(base_url: str, proc: subprocess.Popen[str], timeout: float 
 
 @pytest.mark.skipif(os.environ.get("A1_SKIP_GO_SERVER_SMOKE") == "1", reason="Go server smoke explicitly skipped")
 def test_python_sdk_calls_go_http_server_vertical_slice():
+    go = shutil.which("go") or shutil.which("go.exe")
+    if go is None:
+        pytest.skip("Go is unavailable for the Python-to-Go vertical smoke test")
     port = _free_port()
     env = dict(os.environ)
     env["RELEASEFOUNDRY_GO_API_ADDR"] = f"127.0.0.1:{port}"
@@ -53,7 +57,7 @@ def test_python_sdk_calls_go_http_server_vertical_slice():
     env["RELEASEFOUNDRY_IDENTITY_MEMORY_ENABLED"] = "true"
     env["RELEASEFOUNDRY_ENVIRONMENT"] = "development"
     proc = subprocess.Popen(
-        ["go", "run", "./cmd/releasefoundry-api"],
+        [go, "run", "./cmd/releasefoundry-api"],
         cwd=GO_MODULE,
         env=env,
         stdout=subprocess.PIPE,

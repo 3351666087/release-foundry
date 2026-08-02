@@ -13,30 +13,49 @@
     "available": true,
     "path": "docs/a1/evidence/go_python_ts_route_parity_snapshot.json",
     "schema_version": "releasefoundry.go_python_ts_route_parity_snapshot.v1",
-    "route_count": 98,
+    "source_sha256": "f2aaf6f70bd9953ebef908122c6f299da6d5ef965fce006938a53ba259d22724",
+    "public_safe_source_verified": true,
+    "source_policy_verified": true,
+    "declared_route_counts": {
+      "go": 114,
+      "python": 35,
+      "typescript": 38
+    },
+    "observed_route_counts": {
+      "go": 114,
+      "python": 35,
+      "typescript": 38
+    },
+    "declared_route_counts_match": true,
+    "tenancy_route_parity_verified": true,
+    "route_count": 125,
     "api_key_route_count": 16,
     "release_gate_route_count": 1,
-    "tenant_route_count": 70,
+    "tenant_route_count": 80,
     "has_python_routes": true,
     "has_ts_routes": true,
     "has_go_routes": true,
-    "intentional_difference_count": 97,
+    "intentional_difference_count": 124,
     "rls_or_tenant_hardening_observed": true,
     "source_paths": [
       "packages/go/releasefoundry/server.go",
       "packages/sdk/releasefoundry/saas.py",
-      "packages/ts/releasefoundry/src/saas.ts"
+      "packages/sdk/releasefoundry/tenancy.py",
+      "packages/ts/releasefoundry/src/saas.ts",
+      "packages/ts/releasefoundry/src/tenancy.ts"
     ],
     "ready_for_a2_security_context": true,
     "notes": [
       "A1 remains source of truth for backend route scope, tenant isolation, hosted auth, and RLS enforcement.",
-      "A2 consumes this only as public-safe security verification context."
+      "A2 binds the public snapshot by SHA-256 and fails closed on route-count, source-policy, or tenancy-parity drift."
     ]
   },
   "a3_auth_rbac_boundary": {
     "available": true,
     "path": "docs/a3/p3_auth_rbac_boundary_2026_07_09.md",
     "schema_version": "a3.auth_rbac_boundary.doc.v1",
+    "source_sha256": "8ee9463eb2121662caa8d5e3260a697160958598215701605d7dbc7bcf69e4dc",
+    "openapi_source_sha256": "3c3127ba741468b09a11e84b141b539ddb0e144aec8b9365b57405e4e8302598",
     "anchor_present": true,
     "endpoint_count": 3,
     "endpoints": [
@@ -44,6 +63,17 @@
       "GET /api/a3/auth/rbac-policy",
       "POST /api/a3/auth/authorize"
     ],
+    "documented_auth_operations": [
+      "GET /api/a3/auth/context",
+      "GET /api/a3/auth/rbac-policy",
+      "POST /api/a3/auth/authorize"
+    ],
+    "openapi_auth_operations": [
+      "GET /api/a3/auth/context",
+      "GET /api/a3/auth/rbac-policy",
+      "POST /api/a3/auth/authorize"
+    ],
+    "auth_operation_parity_verified": true,
     "openapi_auth_path_count": 3,
     "openapi_auth_paths": [
       "/api/a3/auth/authorize",
@@ -63,13 +93,14 @@
     "ready_for_a2_security_context": true,
     "notes": [
       "A3 owns product-workflow display and local authorization contract shape.",
-      "A2 should verify denied states, abuse cases, redaction, and release policy effects."
+      "A2 binds the A3 document and OpenAPI by SHA-256 and requires exact auth operation parity."
     ]
   },
   "a3_fail_closed_rbac": {
     "available": true,
     "path": "docs/a3/a3_fail_closed_rbac_write_paths_2026_07_09.md",
     "schema_version": "a3.fail_closed_rbac_write_paths.doc.v1",
+    "source_sha256": "148c58fddcec724ddcd80f7ca21a6aadd1269e99fc13dfae5ad909d3c3c6f446",
     "endpoint_count": 11,
     "mutation_endpoint_count": 9,
     "endpoints": [
@@ -117,6 +148,7 @@
     "available": true,
     "path": "docs/a3/a3_event_outbox_saas_backbone_2026_07_09.md",
     "schema_version": "a3.event_outbox_saas_backbone.doc.v1",
+    "source_sha256": "eac0d5a71237b424909346a9142ca892692de090670629037aee8e0fdd5af530",
     "endpoint_count": 9,
     "write_endpoint_count": 7,
     "endpoints": [

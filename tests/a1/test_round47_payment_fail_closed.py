@@ -84,7 +84,8 @@ def test_commercial_migrator_includes_round47_fail_closed_migration() -> None:
 @pytest.mark.docker
 def test_unverified_provider_function_has_database_level_zero_side_effects() -> None:
     docker = shutil.which("docker")
-    assert docker is not None
+    if docker is None:
+        pytest.skip("Docker CLI is unavailable for the opt-in payment smoke")
     project = f"releasefoundry-round47-money-{uuid.uuid4().hex[:8]}"
     env = os.environ.copy()
     env.setdefault("RELEASEFOUNDRY_POSTGRES_AUTH_SECRET", "round47-postgres-local-only")

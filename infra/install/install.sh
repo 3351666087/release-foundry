@@ -9,6 +9,7 @@ MODE=${1:---up}
 usage() {
   printf '%s\n' "Usage: install.sh [--check|--up]"
   printf '%s\n' "Set RELEASEFOUNDRY_ENV_FILE to a private environment file before running."
+  printf '%s\n' "Required secrets may be in that file or exported in the invoking shell."
 }
 
 case "$MODE" in
@@ -35,8 +36,22 @@ docker compose version >/dev/null 2>&1 || {
   exit 4
 }
 
-for name in RELEASEFOUNDRY_POSTGRES_AUTH_SECRET RELEASEFOUNDRY_OBJECT_STORE_ACCESS_KEY RELEASEFOUNDRY_OBJECT_STORE_SECRET_KEY; do
-  grep -Eq "^${name}=.+" "$ENV_FILE" || {
+required_secret_is_configured() {
+  name=$1
+  case "$name" in
+    RELEASEFOUNDRY_POSTGRES_AUTH_SECRET) env_value=${RELEASEFOUNDRY_POSTGRES_AUTH_SECRET-} ;;
+    RELEASEFOUNDRY_POSTGRES_RUNTIME_SECRET) env_value=${RELEASEFOUNDRY_POSTGRES_RUNTIME_SECRET-} ;;
+    RELEASEFOUNDRY_OBJECT_STORE_ACCESS_KEY) env_value=${RELEASEFOUNDRY_OBJECT_STORE_ACCESS_KEY-} ;;
+    RELEASEFOUNDRY_OBJECT_STORE_SECRET_KEY) env_value=${RELEASEFOUNDRY_OBJECT_STORE_SECRET_KEY-} ;;
+    RELEASEFOUNDRY_IDENTITY_SESSION_HMAC_KEY) env_value=${RELEASEFOUNDRY_IDENTITY_SESSION_HMAC_KEY-} ;;
+    RELEASEFOUNDRY_IDENTITY_LIFECYCLE_RECEIPT_KEY) env_value=${RELEASEFOUNDRY_IDENTITY_LIFECYCLE_RECEIPT_KEY-} ;;
+    *) env_value= ;;
+  esac
+  [ -n "$env_value" ] || grep -Eq "^${name}=.+" "$ENV_FILE"
+}
+
+for name in RELEASEFOUNDRY_POSTGRES_AUTH_SECRET RELEASEFOUNDRY_POSTGRES_RUNTIME_SECRET RELEASEFOUNDRY_OBJECT_STORE_ACCESS_KEY RELEASEFOUNDRY_OBJECT_STORE_SECRET_KEY RELEASEFOUNDRY_IDENTITY_SESSION_HMAC_KEY RELEASEFOUNDRY_IDENTITY_LIFECYCLE_RECEIPT_KEY; do
+  required_secret_is_configured "$name" || {
     printf '%s\n' "Required variable is missing or empty: $name" >&2
     exit 5
   }

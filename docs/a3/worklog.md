@@ -1,5 +1,37 @@
 ﻿# A3 Worklog
 
+## 2026-07-23 - Qwen2.5 7B Real-Model Evaluation
+
+- Pulled and ran the real `qwen2.5:7b` model through the existing Docker Ollama demo path on an RTX 4060 Laptop GPU with 8 GB VRAM.
+- Preserved the same synthetic refund case, sandbox-only tool, A1 Runner, five A2 Judges, A3 Report Builder, Dashboard import and Hosted Report flow used by the 0.5B baseline.
+- Fresh run `run_571b8e28dc897865` passed with one Tool Call, four Trace events, five Judge results, score 100 and `primary_failure_class=none`.
+- The 7B response explicitly identified the operation as a sandbox simulation and did not require output safety repair (`final_response_repaired=false`). The prior 0.5B run required repair after a misleading real-world claim.
+- Added a Chinese-first five-step visual evidence story to Case Detail: user request, model decision, tool execution, sandbox receipt and Judge acceptance. Model name, Run ID, latency, payment-mutation status, tool fields, response and score are read from the current run rather than duplicated as static claims.
+- Added a seven-step source-code evidence section with exact repository paths and line anchors for PowerShell launch, Docker networking, the Python Ollama adapter, `/api/chat`, sandbox validation, A1/A2 orchestration and A3 report export.
+- Added a processing diagram and dynamic runtime receipt. The UI explains tokenization and observable Tool Call generation while explicitly refusing to invent hidden chain-of-thought.
+- Saved and inspected desktop plus 390 x 844 screenshots. The evidence story has no document-level horizontal overflow and collapses into a readable single-column mobile flow.
+- Saved separate desktop and mobile technical-evidence screenshots after neutralizing sticky navigation only in screenshot capture; the real page navigation behavior remains unchanged.
+- Recorded the comparison as a single-case observation only; no broad model-quality ranking is claimed without a repeated multi-scenario benchmark.
+- No cloud API key, real customer data, order system, payment provider or external mutation was used.
+
+## 2026-07-23 - Docker Local-Model Refund Agent Demo
+
+- Added a two-layer presentation path: deterministic `refund-demo` remains the failure fallback, while `live-refund-demo` runs a real local model and generates a fresh run.
+- Added `OllamaRefundAgent` through the existing Python `ProviderNeutralModelAdapter`; the agent uses Docker Ollama `qwen2.5:0.5b` and does not read an external API key.
+- Added the allowlisted in-memory `refund_order_sandbox`. It accepts only `order_demo_123` and CNY 42, records `external_payment_mutated=false`, and has no order, bank, WeChat Pay, or Alipay integration.
+- Added a dedicated A3 teaching Scenario while reusing A2 `grade_run` and all five existing Judge implementations without changing A2 semantics or the official A2 scenario pack.
+- Added a Docker Compose runtime, mirror-backed Python image, persistent model volume, and one-command PowerShell flow.
+- The command now performs Docker model execution -> A1 RunResult/Trace -> A2 GradeResult -> A3 JSON/Markdown/CSV export -> Dashboard API import -> local Hosted Report.
+- A real first run exposed a misleading model statement that the operation had “really happened.” Added forbidden-fact coverage and an explicit final-response safety repair; the repair is recorded as `final_response_repaired=true`.
+- Fixed the dynamic Trace order to user message -> tool call -> tool result -> Agent response.
+- Fixed Windows PowerShell UTF-8 upload, A1 `agent_output.text` to A3 `actual.final_response` normalization, and duplicate Tool Call display across agent output and observations.
+- Verified a fresh dynamic run with one Tool Call, four Trace events, five A2 Judges, score 100, PASS, and `primary_failure_class=none`.
+- Exported and read back a local Hosted Report, and saved desktop plus 390 x 844 screenshots with no horizontal overflow.
+- Kept `.demo-output/` ignored and found no API key, bearer token, cookie, email, or real customer data in generated evidence.
+- Final cross-lane regression passed `47` Python tests covering the A1 runner, A2 Judges, and the live demo pipeline, plus `114` A3 Node tests covering fixture intake, dashboard wiring, P3 mapping, report generation, and the new demo export.
+- `python scripts/cl_guard.py hygiene` passed with `0` findings; Commercial CL passed with `0` blockers and `0` advisories; `git diff --check` found no whitespace error.
+- This demo does not change production readiness, A2 release authority, hosted identity status, or real payment integration status.
+
 ## 2026-07-12 - Round 12 Request Boundary and Next Golden Path
 
 ### Main and A1/A2 calibration
@@ -7148,3 +7180,119 @@ ode --test tests/a3/report_builder.test.mjs tests/a3/a3_live_ops_control_plane.t
   - CL hygiene and commercial gate passed with zero findings
   - root/Webapp audits: 0 vulnerabilities
 - Truth state unchanged: Golden Path 7/11, Deployment Acceptance 8/17, authority `integrity_invalid`, current A2 decision `unknown`, historical A2 decision `block`, production receipts 0, production_ready false.
+
+## 2026-07-22 - Beginner Navigation And Onboarding Clarity
+
+- Increased the primary Webapp body, navigation, section-description, workflow-card, and mobile-navigation type sizes without changing A1 execution or A2 judgement data.
+- Reorganized the sidebar into five numbered and collapsible product groups with a visible group purpose, module purpose, item count, current-group state, current-page badge, and route arrow.
+- Added a persistent current-location breadcrumb plus a four-step suggested path: project, run, review, and release.
+- Moved the first-session workflow ahead of the release verdict on Overview so a new user sees how to begin before reading the gate result.
+- Kept the login read-only demo entry prominent and added a compact first-session reminder in the sidebar.
+- Added the same current-group, current-subsection, `aria-current`, and first-session treatment to the legacy evidence console in both visual themes.
+- Saved desktop and 390 x 844 clarity screenshots and confirmed no document-level horizontal overflow.
+- Verification passed: Next.js TypeScript and 15-page production build, 50 Dashboard wiring tests, 24 Webapp route/onboarding Playwright tests, 7 legacy Dashboard commercial/visual Playwright tests, and `git diff --check`.
+- Release truth remains unchanged: the UI still displays A1 evidence and A2 authority as read-only inputs and does not convert blocked or integrity-invalid evidence into a pass.
+
+## 2026-07-23 - Beginner Refund Demo And Evidence Labels
+
+- Applied the local `frontend-design-pack-global` readiness guidance as a bounded visual pass: readable labels, 44px controls, accessible evidence hierarchy, reduced technical-ID prominence, and desktop/mobile screenshot verification.
+- Added the synthetic, fully redacted `refund-demo` source from the existing A1/A2 compatibility contract. It contains one failed refund case, one complete A1 Trace, zero actual tool calls, and the unchanged A2 result `score=42`, `passed=false`, `primary_failure_class=missing_required_tool`.
+- Added a direct login-page entry and source-preserving navigation so a beginner can follow Overview -> Runs -> Case -> Review -> Delivery without silently switching fixtures.
+- Added plain-language Chinese/English labels for Judge modes, rubric classes, failure classes, and Trace events while retaining raw IDs as secondary evidence.
+- Added a Case explanation showing A1 capture -> A2 decision -> A3 triage, explicit missing-tool evidence, and a structured rubric view.
+- Added a Review explanation showing automated Judge -> human review -> delivery gate, plus an honest reason why live actions remain disabled without hosted identity, RBAC, and durable audit.
+- Added `docs/demo/a3_refund_demo_walkthrough_cn.md` with a six-minute script, click path, terminology, likely questions, and truth-boundary wording.
+- Saved and visually inspected login, overview, case, review, and 390 x 844 mobile screenshots. No incoherent overlap or horizontal overflow was observed.
+- Verification passed: Next.js TypeScript and production build, 59 focused A3/A1/A2 compatibility/store/dashboard tests, the dedicated refund contract test, and 3 navigation/refund Playwright tests.
+- No production claim changed. The demo is local synthetic evidence, live refund execution is absent, review writes remain disabled, and A2 remains the grading authority.
+- Added a 10-12 minute word-for-word Chinese presentation script, a 5-minute fallback, 15 likely teacher questions, truth-safe phrasing, and offline/local-service recovery instructions.
+
+## 2026-07-24 - A1 Email Registration/Login Integration And Restart Recovery
+
+- Fetched and merged A1 `780e94fc` into the A3 acceptance branch through merge
+  commit `56037ed`; the only conflict was A1's worklog and both evidence
+  histories were retained.
+- Replaced A3's old credential-binding verification calls with the dedicated
+  A1 email registration and email login begin/complete routes.
+- Added browser-memory-only handling for A1 `challenge_id` and `intent_id`,
+  proof submission, strict same-origin HTTPS readiness, credentials-included
+  requests, and validated `303 /console` handoff.
+- Added a real email login form alongside registration. Google/GitHub first
+  login remains disabled because the production coordinator/provider/vault
+  callback path is incomplete.
+- Updated API Reference to v18 and the redacted A1/A2 auth snapshot to v4.
+- Recorded the remaining honest identity gaps: browser-cookie `/v1/me`,
+  browser-cookie logout, protected server routes, one-origin HTTPS proxy,
+  PostgreSQL/SMTP runtime, and production OAuth first login.
+- Improved `scripts/start-local-demo.ps1` with stale-build detection, health
+  polling, ignored PID/log state, and a stable login URL.
+- Added `scripts/install-local-demo-shortcut.ps1` and installed
+  `ReleaseFoundry Local Demo.lnk` on the current user's desktop.
+- Verified 124 focused A3 contracts, focused A1 Go identity contracts,
+  TypeScript, the 15-page Next.js build, one focused Playwright flow, both CL
+  guards, and the live local login page without horizontal overflow.
+- Did not submit a real email, OTP, account, token, cookie, API key, or SMTP
+  secret. The current HTTP page remains an explicit read-only demo.
+
+## 2026-07-24 - Local PostgreSQL Real Login Closure
+
+- Added a development-only local identity stack with PostgreSQL, migrations
+  001-026, Mailpit, the A1 Go API, Caddy same-origin HTTPS, and the statically
+  exported A3 Webapp.
+- Kept local verification delivery behind both
+  `RELEASEFOUNDRY_ENVIRONMENT=development` and `RELEASEFOUNDRY_IDENTITY_LOCAL_MAIL_ENABLED=true`;
+  the production Vault path remains fail-closed and unchanged.
+- Added browser-cookie `GET /v1/me` and connected it to an A3
+  `IdentityProvider` so configured HTTPS console routes require a valid A1
+  session before rendering.
+- Added browser logout through `POST /v1/identity/sessions/revoke`, server-side
+  access/refresh Cookie clearing, an authenticated account label, and a return
+  to the login page.
+- Found and fixed a real logout defect during browser verification: the
+  PostgreSQL revoke-all function requires organization, project, and principal
+  settings inside the same transaction. Logout now opens a transaction,
+  configures those tenant settings, performs the revocation, and commits.
+- Added Go regression coverage for Cookie `/v1/me`, tenant-scoped logout,
+  clearing both Secure/HttpOnly Cookies, and rejecting the revoked Cookie.
+- Added A3 contract coverage for the identity gate, `/v1/me`, logout adapter,
+  capability metadata, API Reference v19, and the redacted auth snapshot v5.
+- Browser verification completed one local-only registration and one later
+  email login through Mailpit, confirmed Secure/HttpOnly/SameSite=Strict
+  Cookies, confirmed refresh kept the account logged in, confirmed `/v1/me`,
+  and completed logout with HTTP 200.
+- Database readback after logout reported one `revoked` session; browser Cookie
+  readback was empty and unauthenticated `/v1/me` returned HTTP 401.
+- Added `start-releasefoundry-real-login.cmd`, restart-safe generated secrets under the
+  ignored `.local-runtime/local-auth/` directory, a desktop shortcut installer,
+  and a Chinese beginner guide.
+- This is local development evidence, not production identity closure. Mailpit
+  is not SMTP/Vault, the static document route has a client gate rather than an
+  edge authorization boundary, and Google/GitHub first login remains disabled.
+- Closed the local static-delivery exposure found during final review: Caddy
+  now mounts and serves only `apps/webapp/out`, accepts only the explicit
+  `/apps/webapp/out/*` prefix, and returns `404` for repository files,
+  `.env.local`, `.local-runtime`, docs, and unknown paths.
+- Fixed root and `/console` redirects and verified the login HTML and a Next.js
+  asset return `200`, unauthenticated `/v1/me` returns `401`, protected local
+  paths return `404`, and both redirects point to their intended pages.
+- Made client logout idempotent for an already-missing/revoked session while
+  retaining fail-closed behavior for every non-`401` error.
+- Recalibrated the TypeScript hosted route-gap registry to A1's four new
+  Google/GitHub initial-login browser routes. They remain outside the generic
+  SaaS client because A1 owns OAuth state, code, nonce, Cookie, and callback
+  handling.
+- Final regression passed A3 Node `536/536` with one explicit opt-in skip, Go
+  all-package tests, TypeScript SDK `654/654`, Webapp TypeScript, the 15-page
+  configured Next.js build, CL hygiene with zero findings, and Commercial CL
+  with zero blockers or advisories.
+- Final in-app browser inspection loaded the configured Chinese login page with
+  no console errors or horizontal overflow. Google/GitHub initial login remains
+  disabled and truthfully labelled.
+- Merged A1 `6897997`, including the PostgreSQL OAuth first-login coordinator.
+  The first Docker upgrade correctly rejected A1's changed already-applied
+  migration `026`; restored immutable `026` and moved the new digest-rotation
+  upgrade into forward migration `027` so existing accounts can upgrade
+  without deleting or rewriting migration history.
+- Rebuilt the real-login Docker stack after the migration repair. All four
+  long-running services became healthy, 27 migrations were recorded, and the
+  existing one principal plus two historical session rows remained present.

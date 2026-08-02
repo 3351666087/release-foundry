@@ -50,15 +50,18 @@ func TestIdentityDeliveryHTTPClientRejectsRedirectWithoutReplayingSecret(t *test
 	}
 	defer client.CloseIdleConnections()
 	adapter := &identityDeliveryHTTPAdapter{
-		endpoint: redirect.URL,
-		channel:  releasefoundry.IdentityVerificationEmail,
-		client:   client,
-		timeout:  time.Second,
+		endpoint:               redirect.URL,
+		channel:                releasefoundry.IdentityVerificationEmail,
+		client:                 client,
+		timeout:                time.Second,
+		browserVerificationURL: "https://app.example.test/login/verify",
 	}
 	err := adapter.SendIdentityVerification(
 		context.Background(),
 		releasefoundry.IdentityVerificationDelivery{
-			Channel: releasefoundry.IdentityVerificationEmail, Code: secret,
+			ChallengeID: "ivc_444444444444444444444444444444444444",
+			Channel:     releasefoundry.IdentityVerificationEmail, Code: secret,
+			Purpose:                releasefoundry.IdentityVerificationLogin,
 			ProviderIdempotencyKey: "identity-delivery:redirect:0",
 		},
 	)
@@ -167,7 +170,8 @@ func TestIdentityDeliveryHTTPAdapterSendsIdempotencyAndParsesAcceptance(t *testi
 		}
 		if payload.ProviderIdempotencyKey != "identity-delivery:task-1:7" ||
 			payload.Channel != releasefoundry.IdentityVerificationEmail ||
-			payload.Code != "123456" {
+			payload.Code != "123456" ||
+			payload.VerificationURL != "https://app.example.test/login/verify?challenge_id=ivc_444444444444444444444444444444444444&purpose=login" {
 			t.Errorf("unexpected relay request: %#v", payload)
 		}
 		writer.Header().Set("Content-Type", "application/json")
@@ -180,11 +184,13 @@ func TestIdentityDeliveryHTTPAdapterSendsIdempotencyAndParsesAcceptance(t *testi
 	adapter := &identityDeliveryHTTPAdapter{
 		endpoint: server.URL, channel: releasefoundry.IdentityVerificationEmail,
 		client: server.Client(), timeout: time.Second,
+		browserVerificationURL: "https://app.example.test/login/verify",
 	}
 	acceptance, err := adapter.SendIdentityVerificationWithAcceptance(
 		context.Background(),
 		releasefoundry.IdentityVerificationDelivery{
-			ChallengeID: "task-1", Channel: releasefoundry.IdentityVerificationEmail,
+			ChallengeID: "ivc_444444444444444444444444444444444444",
+			Channel:     releasefoundry.IdentityVerificationEmail,
 			Destination: "user@example.com", Code: "123456",
 			Purpose:                releasefoundry.IdentityVerificationLogin,
 			ExpiresAt:              acceptedAt.Add(time.Minute),

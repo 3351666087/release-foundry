@@ -17,6 +17,8 @@ ROOT = Path(__file__).resolve().parents[2]
 COMPOSE = ROOT / "services" / "runner" / "docker-compose.a1.yml"
 INFRA_DOCKER_COMPOSE = ROOT / "infra" / "docker" / "docker-compose.self-host.yml"
 INFRA_DOCKER_ENV_EXAMPLE = ROOT / "infra" / "docker" / "self-host.env.example"
+INSTALL_PS1 = ROOT / "infra" / "install" / "install.ps1"
+INSTALL_SH = ROOT / "infra" / "install" / "install.sh"
 HEALTHCHECK = ROOT / "services" / "runner" / "a1_docker_healthcheck.go"
 COMMERCIAL_WORKER_ENTRYPOINT = ROOT / "services" / "runner" / "commercial-worker-entrypoint.sh"
 TERRAFORM_SELF_HOST = ROOT / "infra" / "terraform" / "self-host"
@@ -135,7 +137,7 @@ def test_a1_compose_keeps_env_boundaries_and_public_secret_hygiene():
 
     forbidden_markers = [
         "RELEASEFOUNDRY_API_KEY",
-        "RELEASEFOUNDRY_API_KEY",
+        "RELEASEFOUNDRY_LABS_API_KEY",
         "Authorization:",
         "Bearer ",
         "sk-",
@@ -174,8 +176,12 @@ def test_infra_docker_self_host_compose_wires_commercial_daemon_profile():
     for env in (api_env, worker_env):
         assert env["RELEASEFOUNDRY_RUNTIME_ENV"] == "self-host"
         assert env["RELEASEFOUNDRY_SECRET_PROVIDER"] == "env-ref"
+        assert env["RELEASEFOUNDRY_IDENTITY_RUNTIME"] == "postgres"
+        assert env["RELEASEFOUNDRY_IDENTITY_SESSION_HMAC_KEY_REF"] == "env:RELEASEFOUNDRY_IDENTITY_SESSION_HMAC_KEY"
+        assert env["RELEASEFOUNDRY_IDENTITY_LIFECYCLE_RECEIPT_KEY_REF"] == "env:RELEASEFOUNDRY_IDENTITY_LIFECYCLE_RECEIPT_KEY"
         assert env["RELEASEFOUNDRY_DATABASE_URL_REF"] == "env:RELEASEFOUNDRY_DATABASE_URL"
         assert env["RELEASEFOUNDRY_POSTGRES_DSN_REF"] == "env:RELEASEFOUNDRY_DATABASE_URL"
+        assert env["RELEASEFOUNDRY_IDENTITY_POSTGRES_DSN_REF"] == "env:RELEASEFOUNDRY_IDENTITY_POSTGRES_DSN"
         assert env["RELEASEFOUNDRY_REDIS_URL"] == "redis://redis:6379/0"
         assert env["RELEASEFOUNDRY_REDIS_URL_REF"] == "env:RELEASEFOUNDRY_REDIS_URL"
         assert env["RELEASEFOUNDRY_OBJECT_STORE_ENDPOINT"] == "http://minio:9000"
@@ -234,6 +240,8 @@ def test_infra_docker_self_host_compose_wires_postgres_redis_minio_without_secre
     assert postgres["environment"]["POSTGRES_PASSWORD_FILE"] == "/run/secrets/postgres_password"
     assert postgres["secrets"] == ["postgres_password"]
     assert compose["secrets"]["postgres_password"] == {"environment": "RELEASEFOUNDRY_POSTGRES_AUTH_SECRET"}
+    assert compose["secrets"]["postgres_runtime_password"] == {"environment": "RELEASEFOUNDRY_POSTGRES_RUNTIME_SECRET"}
+    assert services["postgres-migrate"]["secrets"] == ["postgres_password", "postgres_runtime_password"]
     assert postgres["healthcheck"]["test"] == ["CMD-SHELL", "pg_isready -U releasefoundry -d releasefoundry"]
 
     assert redis["image"] == "redis:7-alpine"
@@ -253,7 +261,7 @@ def test_infra_docker_self_host_compose_wires_postgres_redis_minio_without_secre
 
     forbidden_markers = [
         "RELEASEFOUNDRY_API_KEY",
-        "RELEASEFOUNDRY_API_KEY",
+        "RELEASEFOUNDRY_LABS_API_KEY",
         "Authorization:",
         "Bearer ",
         "sk-",
@@ -281,10 +289,13 @@ def test_infra_docker_self_host_env_example_uses_refs_only_for_secrets():
 
     for marker in (
         "RELEASEFOUNDRY_DATABASE_URL_REF=env:RELEASEFOUNDRY_DATABASE_URL",
+        "RELEASEFOUNDRY_IDENTITY_POSTGRES_DSN_REF=env:RELEASEFOUNDRY_IDENTITY_POSTGRES_DSN",
         "RELEASEFOUNDRY_OBJECT_STORE_ACCESS_KEY_REF=env:RELEASEFOUNDRY_OBJECT_STORE_ACCESS_KEY",
         "RELEASEFOUNDRY_OBJECT_STORE_SECRET_KEY_REF=env:RELEASEFOUNDRY_OBJECT_STORE_SECRET_KEY",
         "RELEASEFOUNDRY_BILLING_PROVIDER_SECRET_REF=env:RELEASEFOUNDRY_BILLING_PROVIDER_SECRET",
         "RELEASEFOUNDRY_BILLING_WEBHOOK_SECRET_REF=env:RELEASEFOUNDRY_BILLING_WEBHOOK_SECRET",
+        "RELEASEFOUNDRY_IDENTITY_SESSION_HMAC_KEY_REF=env:RELEASEFOUNDRY_IDENTITY_SESSION_HMAC_KEY",
+        "RELEASEFOUNDRY_IDENTITY_LIFECYCLE_RECEIPT_KEY_REF=env:RELEASEFOUNDRY_IDENTITY_LIFECYCLE_RECEIPT_KEY",
         "RELEASEFOUNDRY_WORKER_MODE=daemon",
         "RELEASEFOUNDRY_WORKER_EVIDENCE_WRITES=object-store",
         "RELEASEFOUNDRY_OBJECT_STORE_ENDPOINT=http://minio:9000",
@@ -293,7 +304,7 @@ def test_infra_docker_self_host_env_example_uses_refs_only_for_secrets():
 
     forbidden_markers = [
         "RELEASEFOUNDRY_API_KEY=",
-        "RELEASEFOUNDRY_API_KEY=",
+        "RELEASEFOUNDRY_LABS_API_KEY=",
         "Authorization:",
         "Bearer ",
         "sk-",
@@ -308,6 +319,21 @@ def test_infra_docker_self_host_env_example_uses_refs_only_for_secrets():
     ]
     for marker in forbidden_markers:
         assert marker not in env_example
+
+
+def test_self_host_installers_accept_private_file_or_inherited_secret_values():
+    powershell = INSTALL_PS1.read_text(encoding="utf-8")
+    posix = INSTALL_SH.read_text(encoding="utf-8")
+
+    assert '[Environment]::GetEnvironmentVariable($name, "Process")' in powershell
+    assert "[string]::IsNullOrWhiteSpace($processValue)" in powershell
+    assert "required_secret_is_configured()" in posix
+    assert "RELEASEFOUNDRY_POSTGRES_AUTH_SECRET) env_value=${RELEASEFOUNDRY_POSTGRES_AUTH_SECRET-}" in posix
+    assert "RELEASEFOUNDRY_POSTGRES_RUNTIME_SECRET) env_value=${RELEASEFOUNDRY_POSTGRES_RUNTIME_SECRET-}" in posix
+    assert "RELEASEFOUNDRY_OBJECT_STORE_ACCESS_KEY) env_value=${RELEASEFOUNDRY_OBJECT_STORE_ACCESS_KEY-}" in posix
+    assert "RELEASEFOUNDRY_OBJECT_STORE_SECRET_KEY) env_value=${RELEASEFOUNDRY_OBJECT_STORE_SECRET_KEY-}" in posix
+    assert "RELEASEFOUNDRY_IDENTITY_SESSION_HMAC_KEY) env_value=${RELEASEFOUNDRY_IDENTITY_SESSION_HMAC_KEY-}" in posix
+    assert "RELEASEFOUNDRY_IDENTITY_LIFECYCLE_RECEIPT_KEY) env_value=${RELEASEFOUNDRY_IDENTITY_LIFECYCLE_RECEIPT_KEY-}" in posix
 
 
 def test_a1_self_host_terraform_contract_tracks_runtime_services_public_safely():
@@ -350,7 +376,7 @@ def test_a1_self_host_terraform_contract_tracks_runtime_services_public_safely()
     assert "worker.job.complete" in main
     assert "billing.webhook.ingest" in main
 
-    forbidden_markers = ["sk-", "rk_", "whsec_", "Bearer ", "Authorization:", "RELEASEFOUNDRY_API_KEY", "RELEASEFOUNDRY_API_KEY"]
+    forbidden_markers = ["sk-", "rk_", "whsec_", "Bearer ", "Authorization:", "RELEASEFOUNDRY_API_KEY", "RELEASEFOUNDRY_LABS_API_KEY"]
     for marker in forbidden_markers:
         assert marker not in hcl_text
 
@@ -391,7 +417,7 @@ def test_a1_compose_healthcheck_uses_stdlib_go_probe_without_secrets():
     assert "http.StatusOK" in source
     assert "context.WithTimeout" in source
 
-    forbidden_markers = ["RELEASEFOUNDRY_API_KEY", "RELEASEFOUNDRY_API_KEY", "Authorization:", "Bearer ", "sk-"]
+    forbidden_markers = ["RELEASEFOUNDRY_API_KEY", "RELEASEFOUNDRY_LABS_API_KEY", "Authorization:", "Bearer ", "sk-"]
     for marker in forbidden_markers:
         assert marker not in source
 

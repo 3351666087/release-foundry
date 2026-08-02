@@ -74,6 +74,10 @@
       "types": "./dist/delivery-protocol.d.ts",
       "import": "./dist/delivery-protocol.js"
     },
+    "./event-spool": {
+      "types": "./dist/event-spool.d.ts",
+      "import": "./dist/event-spool.js"
+    },
     "./evidence": {
       "types": "./dist/evidence.d.ts",
       "import": "./dist/evidence.js"
@@ -129,6 +133,10 @@
     "./storage": {
       "types": "./dist/storage.d.ts",
       "import": "./dist/storage.js"
+    },
+    "./tenancy": {
+      "types": "./dist/tenancy.d.ts",
+      "import": "./dist/tenancy.js"
     },
     "./stripe-executor": {
       "types": "./dist/stripe-executor.d.ts",

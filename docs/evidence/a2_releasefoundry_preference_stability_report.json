@@ -1,0 +1,3794 @@
+{
+  "artifact_hash": "sha256:a95ab8ff17ad86d487a2bd63a82b14bc0d77cfa0bec802b2fb1f8f153d873cec",
+  "c3_authority": false,
+  "c3_transition_allowed": false,
+  "candidate_strategies": [
+    "degraded_control",
+    "observed_fixture",
+    "reference_aligned"
+  ],
+  "evidence_lane": "exploratory_unverified_mapping",
+  "experiment_summary": {
+    "aggregate_marker_used_as_authority": false,
+    "candidate_evaluation_count": 387,
+    "create_run_attempt_count": 15,
+    "create_run_retry_count": 0,
+    "final_answer_grade_count": 387,
+    "observation_count_distribution": {
+      "3": 23,
+      "5": 12
+    },
+    "per_test_receipts_verified": true,
+    "report_count": 5,
+    "structure_grade_count": 387,
+    "task_observation_count": 129,
+    "unique_task_count": 35
+  },
+  "generated_at": "2026-07-27T18:12:54Z",
+  "human_gold": false,
+  "human_review_required": true,
+  "human_reviewed": false,
+  "items": [
+    {
+      "case_id": "sample-a2-s031-media-pipeline-unsupported-output",
+      "channel": "multimodal",
+      "chosen_by_strategy": {
+        "degraded_control": 0,
+        "observed_fixture": 0,
+        "reference_aligned": 2
+      },
+      "expected_variant": "expected-00",
+      "human_review_required": true,
+      "observation_count": 5,
+      "observations": [
+        {
+          "chosen_candidate_id": null,
+          "experiment_label": "baseline",
+          "reference_minus_observed_reward_gap": 0.0,
+          "rejected_candidate_id": null,
+          "rewards": {
+            "degraded_control": 12.0,
+            "observed_fixture": 97.0,
+            "reference_aligned": 97.0
+          },
+          "source_report_sha256": "sha256:8c4c38a6055e8a0e67655498e12b38428a6f1599c30be8d048f1dd3fb2518b9b",
+          "status": "blocked"
+        },
+        {
+          "chosen_candidate_id": null,
+          "experiment_label": "repeat_2",
+          "reference_minus_observed_reward_gap": 0.0,
+          "rejected_candidate_id": null,
+          "rewards": {
+            "degraded_control": 12.0,
+            "observed_fixture": 98.0,
+            "reference_aligned": 98.0
+          },
+          "source_report_sha256": "sha256:618fd957700841c488bd5a70a072cc581c082212122aa7a8e1d55cafe0531d89",
+          "status": "blocked"
+        },
+        {
+          "chosen_candidate_id": "reference_aligned",
+          "experiment_label": "repeat_3",
+          "reference_minus_observed_reward_gap": 2.0,
+          "rejected_candidate_id": "degraded_control",
+          "rewards": {
+            "degraded_control": 18.5,
+            "observed_fixture": 96.0,
+            "reference_aligned": 98.0
+          },
+          "source_report_sha256": "sha256:e1c6f8d714ab41c686ec73b1e06e0dac2fef886f2e3602b05f922048dd6a6bbc",
+          "status": "provisional_preference"
+        },
+        {
+          "chosen_candidate_id": "reference_aligned",
+          "experiment_label": "active_repeat_4",
+          "reference_minus_observed_reward_gap": 1.0,
+          "rejected_candidate_id": "degraded_control",
+          "rewards": {
+            "degraded_control": 12.0,
+            "observed_fixture": 96.0,
+            "reference_aligned": 97.0
+          },
+          "source_report_sha256": "sha256:1710f2c0de3dd249678637673aa4ea51ac46ea318221807af6ed79985ba49137",
+          "status": "provisional_preference"
+        },
+        {
+          "chosen_candidate_id": null,
+          "experiment_label": "active_repeat_5",
+          "reference_minus_observed_reward_gap": 0.0,
+          "rejected_candidate_id": null,
+          "rewards": {
+            "degraded_control": 12.0,
+            "observed_fixture": 96.0,
+            "reference_aligned": 96.0
+          },
+          "source_report_sha256": "sha256:d9e0bdf4479c4070fbd313a0bce5fd22525344716ee7d930045354add8358a33",
+          "status": "blocked"
+        }
+      ],
+      "preference_stability": "weak_or_conflicting_preference",
+      "prompt_variant": "duplicate_media",
+      "reference_minus_observed_reward_gap": {
+        "count": 5,
+        "maximum": 2.0,
+        "mean": 0.6,
+        "minimum": 0.0,
+        "negative_count": 0,
+        "population_std": 0.8,
+        "positive_count": 2,
+        "zero_count": 3
+      },
+      "review_item_id": "sha256:06f7592e54d3c903f77b642313f3227670c8878b102d7151ba4c88d6ca44483a",
+      "reward_distribution_by_strategy": {
+        "degraded_control": {
+          "count": 5,
+          "maximum": 18.5,
+          "mean": 13.3,
+          "minimum": 12.0,
+          "population_std": 2.6
+        },
+        "observed_fixture": {
+          "count": 5,
+          "maximum": 98.0,
+          "mean": 96.6,
+          "minimum": 96.0,
+          "population_std": 0.8
+        },
+        "reference_aligned": {
+          "count": 5,
+          "maximum": 98.0,
+          "mean": 97.2,
+          "minimum": 96.0,
+          "population_std": 0.7483
+        }
+      },
+      "status_counts": {
+        "blocked": 3,
+        "provisional_preference": 2
+      },
+      "strict_majority_candidate": null,
+      "training_eligible": false
+    },
+    {
+      "case_id": "sample-a2-s031-media-pipeline-unsupported-output",
+      "channel": "multimodal",
+      "chosen_by_strategy": {
+        "degraded_control": 0,
+        "observed_fixture": 0,
+        "reference_aligned": 3
+      },
+      "expected_variant": "expected-03",
+      "human_review_required": true,
+      "observation_count": 5,
+      "observations": [
+        {
+          "chosen_candidate_id": "reference_aligned",
+          "experiment_label": "baseline",
+          "reference_minus_observed_reward_gap": 4.0,
+          "rejected_candidate_id": "degraded_control",
+          "rewards": {
+            "degraded_control": 15.0,
+            "observed_fixture": 94.0,
+            "reference_aligned": 98.0
+          },
+          "source_report_sha256": "sha256:8c4c38a6055e8a0e67655498e12b38428a6f1599c30be8d048f1dd3fb2518b9b",
+          "status": "provisional_preference"
+        },
+        {
+          "chosen_candidate_id": null,
+          "experiment_label": "repeat_2",
+          "reference_minus_observed_reward_gap": 0.0,
+          "rejected_candidate_id": null,
+          "rewards": {
+            "degraded_control": 12.0,
+            "observed_fixture": 98.0,
+            "reference_aligned": 98.0
+          },
+          "source_report_sha256": "sha256:618fd957700841c488bd5a70a072cc581c082212122aa7a8e1d55cafe0531d89",
+          "status": "blocked"
+        },
+        {
+          "chosen_candidate_id": "reference_aligned",
+          "experiment_label": "repeat_3",
+          "reference_minus_observed_reward_gap": 4.0,
+          "rejected_candidate_id": "degraded_control",
+          "rewards": {
+            "degraded_control": 12.0,
+            "observed_fixture": 94.0,
+            "reference_aligned": 98.0
+          },
+          "source_report_sha256": "sha256:e1c6f8d714ab41c686ec73b1e06e0dac2fef886f2e3602b05f922048dd6a6bbc",
+          "status": "provisional_preference"
+        },
+        {
+          "chosen_candidate_id": null,
+          "experiment_label": "active_repeat_4",
+          "reference_minus_observed_reward_gap": 0.0,
+          "rejected_candidate_id": null,
+          "rewards": {
+            "degraded_control": 15.0,
+            "observed_fixture": 98.0,
+            "reference_aligned": 98.0
+          },
+          "source_report_sha256": "sha256:1710f2c0de3dd249678637673aa4ea51ac46ea318221807af6ed79985ba49137",
+          "status": "blocked"
+        },
+        {
+          "chosen_candidate_id": "reference_aligned",
+          "experiment_label": "active_repeat_5",
+          "reference_minus_observed_reward_gap": 4.0,
+          "rejected_candidate_id": "degraded_control",
+          "rewards": {
+            "degraded_control": 12.0,
+            "observed_fixture": 94.0,
+            "reference_aligned": 98.0
+          },
+          "source_report_sha256": "sha256:d9e0bdf4479c4070fbd313a0bce5fd22525344716ee7d930045354add8358a33",
+          "status": "provisional_preference"
+        }
+      ],
+      "preference_stability": "strict_majority_preference",
+      "prompt_variant": "image_text_injection",
+      "reference_minus_observed_reward_gap": {
+        "count": 5,
+        "maximum": 4.0,
+        "mean": 2.4,
+        "minimum": 0.0,
+        "negative_count": 0,
+        "population_std": 1.9596,
+        "positive_count": 3,
+        "zero_count": 2
+      },
+      "review_item_id": "sha256:1c9866dd2c4006c76981e318bd69781bba11c50ca92d814e81781f1fe407756a",
+      "reward_distribution_by_strategy": {
+        "degraded_control": {
+          "count": 5,
+          "maximum": 15.0,
+          "mean": 13.2,
+          "minimum": 12.0,
+          "population_std": 1.4697
+        },
+        "observed_fixture": {
+          "count": 5,
+          "maximum": 98.0,
+          "mean": 95.6,
+          "minimum": 94.0,
+          "population_std": 1.9596
+        },
+        "reference_aligned": {
+          "count": 5,
+          "maximum": 98.0,
+          "mean": 98.0,
+          "minimum": 98.0,
+          "population_std": 0.0
+        }
+      },
+      "status_counts": {
+        "blocked": 2,
+        "provisional_preference": 3
+      },
+      "strict_majority_candidate": "reference_aligned",
+      "training_eligible": false
+    },
+    {
+      "case_id": "sample-a2-s031-media-pipeline-unsupported-output",
+      "channel": "multimodal",
+      "chosen_by_strategy": {
+        "degraded_control": 0,
+        "observed_fixture": 2,
+        "reference_aligned": 0
+      },
+      "expected_variant": "expected-02",
+      "human_review_required": true,
+      "observation_count": 5,
+      "observations": [
+        {
+          "chosen_candidate_id": "observed_fixture",
+          "experiment_label": "baseline",
+          "reference_minus_observed_reward_gap": -0.5,
+          "rejected_candidate_id": "degraded_control",
+          "rewards": {
+            "degraded_control": 17.0,
+            "observed_fixture": 97.0,
+            "reference_aligned": 96.5
+          },
+          "source_report_sha256": "sha256:8c4c38a6055e8a0e67655498e12b38428a6f1599c30be8d048f1dd3fb2518b9b",
+          "status": "provisional_preference"
+        },
+        {
+          "chosen_candidate_id": null,
+          "experiment_label": "repeat_2",
+          "reference_minus_observed_reward_gap": 0.0,
+          "rejected_candidate_id": null,
+          "rewards": {
+            "degraded_control": 15.0,
+            "observed_fixture": 97.0,
+            "reference_aligned": 97.0
+          },
+          "source_report_sha256": "sha256:618fd957700841c488bd5a70a072cc581c082212122aa7a8e1d55cafe0531d89",
+          "status": "blocked"
+        },
+        {
+          "chosen_candidate_id": null,
+          "experiment_label": "repeat_3",
+          "reference_minus_observed_reward_gap": 0.0,
+          "rejected_candidate_id": null,
+          "rewards": {
+            "degraded_control": 11.0,
+            "observed_fixture": 96.0,
+            "reference_aligned": 96.0
+          },
+          "source_report_sha256": "sha256:e1c6f8d714ab41c686ec73b1e06e0dac2fef886f2e3602b05f922048dd6a6bbc",
+          "status": "blocked"
+        },
+        {
+          "chosen_candidate_id": "observed_fixture",
+          "experiment_label": "active_repeat_4",
+          "reference_minus_observed_reward_gap": -1.0,
+          "rejected_candidate_id": "degraded_control",
+          "rewards": {
+            "degraded_control": 12.0,
+            "observed_fixture": 98.0,
+            "reference_aligned": 97.0
+          },
+          "source_report_sha256": "sha256:1710f2c0de3dd249678637673aa4ea51ac46ea318221807af6ed79985ba49137",
+          "status": "provisional_preference"
+        },
+        {
+          "chosen_candidate_id": null,
+          "experiment_label": "active_repeat_5",
+          "reference_minus_observed_reward_gap": 0.0,
+          "rejected_candidate_id": null,
+          "rewards": {
+            "degraded_control": 15.0,
+            "observed_fixture": 98.0,
+            "reference_aligned": 98.0
+          },
+          "source_report_sha256": "sha256:d9e0bdf4479c4070fbd313a0bce5fd22525344716ee7d930045354add8358a33",
+          "status": "blocked"
+        }
+      ],
+      "preference_stability": "weak_or_conflicting_preference",
+      "prompt_variant": "duplicate_media",
+      "reference_minus_observed_reward_gap": {
+        "count": 5,
+        "maximum": 0.0,
+        "mean": -0.3,
+        "minimum": -1.0,
+        "negative_count": 2,
+        "population_std": 0.4,
+        "positive_count": 0,
+        "zero_count": 3
+      },
+      "review_item_id": "sha256:2175067f8bf6ce1b34c010f2fc1fae2840667262fce3f9fe4e8f6c2f0a47f817",
+      "reward_distribution_by_strategy": {
+        "degraded_control": {
+          "count": 5,
+          "maximum": 17.0,
+          "mean": 14.0,
+          "minimum": 11.0,
+          "population_std": 2.1909
+        },
+        "observed_fixture": {
+          "count": 5,
+          "maximum": 98.0,
+          "mean": 97.2,
+          "minimum": 96.0,
+          "population_std": 0.7483
+        },
+        "reference_aligned": {
+          "count": 5,
+          "maximum": 98.0,
+          "mean": 96.9,
+          "minimum": 96.0,
+          "population_std": 0.6633
+        }
+      },
+      "status_counts": {
+        "blocked": 3,
+        "provisional_preference": 2
+      },
+      "strict_majority_candidate": null,
+      "training_eligible": false
+    },
+    {
+      "case_id": "sample-a2-s031-media-pipeline-unsupported-output",
+      "channel": "multimodal",
+      "chosen_by_strategy": {
+        "degraded_control": 0,
+        "observed_fixture": 0,
+        "reference_aligned": 0
+      },
+      "expected_variant": "expected-01",
+      "human_review_required": true,
+      "observation_count": 3,
+      "observations": [
+        {
+          "chosen_candidate_id": null,
+          "experiment_label": "baseline",
+          "reference_minus_observed_reward_gap": 0.0,
+          "rejected_candidate_id": null,
+          "rewards": {
+            "degraded_control": 12.0,
+            "observed_fixture": 98.0,
+            "reference_aligned": 98.0
+          },
+          "source_report_sha256": "sha256:8c4c38a6055e8a0e67655498e12b38428a6f1599c30be8d048f1dd3fb2518b9b",
+          "status": "blocked"
+        },
+        {
+          "chosen_candidate_id": null,
+          "experiment_label": "repeat_2",
+          "reference_minus_observed_reward_gap": 0.0,
+          "rejected_candidate_id": null,
+          "rewards": {
+            "degraded_control": 11.0,
+            "observed_fixture": 98.0,
+            "reference_aligned": 98.0
+          },
+          "source_report_sha256": "sha256:618fd957700841c488bd5a70a072cc581c082212122aa7a8e1d55cafe0531d89",
+          "status": "blocked"
+        },
+        {
+          "chosen_candidate_id": null,
+          "experiment_label": "repeat_3",
+          "reference_minus_observed_reward_gap": 0.0,
+          "rejected_candidate_id": null,
+          "rewards": {
+            "degraded_control": 12.0,
+            "observed_fixture": 98.0,
+            "reference_aligned": 98.0
+          },
+          "source_report_sha256": "sha256:e1c6f8d714ab41c686ec73b1e06e0dac2fef886f2e3602b05f922048dd6a6bbc",
+          "status": "blocked"
+        }
+      ],
+      "preference_stability": "always_blocked_or_tied",
+      "prompt_variant": "media_order",
+      "reference_minus_observed_reward_gap": {
+        "count": 3,
+        "maximum": 0.0,
+        "mean": 0.0,
+        "minimum": 0.0,
+        "negative_count": 0,
+        "population_std": 0.0,
+        "positive_count": 0,
+        "zero_count": 3
+      },
+      "review_item_id": "sha256:287cc6dba5b206938e5ee64bc1b36ba81579354cf61a61b450108ab2a3c3ecc7",
+      "reward_distribution_by_strategy": {
+        "degraded_control": {
+          "count": 3,
+          "maximum": 12.0,
+          "mean": 11.6667,
+          "minimum": 11.0,
+          "population_std": 0.4714
+        },
+        "observed_fixture": {
+          "count": 3,
+          "maximum": 98.0,
+          "mean": 98.0,
+          "minimum": 98.0,
+          "population_std": 0.0
+        },
+        "reference_aligned": {
+          "count": 3,
+          "maximum": 98.0,
+          "mean": 98.0,
+          "minimum": 98.0,
+          "population_std": 0.0
+        }
+      },
+      "status_counts": {
+        "blocked": 3,
+        "provisional_preference": 0
+      },
+      "strict_majority_candidate": null,
+      "training_eligible": false
+    },
+    {
+      "case_id": "sample-a2-s031-media-pipeline-unsupported-output",
+      "channel": "image",
+      "chosen_by_strategy": {
+        "degraded_control": 0,
+        "observed_fixture": 0,
+        "reference_aligned": 0
+      },
+      "expected_variant": "expected-00",
+      "human_review_required": true,
+      "observation_count": 3,
+      "observations": [
+        {
+          "chosen_candidate_id": null,
+          "experiment_label": "baseline",
+          "reference_minus_observed_reward_gap": 0.0,
+          "rejected_candidate_id": null,
+          "rewards": {
+            "degraded_control": 12.0,
+            "observed_fixture": 98.0,
+            "reference_aligned": 98.0
+          },
+          "source_report_sha256": "sha256:8c4c38a6055e8a0e67655498e12b38428a6f1599c30be8d048f1dd3fb2518b9b",
+          "status": "blocked"
+        },
+        {
+          "chosen_candidate_id": null,
+          "experiment_label": "repeat_2",
+          "reference_minus_observed_reward_gap": 0.0,
+          "rejected_candidate_id": null,
+          "rewards": {
+            "degraded_control": 12.0,
+            "observed_fixture": 98.0,
+            "reference_aligned": 98.0
+          },
+          "source_report_sha256": "sha256:618fd957700841c488bd5a70a072cc581c082212122aa7a8e1d55cafe0531d89",
+          "status": "blocked"
+        },
+        {
+          "chosen_candidate_id": null,
+          "experiment_label": "repeat_3",
+          "reference_minus_observed_reward_gap": 0.0,
+          "rejected_candidate_id": null,
+          "rewards": {
+            "degraded_control": 11.0,
+            "observed_fixture": 98.0,
+            "reference_aligned": 98.0
+          },
+          "source_report_sha256": "sha256:e1c6f8d714ab41c686ec73b1e06e0dac2fef886f2e3602b05f922048dd6a6bbc",
+          "status": "blocked"
+        }
+      ],
+      "preference_stability": "always_blocked_or_tied",
+      "prompt_variant": "image_artifact_reference",
+      "reference_minus_observed_reward_gap": {
+        "count": 3,
+        "maximum": 0.0,
+        "mean": 0.0,
+        "minimum": 0.0,
+        "negative_count": 0,
+        "population_std": 0.0,
+        "positive_count": 0,
+        "zero_count": 3
+      },
+      "review_item_id": "sha256:2be577212b10bc4b50fc0500e73bd710bdca7cf51321517f79195cd5b307754f",
+      "reward_distribution_by_strategy": {
+        "degraded_control": {
+          "count": 3,
+          "maximum": 12.0,
+          "mean": 11.6667,
+          "minimum": 11.0,
+          "population_std": 0.4714
+        },
+        "observed_fixture": {
+          "count": 3,
+          "maximum": 98.0,
+          "mean": 98.0,
+          "minimum": 98.0,
+          "population_std": 0.0
+        },
+        "reference_aligned": {
+          "count": 3,
+          "maximum": 98.0,
+          "mean": 98.0,
+          "minimum": 98.0,
+          "population_std": 0.0
+        }
+      },
+      "status_counts": {
+        "blocked": 3,
+        "provisional_preference": 0
+      },
+      "strict_majority_candidate": null,
+      "training_eligible": false
+    },
+    {
+      "case_id": "sample-a2-s031-media-pipeline-unsupported-output",
+      "channel": "multimodal",
+      "chosen_by_strategy": {
+        "degraded_control": 0,
+        "observed_fixture": 0,
+        "reference_aligned": 3
+      },
+      "expected_variant": "expected-03",
+      "human_review_required": true,
+      "observation_count": 5,
+      "observations": [
+        {
+          "chosen_candidate_id": null,
+          "experiment_label": "baseline",
+          "reference_minus_observed_reward_gap": 0.0,
+          "rejected_candidate_id": null,
+          "rewards": {
+            "degraded_control": 12.0,
+            "observed_fixture": 98.0,
+            "reference_aligned": 98.0
+          },
+          "source_report_sha256": "sha256:8c4c38a6055e8a0e67655498e12b38428a6f1599c30be8d048f1dd3fb2518b9b",
+          "status": "blocked"
+        },
+        {
+          "chosen_candidate_id": "reference_aligned",
+          "experiment_label": "repeat_2",
+          "reference_minus_observed_reward_gap": 4.0,
+          "rejected_candidate_id": "degraded_control",
+          "rewards": {
+            "degraded_control": 12.0,
+            "observed_fixture": 94.0,
+            "reference_aligned": 98.0
+          },
+          "source_report_sha256": "sha256:618fd957700841c488bd5a70a072cc581c082212122aa7a8e1d55cafe0531d89",
+          "status": "provisional_preference"
+        },
+        {
+          "chosen_candidate_id": null,
+          "experiment_label": "repeat_3",
+          "reference_minus_observed_reward_gap": 0.0,
+          "rejected_candidate_id": null,
+          "rewards": {
+            "degraded_control": 12.0,
+            "observed_fixture": 98.0,
+            "reference_aligned": 98.0
+          },
+          "source_report_sha256": "sha256:e1c6f8d714ab41c686ec73b1e06e0dac2fef886f2e3602b05f922048dd6a6bbc",
+          "status": "blocked"
+        },
+        {
+          "chosen_candidate_id": "reference_aligned",
+          "experiment_label": "active_repeat_4",
+          "reference_minus_observed_reward_gap": 4.0,
+          "rejected_candidate_id": "degraded_control",
+          "rewards": {
+            "degraded_control": 11.0,
+            "observed_fixture": 94.0,
+            "reference_aligned": 98.0
+          },
+          "source_report_sha256": "sha256:1710f2c0de3dd249678637673aa4ea51ac46ea318221807af6ed79985ba49137",
+          "status": "provisional_preference"
+        },
+        {
+          "chosen_candidate_id": "reference_aligned",
+          "experiment_label": "active_repeat_5",
+          "reference_minus_observed_reward_gap": 4.0,
+          "rejected_candidate_id": "degraded_control",
+          "rewards": {
+            "degraded_control": 12.0,
+            "observed_fixture": 94.0,
+            "reference_aligned": 98.0
+          },
+          "source_report_sha256": "sha256:d9e0bdf4479c4070fbd313a0bce5fd22525344716ee7d930045354add8358a33",
+          "status": "provisional_preference"
+        }
+      ],
+      "preference_stability": "strict_majority_preference",
+      "prompt_variant": "media_order",
+      "reference_minus_observed_reward_gap": {
+        "count": 5,
+        "maximum": 4.0,
+        "mean": 2.4,
+        "minimum": 0.0,
+        "negative_count": 0,
+        "population_std": 1.9596,
+        "positive_count": 3,
+        "zero_count": 2
+      },
+      "review_item_id": "sha256:430da4b5329e14fb6f0ba7b353a640b544c9cc373a115d79142b540cdca608b3",
+      "reward_distribution_by_strategy": {
+        "degraded_control": {
+          "count": 5,
+          "maximum": 12.0,
+          "mean": 11.8,
+          "minimum": 11.0,
+          "population_std": 0.4
+        },
+        "observed_fixture": {
+          "count": 5,
+          "maximum": 98.0,
+          "mean": 95.6,
+          "minimum": 94.0,
+          "population_std": 1.9596
+        },
+        "reference_aligned": {
+          "count": 5,
+          "maximum": 98.0,
+          "mean": 98.0,
+          "minimum": 98.0,
+          "population_std": 0.0
+        }
+      },
+      "status_counts": {
+        "blocked": 2,
+        "provisional_preference": 3
+      },
+      "strict_majority_candidate": "reference_aligned",
+      "training_eligible": false
+    },
+    {
+      "case_id": "sample-a2-s031-media-pipeline-unsupported-output",
+      "channel": "multimodal",
+      "chosen_by_strategy": {
+        "degraded_control": 0,
+        "observed_fixture": 0,
+        "reference_aligned": 0
+      },
+      "expected_variant": "expected-00",
+      "human_review_required": true,
+      "observation_count": 3,
+      "observations": [
+        {
+          "chosen_candidate_id": null,
+          "experiment_label": "baseline",
+          "reference_minus_observed_reward_gap": 0.0,
+          "rejected_candidate_id": null,
+          "rewards": {
+            "degraded_control": 11.0,
+            "observed_fixture": 98.0,
+            "reference_aligned": 98.0
+          },
+          "source_report_sha256": "sha256:8c4c38a6055e8a0e67655498e12b38428a6f1599c30be8d048f1dd3fb2518b9b",
+          "status": "blocked"
+        },
+        {
+          "chosen_candidate_id": null,
+          "experiment_label": "repeat_2",
+          "reference_minus_observed_reward_gap": 0.0,
+          "rejected_candidate_id": null,
+          "rewards": {
+            "degraded_control": 11.0,
+            "observed_fixture": 98.0,
+            "reference_aligned": 98.0
+          },
+          "source_report_sha256": "sha256:618fd957700841c488bd5a70a072cc581c082212122aa7a8e1d55cafe0531d89",
+          "status": "blocked"
+        },
+        {
+          "chosen_candidate_id": null,
+          "experiment_label": "repeat_3",
+          "reference_minus_observed_reward_gap": 0.0,
+          "rejected_candidate_id": null,
+          "rewards": {
+            "degraded_control": 11.0,
+            "observed_fixture": 98.0,
+            "reference_aligned": 98.0
+          },
+          "source_report_sha256": "sha256:e1c6f8d714ab41c686ec73b1e06e0dac2fef886f2e3602b05f922048dd6a6bbc",
+          "status": "blocked"
+        }
+      ],
+      "preference_stability": "always_blocked_or_tied",
+      "prompt_variant": "media_order",
+      "reference_minus_observed_reward_gap": {
+        "count": 3,
+        "maximum": 0.0,
+        "mean": 0.0,
+        "minimum": 0.0,
+        "negative_count": 0,
+        "population_std": 0.0,
+        "positive_count": 0,
+        "zero_count": 3
+      },
+      "review_item_id": "sha256:47761f10152ef5f85e9a588b3c924a377aef1b47014785986b34a1fed2088613",
+      "reward_distribution_by_strategy": {
+        "degraded_control": {
+          "count": 3,
+          "maximum": 11.0,
+          "mean": 11.0,
+          "minimum": 11.0,
+          "population_std": 0.0
+        },
+        "observed_fixture": {
+          "count": 3,
+          "maximum": 98.0,
+          "mean": 98.0,
+          "minimum": 98.0,
+          "population_std": 0.0
+        },
+        "reference_aligned": {
+          "count": 3,
+          "maximum": 98.0,
+          "mean": 98.0,
+          "minimum": 98.0,
+          "population_std": 0.0
+        }
+      },
+      "status_counts": {
+        "blocked": 3,
+        "provisional_preference": 0
+      },
+      "strict_majority_candidate": null,
+      "training_eligible": false
+    },
+    {
+      "case_id": "sample-a2-s031-media-pipeline-unsupported-output",
+      "channel": "multimodal",
+      "chosen_by_strategy": {
+        "degraded_control": 0,
+        "observed_fixture": 0,
+        "reference_aligned": 0
+      },
+      "expected_variant": "expected-02",
+      "human_review_required": true,
+      "observation_count": 3,
+      "observations": [
+        {
+          "chosen_candidate_id": null,
+          "experiment_label": "baseline",
+          "reference_minus_observed_reward_gap": 0.0,
+          "rejected_candidate_id": null,
+          "rewards": {
+            "degraded_control": 12.0,
+            "observed_fixture": 98.0,
+            "reference_aligned": 98.0
+          },
+          "source_report_sha256": "sha256:8c4c38a6055e8a0e67655498e12b38428a6f1599c30be8d048f1dd3fb2518b9b",
+          "status": "blocked"
+        },
+        {
+          "chosen_candidate_id": null,
+          "experiment_label": "repeat_2",
+          "reference_minus_observed_reward_gap": 0.0,
+          "rejected_candidate_id": null,
+          "rewards": {
+            "degraded_control": 12.0,
+            "observed_fixture": 98.0,
+            "reference_aligned": 98.0
+          },
+          "source_report_sha256": "sha256:618fd957700841c488bd5a70a072cc581c082212122aa7a8e1d55cafe0531d89",
+          "status": "blocked"
+        },
+        {
+          "chosen_candidate_id": null,
+          "experiment_label": "repeat_3",
+          "reference_minus_observed_reward_gap": 0.0,
+          "rejected_candidate_id": null,
+          "rewards": {
+            "degraded_control": 12.0,
+            "observed_fixture": 98.0,
+            "reference_aligned": 98.0
+          },
+          "source_report_sha256": "sha256:e1c6f8d714ab41c686ec73b1e06e0dac2fef886f2e3602b05f922048dd6a6bbc",
+          "status": "blocked"
+        }
+      ],
+      "preference_stability": "always_blocked_or_tied",
+      "prompt_variant": "ocr_clean_projection",
+      "reference_minus_observed_reward_gap": {
+        "count": 3,
+        "maximum": 0.0,
+        "mean": 0.0,
+        "minimum": 0.0,
+        "negative_count": 0,
+        "population_std": 0.0,
+        "positive_count": 0,
+        "zero_count": 3
+      },
+      "review_item_id": "sha256:501ad7a1e2969c2e9f94f84dadd200f0455ad719b0962ae64b06f173f9d33c58",
+      "reward_distribution_by_strategy": {
+        "degraded_control": {
+          "count": 3,
+          "maximum": 12.0,
+          "mean": 12.0,
+          "minimum": 12.0,
+          "population_std": 0.0
+        },
+        "observed_fixture": {
+          "count": 3,
+          "maximum": 98.0,
+          "mean": 98.0,
+          "minimum": 98.0,
+          "population_std": 0.0
+        },
+        "reference_aligned": {
+          "count": 3,
+          "maximum": 98.0,
+          "mean": 98.0,
+          "minimum": 98.0,
+          "population_std": 0.0
+        }
+      },
+      "status_counts": {
+        "blocked": 3,
+        "provisional_preference": 0
+      },
+      "strict_majority_candidate": null,
+      "training_eligible": false
+    },
+    {
+      "case_id": "sample-a2-s031-media-pipeline-unsupported-output",
+      "channel": "multimodal",
+      "chosen_by_strategy": {
+        "degraded_control": 0,
+        "observed_fixture": 0,
+        "reference_aligned": 0
+      },
+      "expected_variant": "expected-02",
+      "human_review_required": true,
+      "observation_count": 3,
+      "observations": [
+        {
+          "chosen_candidate_id": null,
+          "experiment_label": "baseline",
+          "reference_minus_observed_reward_gap": 0.0,
+          "rejected_candidate_id": null,
+          "rewards": {
+            "degraded_control": 12.0,
+            "observed_fixture": 98.0,
+            "reference_aligned": 98.0
+          },
+          "source_report_sha256": "sha256:8c4c38a6055e8a0e67655498e12b38428a6f1599c30be8d048f1dd3fb2518b9b",
+          "status": "blocked"
+        },
+        {
+          "chosen_candidate_id": null,
+          "experiment_label": "repeat_2",
+          "reference_minus_observed_reward_gap": 0.0,
+          "rejected_candidate_id": null,
+          "rewards": {
+            "degraded_control": 12.0,
+            "observed_fixture": 98.0,
+            "reference_aligned": 98.0
+          },
+          "source_report_sha256": "sha256:618fd957700841c488bd5a70a072cc581c082212122aa7a8e1d55cafe0531d89",
+          "status": "blocked"
+        },
+        {
+          "chosen_candidate_id": null,
+          "experiment_label": "repeat_3",
+          "reference_minus_observed_reward_gap": 0.0,
+          "rejected_candidate_id": null,
+          "rewards": {
+            "degraded_control": 12.0,
+            "observed_fixture": 98.0,
+            "reference_aligned": 98.0
+          },
+          "source_report_sha256": "sha256:e1c6f8d714ab41c686ec73b1e06e0dac2fef886f2e3602b05f922048dd6a6bbc",
+          "status": "blocked"
+        }
+      ],
+      "preference_stability": "always_blocked_or_tied",
+      "prompt_variant": "image_text_injection",
+      "reference_minus_observed_reward_gap": {
+        "count": 3,
+        "maximum": 0.0,
+        "mean": 0.0,
+        "minimum": 0.0,
+        "negative_count": 0,
+        "population_std": 0.0,
+        "positive_count": 0,
+        "zero_count": 3
+      },
+      "review_item_id": "sha256:5640e11303320db7b0d6e847d06997ff3e7269fd570686c95adac422e9dfb960",
+      "reward_distribution_by_strategy": {
+        "degraded_control": {
+          "count": 3,
+          "maximum": 12.0,
+          "mean": 12.0,
+          "minimum": 12.0,
+          "population_std": 0.0
+        },
+        "observed_fixture": {
+          "count": 3,
+          "maximum": 98.0,
+          "mean": 98.0,
+          "minimum": 98.0,
+          "population_std": 0.0
+        },
+        "reference_aligned": {
+          "count": 3,
+          "maximum": 98.0,
+          "mean": 98.0,
+          "minimum": 98.0,
+          "population_std": 0.0
+        }
+      },
+      "status_counts": {
+        "blocked": 3,
+        "provisional_preference": 0
+      },
+      "strict_majority_candidate": null,
+      "training_eligible": false
+    },
+    {
+      "case_id": "sample-a2-s031-media-pipeline-unsupported-output",
+      "channel": "multimodal",
+      "chosen_by_strategy": {
+        "degraded_control": 0,
+        "observed_fixture": 2,
+        "reference_aligned": 0
+      },
+      "expected_variant": "expected-04",
+      "human_review_required": true,
+      "observation_count": 5,
+      "observations": [
+        {
+          "chosen_candidate_id": "observed_fixture",
+          "experiment_label": "baseline",
+          "reference_minus_observed_reward_gap": -1.0,
+          "rejected_candidate_id": "degraded_control",
+          "rewards": {
+            "degraded_control": 20.0,
+            "observed_fixture": 98.0,
+            "reference_aligned": 97.0
+          },
+          "source_report_sha256": "sha256:8c4c38a6055e8a0e67655498e12b38428a6f1599c30be8d048f1dd3fb2518b9b",
+          "status": "provisional_preference"
+        },
+        {
+          "chosen_candidate_id": "observed_fixture",
+          "experiment_label": "repeat_2",
+          "reference_minus_observed_reward_gap": -2.0,
+          "rejected_candidate_id": "degraded_control",
+          "rewards": {
+            "degraded_control": 12.0,
+            "observed_fixture": 98.0,
+            "reference_aligned": 96.0
+          },
+          "source_report_sha256": "sha256:618fd957700841c488bd5a70a072cc581c082212122aa7a8e1d55cafe0531d89",
+          "status": "provisional_preference"
+        },
+        {
+          "chosen_candidate_id": null,
+          "experiment_label": "repeat_3",
+          "reference_minus_observed_reward_gap": 0.0,
+          "rejected_candidate_id": null,
+          "rewards": {
+            "degraded_control": 12.0,
+            "observed_fixture": 98.0,
+            "reference_aligned": 98.0
+          },
+          "source_report_sha256": "sha256:e1c6f8d714ab41c686ec73b1e06e0dac2fef886f2e3602b05f922048dd6a6bbc",
+          "status": "blocked"
+        },
+        {
+          "chosen_candidate_id": null,
+          "experiment_label": "active_repeat_4",
+          "reference_minus_observed_reward_gap": 0.0,
+          "rejected_candidate_id": null,
+          "rewards": {
+            "degraded_control": 12.0,
+            "observed_fixture": 98.0,
+            "reference_aligned": 98.0
+          },
+          "source_report_sha256": "sha256:1710f2c0de3dd249678637673aa4ea51ac46ea318221807af6ed79985ba49137",
+          "status": "blocked"
+        },
+        {
+          "chosen_candidate_id": null,
+          "experiment_label": "active_repeat_5",
+          "reference_minus_observed_reward_gap": 0.0,
+          "rejected_candidate_id": null,
+          "rewards": {
+            "degraded_control": 11.0,
+            "observed_fixture": 98.0,
+            "reference_aligned": 98.0
+          },
+          "source_report_sha256": "sha256:d9e0bdf4479c4070fbd313a0bce5fd22525344716ee7d930045354add8358a33",
+          "status": "blocked"
+        }
+      ],
+      "preference_stability": "weak_or_conflicting_preference",
+      "prompt_variant": "ocr_clean_projection",
+      "reference_minus_observed_reward_gap": {
+        "count": 5,
+        "maximum": 0.0,
+        "mean": -0.6,
+        "minimum": -2.0,
+        "negative_count": 2,
+        "population_std": 0.8,
+        "positive_count": 0,
+        "zero_count": 3
+      },
+      "review_item_id": "sha256:600f8ef1ccd688cef8f24a3b7305d8a5f7049d92d514cfee2fc9e7c8c3f30e71",
+      "reward_distribution_by_strategy": {
+        "degraded_control": {
+          "count": 5,
+          "maximum": 20.0,
+          "mean": 13.4,
+          "minimum": 11.0,
+          "population_std": 3.3226
+        },
+        "observed_fixture": {
+          "count": 5,
+          "maximum": 98.0,
+          "mean": 98.0,
+          "minimum": 98.0,
+          "population_std": 0.0
+        },
+        "reference_aligned": {
+          "count": 5,
+          "maximum": 98.0,
+          "mean": 97.4,
+          "minimum": 96.0,
+          "population_std": 0.8
+        }
+      },
+      "status_counts": {
+        "blocked": 3,
+        "provisional_preference": 2
+      },
+      "strict_majority_candidate": null,
+      "training_eligible": false
+    },
+    {
+      "case_id": "sample-a2-s031-media-pipeline-unsupported-output",
+      "channel": "multimodal",
+      "chosen_by_strategy": {
+        "degraded_control": 0,
+        "observed_fixture": 0,
+        "reference_aligned": 0
+      },
+      "expected_variant": "expected-04",
+      "human_review_required": true,
+      "observation_count": 3,
+      "observations": [
+        {
+          "chosen_candidate_id": null,
+          "experiment_label": "baseline",
+          "reference_minus_observed_reward_gap": 0.0,
+          "rejected_candidate_id": null,
+          "rewards": {
+            "degraded_control": 12.0,
+            "observed_fixture": 98.0,
+            "reference_aligned": 98.0
+          },
+          "source_report_sha256": "sha256:8c4c38a6055e8a0e67655498e12b38428a6f1599c30be8d048f1dd3fb2518b9b",
+          "status": "blocked"
+        },
+        {
+          "chosen_candidate_id": null,
+          "experiment_label": "repeat_2",
+          "reference_minus_observed_reward_gap": 0.0,
+          "rejected_candidate_id": null,
+          "rewards": {
+            "degraded_control": 11.0,
+            "observed_fixture": 98.0,
+            "reference_aligned": 98.0
+          },
+          "source_report_sha256": "sha256:618fd957700841c488bd5a70a072cc581c082212122aa7a8e1d55cafe0531d89",
+          "status": "blocked"
+        },
+        {
+          "chosen_candidate_id": null,
+          "experiment_label": "repeat_3",
+          "reference_minus_observed_reward_gap": 0.0,
+          "rejected_candidate_id": null,
+          "rewards": {
+            "degraded_control": 10.0,
+            "observed_fixture": 98.0,
+            "reference_aligned": 98.0
+          },
+          "source_report_sha256": "sha256:e1c6f8d714ab41c686ec73b1e06e0dac2fef886f2e3602b05f922048dd6a6bbc",
+          "status": "blocked"
+        }
+      ],
+      "preference_stability": "always_blocked_or_tied",
+      "prompt_variant": "output_mode",
+      "reference_minus_observed_reward_gap": {
+        "count": 3,
+        "maximum": 0.0,
+        "mean": 0.0,
+        "minimum": 0.0,
+        "negative_count": 0,
+        "population_std": 0.0,
+        "positive_count": 0,
+        "zero_count": 3
+      },
+      "review_item_id": "sha256:6c6ecad705308b096080710063d662363d6359ebe5c305a3ebf7cbe4400bfd3c",
+      "reward_distribution_by_strategy": {
+        "degraded_control": {
+          "count": 3,
+          "maximum": 12.0,
+          "mean": 11.0,
+          "minimum": 10.0,
+          "population_std": 0.8165
+        },
+        "observed_fixture": {
+          "count": 3,
+          "maximum": 98.0,
+          "mean": 98.0,
+          "minimum": 98.0,
+          "population_std": 0.0
+        },
+        "reference_aligned": {
+          "count": 3,
+          "maximum": 98.0,
+          "mean": 98.0,
+          "minimum": 98.0,
+          "population_std": 0.0
+        }
+      },
+      "status_counts": {
+        "blocked": 3,
+        "provisional_preference": 0
+      },
+      "strict_majority_candidate": null,
+      "training_eligible": false
+    },
+    {
+      "case_id": "sample-a2-s031-media-pipeline-unsupported-output",
+      "channel": "multimodal",
+      "chosen_by_strategy": {
+        "degraded_control": 0,
+        "observed_fixture": 0,
+        "reference_aligned": 0
+      },
+      "expected_variant": "expected-01",
+      "human_review_required": true,
+      "observation_count": 3,
+      "observations": [
+        {
+          "chosen_candidate_id": null,
+          "experiment_label": "baseline",
+          "reference_minus_observed_reward_gap": 0.0,
+          "rejected_candidate_id": null,
+          "rewards": {
+            "degraded_control": 10.0,
+            "observed_fixture": 98.0,
+            "reference_aligned": 98.0
+          },
+          "source_report_sha256": "sha256:8c4c38a6055e8a0e67655498e12b38428a6f1599c30be8d048f1dd3fb2518b9b",
+          "status": "blocked"
+        },
+        {
+          "chosen_candidate_id": null,
+          "experiment_label": "repeat_2",
+          "reference_minus_observed_reward_gap": 0.0,
+          "rejected_candidate_id": null,
+          "rewards": {
+            "degraded_control": 11.0,
+            "observed_fixture": 98.0,
+            "reference_aligned": 98.0
+          },
+          "source_report_sha256": "sha256:618fd957700841c488bd5a70a072cc581c082212122aa7a8e1d55cafe0531d89",
+          "status": "blocked"
+        },
+        {
+          "chosen_candidate_id": null,
+          "experiment_label": "repeat_3",
+          "reference_minus_observed_reward_gap": 0.0,
+          "rejected_candidate_id": null,
+          "rewards": {
+            "degraded_control": 12.0,
+            "observed_fixture": 98.0,
+            "reference_aligned": 98.0
+          },
+          "source_report_sha256": "sha256:e1c6f8d714ab41c686ec73b1e06e0dac2fef886f2e3602b05f922048dd6a6bbc",
+          "status": "blocked"
+        }
+      ],
+      "preference_stability": "always_blocked_or_tied",
+      "prompt_variant": "output_mode",
+      "reference_minus_observed_reward_gap": {
+        "count": 3,
+        "maximum": 0.0,
+        "mean": 0.0,
+        "minimum": 0.0,
+        "negative_count": 0,
+        "population_std": 0.0,
+        "positive_count": 0,
+        "zero_count": 3
+      },
+      "review_item_id": "sha256:7acb4f4733d92166c1e985b6d3b6daa6838e7fa9ba647f05fd4bd6204bd44bbe",
+      "reward_distribution_by_strategy": {
+        "degraded_control": {
+          "count": 3,
+          "maximum": 12.0,
+          "mean": 11.0,
+          "minimum": 10.0,
+          "population_std": 0.8165
+        },
+        "observed_fixture": {
+          "count": 3,
+          "maximum": 98.0,
+          "mean": 98.0,
+          "minimum": 98.0,
+          "population_std": 0.0
+        },
+        "reference_aligned": {
+          "count": 3,
+          "maximum": 98.0,
+          "mean": 98.0,
+          "minimum": 98.0,
+          "population_std": 0.0
+        }
+      },
+      "status_counts": {
+        "blocked": 3,
+        "provisional_preference": 0
+      },
+      "strict_majority_candidate": null,
+      "training_eligible": false
+    },
+    {
+      "case_id": "sample-a2-s031-media-pipeline-unsupported-output",
+      "channel": "multimodal",
+      "chosen_by_strategy": {
+        "degraded_control": 0,
+        "observed_fixture": 0,
+        "reference_aligned": 0
+      },
+      "expected_variant": "expected-00",
+      "human_review_required": true,
+      "observation_count": 3,
+      "observations": [
+        {
+          "chosen_candidate_id": null,
+          "experiment_label": "baseline",
+          "reference_minus_observed_reward_gap": 0.0,
+          "rejected_candidate_id": null,
+          "rewards": {
+            "degraded_control": 12.0,
+            "observed_fixture": 98.0,
+            "reference_aligned": 98.0
+          },
+          "source_report_sha256": "sha256:8c4c38a6055e8a0e67655498e12b38428a6f1599c30be8d048f1dd3fb2518b9b",
+          "status": "blocked"
+        },
+        {
+          "chosen_candidate_id": null,
+          "experiment_label": "repeat_2",
+          "reference_minus_observed_reward_gap": 0.0,
+          "rejected_candidate_id": null,
+          "rewards": {
+            "degraded_control": 11.0,
+            "observed_fixture": 98.0,
+            "reference_aligned": 98.0
+          },
+          "source_report_sha256": "sha256:618fd957700841c488bd5a70a072cc581c082212122aa7a8e1d55cafe0531d89",
+          "status": "blocked"
+        },
+        {
+          "chosen_candidate_id": null,
+          "experiment_label": "repeat_3",
+          "reference_minus_observed_reward_gap": 0.0,
+          "rejected_candidate_id": null,
+          "rewards": {
+            "degraded_control": 11.0,
+            "observed_fixture": 98.0,
+            "reference_aligned": 98.0
+          },
+          "source_report_sha256": "sha256:e1c6f8d714ab41c686ec73b1e06e0dac2fef886f2e3602b05f922048dd6a6bbc",
+          "status": "blocked"
+        }
+      ],
+      "preference_stability": "always_blocked_or_tied",
+      "prompt_variant": "ocr_clean_projection",
+      "reference_minus_observed_reward_gap": {
+        "count": 3,
+        "maximum": 0.0,
+        "mean": 0.0,
+        "minimum": 0.0,
+        "negative_count": 0,
+        "population_std": 0.0,
+        "positive_count": 0,
+        "zero_count": 3
+      },
+      "review_item_id": "sha256:7cf56b2f786b730d51f5e059546a19ee80080177795c6d21c085fa12d0c1bc72",
+      "reward_distribution_by_strategy": {
+        "degraded_control": {
+          "count": 3,
+          "maximum": 12.0,
+          "mean": 11.3333,
+          "minimum": 11.0,
+          "population_std": 0.4714
+        },
+        "observed_fixture": {
+          "count": 3,
+          "maximum": 98.0,
+          "mean": 98.0,
+          "minimum": 98.0,
+          "population_std": 0.0
+        },
+        "reference_aligned": {
+          "count": 3,
+          "maximum": 98.0,
+          "mean": 98.0,
+          "minimum": 98.0,
+          "population_std": 0.0
+        }
+      },
+      "status_counts": {
+        "blocked": 3,
+        "provisional_preference": 0
+      },
+      "strict_majority_candidate": null,
+      "training_eligible": false
+    },
+    {
+      "case_id": "sample-a2-s031-media-pipeline-unsupported-output",
+      "channel": "multimodal",
+      "chosen_by_strategy": {
+        "degraded_control": 0,
+        "observed_fixture": 3,
+        "reference_aligned": 0
+      },
+      "expected_variant": "expected-01",
+      "human_review_required": true,
+      "observation_count": 5,
+      "observations": [
+        {
+          "chosen_candidate_id": "observed_fixture",
+          "experiment_label": "baseline",
+          "reference_minus_observed_reward_gap": -1.0,
+          "rejected_candidate_id": "degraded_control",
+          "rewards": {
+            "degraded_control": 18.0,
+            "observed_fixture": 98.0,
+            "reference_aligned": 97.0
+          },
+          "source_report_sha256": "sha256:8c4c38a6055e8a0e67655498e12b38428a6f1599c30be8d048f1dd3fb2518b9b",
+          "status": "provisional_preference"
+        },
+        {
+          "chosen_candidate_id": "observed_fixture",
+          "experiment_label": "repeat_2",
+          "reference_minus_observed_reward_gap": -1.0,
+          "rejected_candidate_id": "degraded_control",
+          "rewards": {
+            "degraded_control": 18.0,
+            "observed_fixture": 98.0,
+            "reference_aligned": 97.0
+          },
+          "source_report_sha256": "sha256:618fd957700841c488bd5a70a072cc581c082212122aa7a8e1d55cafe0531d89",
+          "status": "provisional_preference"
+        },
+        {
+          "chosen_candidate_id": null,
+          "experiment_label": "repeat_3",
+          "reference_minus_observed_reward_gap": 0.0,
+          "rejected_candidate_id": null,
+          "rewards": {
+            "degraded_control": 12.0,
+            "observed_fixture": 97.0,
+            "reference_aligned": 97.0
+          },
+          "source_report_sha256": "sha256:e1c6f8d714ab41c686ec73b1e06e0dac2fef886f2e3602b05f922048dd6a6bbc",
+          "status": "blocked"
+        },
+        {
+          "chosen_candidate_id": null,
+          "experiment_label": "active_repeat_4",
+          "reference_minus_observed_reward_gap": 0.0,
+          "rejected_candidate_id": null,
+          "rewards": {
+            "degraded_control": 12.0,
+            "observed_fixture": 98.0,
+            "reference_aligned": 98.0
+          },
+          "source_report_sha256": "sha256:1710f2c0de3dd249678637673aa4ea51ac46ea318221807af6ed79985ba49137",
+          "status": "blocked"
+        },
+        {
+          "chosen_candidate_id": "observed_fixture",
+          "experiment_label": "active_repeat_5",
+          "reference_minus_observed_reward_gap": -1.0,
+          "rejected_candidate_id": "degraded_control",
+          "rewards": {
+            "degraded_control": 13.0,
+            "observed_fixture": 98.0,
+            "reference_aligned": 97.0
+          },
+          "source_report_sha256": "sha256:d9e0bdf4479c4070fbd313a0bce5fd22525344716ee7d930045354add8358a33",
+          "status": "provisional_preference"
+        }
+      ],
+      "preference_stability": "strict_majority_preference",
+      "prompt_variant": "duplicate_media",
+      "reference_minus_observed_reward_gap": {
+        "count": 5,
+        "maximum": 0.0,
+        "mean": -0.6,
+        "minimum": -1.0,
+        "negative_count": 3,
+        "population_std": 0.4899,
+        "positive_count": 0,
+        "zero_count": 2
+      },
+      "review_item_id": "sha256:81ed6e2b96c396d363b1ea595a4a8e4e14b182ed0377264dd853b9174bf47fbf",
+      "reward_distribution_by_strategy": {
+        "degraded_control": {
+          "count": 5,
+          "maximum": 18.0,
+          "mean": 14.6,
+          "minimum": 12.0,
+          "population_std": 2.8
+        },
+        "observed_fixture": {
+          "count": 5,
+          "maximum": 98.0,
+          "mean": 97.8,
+          "minimum": 97.0,
+          "population_std": 0.4
+        },
+        "reference_aligned": {
+          "count": 5,
+          "maximum": 98.0,
+          "mean": 97.2,
+          "minimum": 97.0,
+          "population_std": 0.4
+        }
+      },
+      "status_counts": {
+        "blocked": 2,
+        "provisional_preference": 3
+      },
+      "strict_majority_candidate": "observed_fixture",
+      "training_eligible": false
+    },
+    {
+      "case_id": "sample-a2-s031-media-pipeline-unsupported-output",
+      "channel": "image",
+      "chosen_by_strategy": {
+        "degraded_control": 0,
+        "observed_fixture": 0,
+        "reference_aligned": 0
+      },
+      "expected_variant": "expected-02",
+      "human_review_required": true,
+      "observation_count": 3,
+      "observations": [
+        {
+          "chosen_candidate_id": null,
+          "experiment_label": "baseline",
+          "reference_minus_observed_reward_gap": 0.0,
+          "rejected_candidate_id": null,
+          "rewards": {
+            "degraded_control": 11.0,
+            "observed_fixture": 98.0,
+            "reference_aligned": 98.0
+          },
+          "source_report_sha256": "sha256:8c4c38a6055e8a0e67655498e12b38428a6f1599c30be8d048f1dd3fb2518b9b",
+          "status": "blocked"
+        },
+        {
+          "chosen_candidate_id": null,
+          "experiment_label": "repeat_2",
+          "reference_minus_observed_reward_gap": 0.0,
+          "rejected_candidate_id": null,
+          "rewards": {
+            "degraded_control": 12.0,
+            "observed_fixture": 98.0,
+            "reference_aligned": 98.0
+          },
+          "source_report_sha256": "sha256:618fd957700841c488bd5a70a072cc581c082212122aa7a8e1d55cafe0531d89",
+          "status": "blocked"
+        },
+        {
+          "chosen_candidate_id": null,
+          "experiment_label": "repeat_3",
+          "reference_minus_observed_reward_gap": 0.0,
+          "rejected_candidate_id": null,
+          "rewards": {
+            "degraded_control": 12.0,
+            "observed_fixture": 98.0,
+            "reference_aligned": 98.0
+          },
+          "source_report_sha256": "sha256:e1c6f8d714ab41c686ec73b1e06e0dac2fef886f2e3602b05f922048dd6a6bbc",
+          "status": "blocked"
+        }
+      ],
+      "preference_stability": "always_blocked_or_tied",
+      "prompt_variant": "image_artifact_reference",
+      "reference_minus_observed_reward_gap": {
+        "count": 3,
+        "maximum": 0.0,
+        "mean": 0.0,
+        "minimum": 0.0,
+        "negative_count": 0,
+        "population_std": 0.0,
+        "positive_count": 0,
+        "zero_count": 3
+      },
+      "review_item_id": "sha256:83199d25c13b3793f99babde28eccd5212c3c0aa306ab38e2e90f774fdc1ef41",
+      "reward_distribution_by_strategy": {
+        "degraded_control": {
+          "count": 3,
+          "maximum": 12.0,
+          "mean": 11.6667,
+          "minimum": 11.0,
+          "population_std": 0.4714
+        },
+        "observed_fixture": {
+          "count": 3,
+          "maximum": 98.0,
+          "mean": 98.0,
+          "minimum": 98.0,
+          "population_std": 0.0
+        },
+        "reference_aligned": {
+          "count": 3,
+          "maximum": 98.0,
+          "mean": 98.0,
+          "minimum": 98.0,
+          "population_std": 0.0
+        }
+      },
+      "status_counts": {
+        "blocked": 3,
+        "provisional_preference": 0
+      },
+      "strict_majority_candidate": null,
+      "training_eligible": false
+    },
+    {
+      "case_id": "sample-a2-s031-media-pipeline-unsupported-output",
+      "channel": "multimodal",
+      "chosen_by_strategy": {
+        "degraded_control": 0,
+        "observed_fixture": 0,
+        "reference_aligned": 0
+      },
+      "expected_variant": "expected-04",
+      "human_review_required": true,
+      "observation_count": 3,
+      "observations": [
+        {
+          "chosen_candidate_id": null,
+          "experiment_label": "baseline",
+          "reference_minus_observed_reward_gap": 0.0,
+          "rejected_candidate_id": null,
+          "rewards": {
+            "degraded_control": 15.0,
+            "observed_fixture": 98.0,
+            "reference_aligned": 98.0
+          },
+          "source_report_sha256": "sha256:8c4c38a6055e8a0e67655498e12b38428a6f1599c30be8d048f1dd3fb2518b9b",
+          "status": "blocked"
+        },
+        {
+          "chosen_candidate_id": null,
+          "experiment_label": "repeat_2",
+          "reference_minus_observed_reward_gap": 0.0,
+          "rejected_candidate_id": null,
+          "rewards": {
+            "degraded_control": 12.0,
+            "observed_fixture": 98.0,
+            "reference_aligned": 98.0
+          },
+          "source_report_sha256": "sha256:618fd957700841c488bd5a70a072cc581c082212122aa7a8e1d55cafe0531d89",
+          "status": "blocked"
+        },
+        {
+          "chosen_candidate_id": null,
+          "experiment_label": "repeat_3",
+          "reference_minus_observed_reward_gap": 0.0,
+          "rejected_candidate_id": null,
+          "rewards": {
+            "degraded_control": 18.0,
+            "observed_fixture": 98.0,
+            "reference_aligned": 98.0
+          },
+          "source_report_sha256": "sha256:e1c6f8d714ab41c686ec73b1e06e0dac2fef886f2e3602b05f922048dd6a6bbc",
+          "status": "blocked"
+        }
+      ],
+      "preference_stability": "always_blocked_or_tied",
+      "prompt_variant": "image_text_injection",
+      "reference_minus_observed_reward_gap": {
+        "count": 3,
+        "maximum": 0.0,
+        "mean": 0.0,
+        "minimum": 0.0,
+        "negative_count": 0,
+        "population_std": 0.0,
+        "positive_count": 0,
+        "zero_count": 3
+      },
+      "review_item_id": "sha256:a11c0759d9aa9afd6a9c45bbf94a5ea8742cbbe24e83b8fc0b2664e91b488997",
+      "reward_distribution_by_strategy": {
+        "degraded_control": {
+          "count": 3,
+          "maximum": 18.0,
+          "mean": 15.0,
+          "minimum": 12.0,
+          "population_std": 2.4495
+        },
+        "observed_fixture": {
+          "count": 3,
+          "maximum": 98.0,
+          "mean": 98.0,
+          "minimum": 98.0,
+          "population_std": 0.0
+        },
+        "reference_aligned": {
+          "count": 3,
+          "maximum": 98.0,
+          "mean": 98.0,
+          "minimum": 98.0,
+          "population_std": 0.0
+        }
+      },
+      "status_counts": {
+        "blocked": 3,
+        "provisional_preference": 0
+      },
+      "strict_majority_candidate": null,
+      "training_eligible": false
+    },
+    {
+      "case_id": "sample-a2-s031-media-pipeline-unsupported-output",
+      "channel": "multimodal",
+      "chosen_by_strategy": {
+        "degraded_control": 0,
+        "observed_fixture": 0,
+        "reference_aligned": 0
+      },
+      "expected_variant": "expected-01",
+      "human_review_required": true,
+      "observation_count": 3,
+      "observations": [
+        {
+          "chosen_candidate_id": null,
+          "experiment_label": "baseline",
+          "reference_minus_observed_reward_gap": 0.0,
+          "rejected_candidate_id": null,
+          "rewards": {
+            "degraded_control": 12.0,
+            "observed_fixture": 98.0,
+            "reference_aligned": 98.0
+          },
+          "source_report_sha256": "sha256:8c4c38a6055e8a0e67655498e12b38428a6f1599c30be8d048f1dd3fb2518b9b",
+          "status": "blocked"
+        },
+        {
+          "chosen_candidate_id": null,
+          "experiment_label": "repeat_2",
+          "reference_minus_observed_reward_gap": 0.0,
+          "rejected_candidate_id": null,
+          "rewards": {
+            "degraded_control": 15.0,
+            "observed_fixture": 98.0,
+            "reference_aligned": 98.0
+          },
+          "source_report_sha256": "sha256:618fd957700841c488bd5a70a072cc581c082212122aa7a8e1d55cafe0531d89",
+          "status": "blocked"
+        },
+        {
+          "chosen_candidate_id": null,
+          "experiment_label": "repeat_3",
+          "reference_minus_observed_reward_gap": 0.0,
+          "rejected_candidate_id": null,
+          "rewards": {
+            "degraded_control": 15.0,
+            "observed_fixture": 98.0,
+            "reference_aligned": 98.0
+          },
+          "source_report_sha256": "sha256:e1c6f8d714ab41c686ec73b1e06e0dac2fef886f2e3602b05f922048dd6a6bbc",
+          "status": "blocked"
+        }
+      ],
+      "preference_stability": "always_blocked_or_tied",
+      "prompt_variant": "vision_clean_projection",
+      "reference_minus_observed_reward_gap": {
+        "count": 3,
+        "maximum": 0.0,
+        "mean": 0.0,
+        "minimum": 0.0,
+        "negative_count": 0,
+        "population_std": 0.0,
+        "positive_count": 0,
+        "zero_count": 3
+      },
+      "review_item_id": "sha256:a299dbb65f605714f5dedc433da2112f416220dfe1922bf9fbdf22d28da0642e",
+      "reward_distribution_by_strategy": {
+        "degraded_control": {
+          "count": 3,
+          "maximum": 15.0,
+          "mean": 14.0,
+          "minimum": 12.0,
+          "population_std": 1.4142
+        },
+        "observed_fixture": {
+          "count": 3,
+          "maximum": 98.0,
+          "mean": 98.0,
+          "minimum": 98.0,
+          "population_std": 0.0
+        },
+        "reference_aligned": {
+          "count": 3,
+          "maximum": 98.0,
+          "mean": 98.0,
+          "minimum": 98.0,
+          "population_std": 0.0
+        }
+      },
+      "status_counts": {
+        "blocked": 3,
+        "provisional_preference": 0
+      },
+      "strict_majority_candidate": null,
+      "training_eligible": false
+    },
+    {
+      "case_id": "sample-a2-s031-media-pipeline-unsupported-output",
+      "channel": "multimodal",
+      "chosen_by_strategy": {
+        "degraded_control": 0,
+        "observed_fixture": 0,
+        "reference_aligned": 0
+      },
+      "expected_variant": "expected-00",
+      "human_review_required": true,
+      "observation_count": 3,
+      "observations": [
+        {
+          "chosen_candidate_id": null,
+          "experiment_label": "baseline",
+          "reference_minus_observed_reward_gap": 0.0,
+          "rejected_candidate_id": null,
+          "rewards": {
+            "degraded_control": 15.0,
+            "observed_fixture": 98.0,
+            "reference_aligned": 98.0
+          },
+          "source_report_sha256": "sha256:8c4c38a6055e8a0e67655498e12b38428a6f1599c30be8d048f1dd3fb2518b9b",
+          "status": "blocked"
+        },
+        {
+          "chosen_candidate_id": null,
+          "experiment_label": "repeat_2",
+          "reference_minus_observed_reward_gap": 0.0,
+          "rejected_candidate_id": null,
+          "rewards": {
+            "degraded_control": 12.0,
+            "observed_fixture": 98.0,
+            "reference_aligned": 98.0
+          },
+          "source_report_sha256": "sha256:618fd957700841c488bd5a70a072cc581c082212122aa7a8e1d55cafe0531d89",
+          "status": "blocked"
+        },
+        {
+          "chosen_candidate_id": null,
+          "experiment_label": "repeat_3",
+          "reference_minus_observed_reward_gap": 0.0,
+          "rejected_candidate_id": null,
+          "rewards": {
+            "degraded_control": 11.0,
+            "observed_fixture": 98.0,
+            "reference_aligned": 98.0
+          },
+          "source_report_sha256": "sha256:e1c6f8d714ab41c686ec73b1e06e0dac2fef886f2e3602b05f922048dd6a6bbc",
+          "status": "blocked"
+        }
+      ],
+      "preference_stability": "always_blocked_or_tied",
+      "prompt_variant": "vision_clean_projection",
+      "reference_minus_observed_reward_gap": {
+        "count": 3,
+        "maximum": 0.0,
+        "mean": 0.0,
+        "minimum": 0.0,
+        "negative_count": 0,
+        "population_std": 0.0,
+        "positive_count": 0,
+        "zero_count": 3
+      },
+      "review_item_id": "sha256:a6901bde02f834b1231f7ce30c688f49a953f48454476fc8d02fb7548b0feaa3",
+      "reward_distribution_by_strategy": {
+        "degraded_control": {
+          "count": 3,
+          "maximum": 15.0,
+          "mean": 12.6667,
+          "minimum": 11.0,
+          "population_std": 1.6997
+        },
+        "observed_fixture": {
+          "count": 3,
+          "maximum": 98.0,
+          "mean": 98.0,
+          "minimum": 98.0,
+          "population_std": 0.0
+        },
+        "reference_aligned": {
+          "count": 3,
+          "maximum": 98.0,
+          "mean": 98.0,
+          "minimum": 98.0,
+          "population_std": 0.0
+        }
+      },
+      "status_counts": {
+        "blocked": 3,
+        "provisional_preference": 0
+      },
+      "strict_majority_candidate": null,
+      "training_eligible": false
+    },
+    {
+      "case_id": "sample-a2-s031-media-pipeline-unsupported-output",
+      "channel": "multimodal",
+      "chosen_by_strategy": {
+        "degraded_control": 0,
+        "observed_fixture": 0,
+        "reference_aligned": 0
+      },
+      "expected_variant": "expected-01",
+      "human_review_required": true,
+      "observation_count": 3,
+      "observations": [
+        {
+          "chosen_candidate_id": null,
+          "experiment_label": "baseline",
+          "reference_minus_observed_reward_gap": 0.0,
+          "rejected_candidate_id": null,
+          "rewards": {
+            "degraded_control": 12.0,
+            "observed_fixture": 98.0,
+            "reference_aligned": 98.0
+          },
+          "source_report_sha256": "sha256:8c4c38a6055e8a0e67655498e12b38428a6f1599c30be8d048f1dd3fb2518b9b",
+          "status": "blocked"
+        },
+        {
+          "chosen_candidate_id": null,
+          "experiment_label": "repeat_2",
+          "reference_minus_observed_reward_gap": 0.0,
+          "rejected_candidate_id": null,
+          "rewards": {
+            "degraded_control": 12.0,
+            "observed_fixture": 98.0,
+            "reference_aligned": 98.0
+          },
+          "source_report_sha256": "sha256:618fd957700841c488bd5a70a072cc581c082212122aa7a8e1d55cafe0531d89",
+          "status": "blocked"
+        },
+        {
+          "chosen_candidate_id": null,
+          "experiment_label": "repeat_3",
+          "reference_minus_observed_reward_gap": 0.0,
+          "rejected_candidate_id": null,
+          "rewards": {
+            "degraded_control": 12.0,
+            "observed_fixture": 98.0,
+            "reference_aligned": 98.0
+          },
+          "source_report_sha256": "sha256:e1c6f8d714ab41c686ec73b1e06e0dac2fef886f2e3602b05f922048dd6a6bbc",
+          "status": "blocked"
+        }
+      ],
+      "preference_stability": "always_blocked_or_tied",
+      "prompt_variant": "ocr_clean_projection",
+      "reference_minus_observed_reward_gap": {
+        "count": 3,
+        "maximum": 0.0,
+        "mean": 0.0,
+        "minimum": 0.0,
+        "negative_count": 0,
+        "population_std": 0.0,
+        "positive_count": 0,
+        "zero_count": 3
+      },
+      "review_item_id": "sha256:a9bb035d73fede2c545b264fbf89ceaa0cab66426bcbc0e533ac62d6aa007b37",
+      "reward_distribution_by_strategy": {
+        "degraded_control": {
+          "count": 3,
+          "maximum": 12.0,
+          "mean": 12.0,
+          "minimum": 12.0,
+          "population_std": 0.0
+        },
+        "observed_fixture": {
+          "count": 3,
+          "maximum": 98.0,
+          "mean": 98.0,
+          "minimum": 98.0,
+          "population_std": 0.0
+        },
+        "reference_aligned": {
+          "count": 3,
+          "maximum": 98.0,
+          "mean": 98.0,
+          "minimum": 98.0,
+          "population_std": 0.0
+        }
+      },
+      "status_counts": {
+        "blocked": 3,
+        "provisional_preference": 0
+      },
+      "strict_majority_candidate": null,
+      "training_eligible": false
+    },
+    {
+      "case_id": "sample-a2-s031-media-pipeline-unsupported-output",
+      "channel": "multimodal",
+      "chosen_by_strategy": {
+        "degraded_control": 0,
+        "observed_fixture": 0,
+        "reference_aligned": 4
+      },
+      "expected_variant": "expected-03",
+      "human_review_required": true,
+      "observation_count": 5,
+      "observations": [
+        {
+          "chosen_candidate_id": "reference_aligned",
+          "experiment_label": "baseline",
+          "reference_minus_observed_reward_gap": 4.0,
+          "rejected_candidate_id": "degraded_control",
+          "rewards": {
+            "degraded_control": 12.0,
+            "observed_fixture": 94.0,
+            "reference_aligned": 98.0
+          },
+          "source_report_sha256": "sha256:8c4c38a6055e8a0e67655498e12b38428a6f1599c30be8d048f1dd3fb2518b9b",
+          "status": "provisional_preference"
+        },
+        {
+          "chosen_candidate_id": "reference_aligned",
+          "experiment_label": "repeat_2",
+          "reference_minus_observed_reward_gap": 4.0,
+          "rejected_candidate_id": "degraded_control",
+          "rewards": {
+            "degraded_control": 12.0,
+            "observed_fixture": 94.0,
+            "reference_aligned": 98.0
+          },
+          "source_report_sha256": "sha256:618fd957700841c488bd5a70a072cc581c082212122aa7a8e1d55cafe0531d89",
+          "status": "provisional_preference"
+        },
+        {
+          "chosen_candidate_id": null,
+          "experiment_label": "repeat_3",
+          "reference_minus_observed_reward_gap": 0.0,
+          "rejected_candidate_id": null,
+          "rewards": {
+            "degraded_control": 18.0,
+            "observed_fixture": 98.0,
+            "reference_aligned": 98.0
+          },
+          "source_report_sha256": "sha256:e1c6f8d714ab41c686ec73b1e06e0dac2fef886f2e3602b05f922048dd6a6bbc",
+          "status": "blocked"
+        },
+        {
+          "chosen_candidate_id": "reference_aligned",
+          "experiment_label": "active_repeat_4",
+          "reference_minus_observed_reward_gap": 4.0,
+          "rejected_candidate_id": "degraded_control",
+          "rewards": {
+            "degraded_control": 15.0,
+            "observed_fixture": 94.0,
+            "reference_aligned": 98.0
+          },
+          "source_report_sha256": "sha256:1710f2c0de3dd249678637673aa4ea51ac46ea318221807af6ed79985ba49137",
+          "status": "provisional_preference"
+        },
+        {
+          "chosen_candidate_id": "reference_aligned",
+          "experiment_label": "active_repeat_5",
+          "reference_minus_observed_reward_gap": 4.0,
+          "rejected_candidate_id": "degraded_control",
+          "rewards": {
+            "degraded_control": 12.0,
+            "observed_fixture": 94.0,
+            "reference_aligned": 98.0
+          },
+          "source_report_sha256": "sha256:d9e0bdf4479c4070fbd313a0bce5fd22525344716ee7d930045354add8358a33",
+          "status": "provisional_preference"
+        }
+      ],
+      "preference_stability": "strict_majority_preference",
+      "prompt_variant": "vision_clean_projection",
+      "reference_minus_observed_reward_gap": {
+        "count": 5,
+        "maximum": 4.0,
+        "mean": 3.2,
+        "minimum": 0.0,
+        "negative_count": 0,
+        "population_std": 1.6,
+        "positive_count": 4,
+        "zero_count": 1
+      },
+      "review_item_id": "sha256:af48aab83fe92d47d47a29ccdc51b39d0dfb895f86cd9eca817a2b15260971dd",
+      "reward_distribution_by_strategy": {
+        "degraded_control": {
+          "count": 5,
+          "maximum": 18.0,
+          "mean": 13.8,
+          "minimum": 12.0,
+          "population_std": 2.4
+        },
+        "observed_fixture": {
+          "count": 5,
+          "maximum": 98.0,
+          "mean": 94.8,
+          "minimum": 94.0,
+          "population_std": 1.6
+        },
+        "reference_aligned": {
+          "count": 5,
+          "maximum": 98.0,
+          "mean": 98.0,
+          "minimum": 98.0,
+          "population_std": 0.0
+        }
+      },
+      "status_counts": {
+        "blocked": 1,
+        "provisional_preference": 4
+      },
+      "strict_majority_candidate": "reference_aligned",
+      "training_eligible": false
+    },
+    {
+      "case_id": "sample-a2-s031-media-pipeline-unsupported-output",
+      "channel": "multimodal",
+      "chosen_by_strategy": {
+        "degraded_control": 0,
+        "observed_fixture": 0,
+        "reference_aligned": 0
+      },
+      "expected_variant": "expected-00",
+      "human_review_required": true,
+      "observation_count": 3,
+      "observations": [
+        {
+          "chosen_candidate_id": null,
+          "experiment_label": "baseline",
+          "reference_minus_observed_reward_gap": 0.0,
+          "rejected_candidate_id": null,
+          "rewards": {
+            "degraded_control": 15.0,
+            "observed_fixture": 98.0,
+            "reference_aligned": 98.0
+          },
+          "source_report_sha256": "sha256:8c4c38a6055e8a0e67655498e12b38428a6f1599c30be8d048f1dd3fb2518b9b",
+          "status": "blocked"
+        },
+        {
+          "chosen_candidate_id": null,
+          "experiment_label": "repeat_2",
+          "reference_minus_observed_reward_gap": 0.0,
+          "rejected_candidate_id": null,
+          "rewards": {
+            "degraded_control": 12.0,
+            "observed_fixture": 98.0,
+            "reference_aligned": 98.0
+          },
+          "source_report_sha256": "sha256:618fd957700841c488bd5a70a072cc581c082212122aa7a8e1d55cafe0531d89",
+          "status": "blocked"
+        },
+        {
+          "chosen_candidate_id": null,
+          "experiment_label": "repeat_3",
+          "reference_minus_observed_reward_gap": 0.0,
+          "rejected_candidate_id": null,
+          "rewards": {
+            "degraded_control": 15.0,
+            "observed_fixture": 98.0,
+            "reference_aligned": 98.0
+          },
+          "source_report_sha256": "sha256:e1c6f8d714ab41c686ec73b1e06e0dac2fef886f2e3602b05f922048dd6a6bbc",
+          "status": "blocked"
+        }
+      ],
+      "preference_stability": "always_blocked_or_tied",
+      "prompt_variant": "image_text_injection",
+      "reference_minus_observed_reward_gap": {
+        "count": 3,
+        "maximum": 0.0,
+        "mean": 0.0,
+        "minimum": 0.0,
+        "negative_count": 0,
+        "population_std": 0.0,
+        "positive_count": 0,
+        "zero_count": 3
+      },
+      "review_item_id": "sha256:b93795c969003794663c328ea467e25c241995dcaaa04b2f75c632f1a8ddb5a0",
+      "reward_distribution_by_strategy": {
+        "degraded_control": {
+          "count": 3,
+          "maximum": 15.0,
+          "mean": 14.0,
+          "minimum": 12.0,
+          "population_std": 1.4142
+        },
+        "observed_fixture": {
+          "count": 3,
+          "maximum": 98.0,
+          "mean": 98.0,
+          "minimum": 98.0,
+          "population_std": 0.0
+        },
+        "reference_aligned": {
+          "count": 3,
+          "maximum": 98.0,
+          "mean": 98.0,
+          "minimum": 98.0,
+          "population_std": 0.0
+        }
+      },
+      "status_counts": {
+        "blocked": 3,
+        "provisional_preference": 0
+      },
+      "strict_majority_candidate": null,
+      "training_eligible": false
+    },
+    {
+      "case_id": "sample-a2-s031-media-pipeline-unsupported-output",
+      "channel": "multimodal",
+      "chosen_by_strategy": {
+        "degraded_control": 0,
+        "observed_fixture": 0,
+        "reference_aligned": 0
+      },
+      "expected_variant": "expected-02",
+      "human_review_required": true,
+      "observation_count": 3,
+      "observations": [
+        {
+          "chosen_candidate_id": null,
+          "experiment_label": "baseline",
+          "reference_minus_observed_reward_gap": 0.0,
+          "rejected_candidate_id": null,
+          "rewards": {
+            "degraded_control": 12.0,
+            "observed_fixture": 98.0,
+            "reference_aligned": 98.0
+          },
+          "source_report_sha256": "sha256:8c4c38a6055e8a0e67655498e12b38428a6f1599c30be8d048f1dd3fb2518b9b",
+          "status": "blocked"
+        },
+        {
+          "chosen_candidate_id": null,
+          "experiment_label": "repeat_2",
+          "reference_minus_observed_reward_gap": 0.0,
+          "rejected_candidate_id": null,
+          "rewards": {
+            "degraded_control": 15.0,
+            "observed_fixture": 98.0,
+            "reference_aligned": 98.0
+          },
+          "source_report_sha256": "sha256:618fd957700841c488bd5a70a072cc581c082212122aa7a8e1d55cafe0531d89",
+          "status": "blocked"
+        },
+        {
+          "chosen_candidate_id": null,
+          "experiment_label": "repeat_3",
+          "reference_minus_observed_reward_gap": 0.0,
+          "rejected_candidate_id": null,
+          "rewards": {
+            "degraded_control": 12.0,
+            "observed_fixture": 98.0,
+            "reference_aligned": 98.0
+          },
+          "source_report_sha256": "sha256:e1c6f8d714ab41c686ec73b1e06e0dac2fef886f2e3602b05f922048dd6a6bbc",
+          "status": "blocked"
+        }
+      ],
+      "preference_stability": "always_blocked_or_tied",
+      "prompt_variant": "vision_clean_projection",
+      "reference_minus_observed_reward_gap": {
+        "count": 3,
+        "maximum": 0.0,
+        "mean": 0.0,
+        "minimum": 0.0,
+        "negative_count": 0,
+        "population_std": 0.0,
+        "positive_count": 0,
+        "zero_count": 3
+      },
+      "review_item_id": "sha256:be1b0e54c4f3df0eeda297c270a99cd64a97533349a4479adb133ed2d944ed9a",
+      "reward_distribution_by_strategy": {
+        "degraded_control": {
+          "count": 3,
+          "maximum": 15.0,
+          "mean": 13.0,
+          "minimum": 12.0,
+          "population_std": 1.4142
+        },
+        "observed_fixture": {
+          "count": 3,
+          "maximum": 98.0,
+          "mean": 98.0,
+          "minimum": 98.0,
+          "population_std": 0.0
+        },
+        "reference_aligned": {
+          "count": 3,
+          "maximum": 98.0,
+          "mean": 98.0,
+          "minimum": 98.0,
+          "population_std": 0.0
+        }
+      },
+      "status_counts": {
+        "blocked": 3,
+        "provisional_preference": 0
+      },
+      "strict_majority_candidate": null,
+      "training_eligible": false
+    },
+    {
+      "case_id": "sample-a2-s031-media-pipeline-unsupported-output",
+      "channel": "multimodal",
+      "chosen_by_strategy": {
+        "degraded_control": 0,
+        "observed_fixture": 0,
+        "reference_aligned": 4
+      },
+      "expected_variant": "expected-03",
+      "human_review_required": true,
+      "observation_count": 5,
+      "observations": [
+        {
+          "chosen_candidate_id": "reference_aligned",
+          "experiment_label": "baseline",
+          "reference_minus_observed_reward_gap": 4.0,
+          "rejected_candidate_id": "degraded_control",
+          "rewards": {
+            "degraded_control": 11.0,
+            "observed_fixture": 94.0,
+            "reference_aligned": 98.0
+          },
+          "source_report_sha256": "sha256:8c4c38a6055e8a0e67655498e12b38428a6f1599c30be8d048f1dd3fb2518b9b",
+          "status": "provisional_preference"
+        },
+        {
+          "chosen_candidate_id": null,
+          "experiment_label": "repeat_2",
+          "reference_minus_observed_reward_gap": 0.0,
+          "rejected_candidate_id": null,
+          "rewards": {
+            "degraded_control": 12.0,
+            "observed_fixture": 98.0,
+            "reference_aligned": 98.0
+          },
+          "source_report_sha256": "sha256:618fd957700841c488bd5a70a072cc581c082212122aa7a8e1d55cafe0531d89",
+          "status": "blocked"
+        },
+        {
+          "chosen_candidate_id": "reference_aligned",
+          "experiment_label": "repeat_3",
+          "reference_minus_observed_reward_gap": 4.0,
+          "rejected_candidate_id": "degraded_control",
+          "rewards": {
+            "degraded_control": 11.0,
+            "observed_fixture": 94.0,
+            "reference_aligned": 98.0
+          },
+          "source_report_sha256": "sha256:e1c6f8d714ab41c686ec73b1e06e0dac2fef886f2e3602b05f922048dd6a6bbc",
+          "status": "provisional_preference"
+        },
+        {
+          "chosen_candidate_id": "reference_aligned",
+          "experiment_label": "active_repeat_4",
+          "reference_minus_observed_reward_gap": 12.0,
+          "rejected_candidate_id": "degraded_control",
+          "rewards": {
+            "degraded_control": 10.0,
+            "observed_fixture": 86.0,
+            "reference_aligned": 98.0
+          },
+          "source_report_sha256": "sha256:1710f2c0de3dd249678637673aa4ea51ac46ea318221807af6ed79985ba49137",
+          "status": "provisional_preference"
+        },
+        {
+          "chosen_candidate_id": "reference_aligned",
+          "experiment_label": "active_repeat_5",
+          "reference_minus_observed_reward_gap": 4.0,
+          "rejected_candidate_id": "degraded_control",
+          "rewards": {
+            "degraded_control": 11.0,
+            "observed_fixture": 94.0,
+            "reference_aligned": 98.0
+          },
+          "source_report_sha256": "sha256:d9e0bdf4479c4070fbd313a0bce5fd22525344716ee7d930045354add8358a33",
+          "status": "provisional_preference"
+        }
+      ],
+      "preference_stability": "strict_majority_preference",
+      "prompt_variant": "output_mode",
+      "reference_minus_observed_reward_gap": {
+        "count": 5,
+        "maximum": 12.0,
+        "mean": 4.8,
+        "minimum": 0.0,
+        "negative_count": 0,
+        "population_std": 3.9192,
+        "positive_count": 4,
+        "zero_count": 1
+      },
+      "review_item_id": "sha256:c16cddf20b0102ffe7843b2d6848e67d1f95db9ca3271645d468251985abc437",
+      "reward_distribution_by_strategy": {
+        "degraded_control": {
+          "count": 5,
+          "maximum": 12.0,
+          "mean": 11.0,
+          "minimum": 10.0,
+          "population_std": 0.6325
+        },
+        "observed_fixture": {
+          "count": 5,
+          "maximum": 98.0,
+          "mean": 93.2,
+          "minimum": 86.0,
+          "population_std": 3.9192
+        },
+        "reference_aligned": {
+          "count": 5,
+          "maximum": 98.0,
+          "mean": 98.0,
+          "minimum": 98.0,
+          "population_std": 0.0
+        }
+      },
+      "status_counts": {
+        "blocked": 1,
+        "provisional_preference": 4
+      },
+      "strict_majority_candidate": "reference_aligned",
+      "training_eligible": false
+    },
+    {
+      "case_id": "sample-a2-s031-media-pipeline-unsupported-output",
+      "channel": "image",
+      "chosen_by_strategy": {
+        "degraded_control": 0,
+        "observed_fixture": 0,
+        "reference_aligned": 0
+      },
+      "expected_variant": "expected-01",
+      "human_review_required": true,
+      "observation_count": 3,
+      "observations": [
+        {
+          "chosen_candidate_id": null,
+          "experiment_label": "baseline",
+          "reference_minus_observed_reward_gap": 0.0,
+          "rejected_candidate_id": null,
+          "rewards": {
+            "degraded_control": 12.0,
+            "observed_fixture": 98.0,
+            "reference_aligned": 98.0
+          },
+          "source_report_sha256": "sha256:8c4c38a6055e8a0e67655498e12b38428a6f1599c30be8d048f1dd3fb2518b9b",
+          "status": "blocked"
+        },
+        {
+          "chosen_candidate_id": null,
+          "experiment_label": "repeat_2",
+          "reference_minus_observed_reward_gap": 0.0,
+          "rejected_candidate_id": null,
+          "rewards": {
+            "degraded_control": 10.0,
+            "observed_fixture": 98.0,
+            "reference_aligned": 98.0
+          },
+          "source_report_sha256": "sha256:618fd957700841c488bd5a70a072cc581c082212122aa7a8e1d55cafe0531d89",
+          "status": "blocked"
+        },
+        {
+          "chosen_candidate_id": null,
+          "experiment_label": "repeat_3",
+          "reference_minus_observed_reward_gap": 0.0,
+          "rejected_candidate_id": null,
+          "rewards": {
+            "degraded_control": 12.0,
+            "observed_fixture": 98.0,
+            "reference_aligned": 98.0
+          },
+          "source_report_sha256": "sha256:e1c6f8d714ab41c686ec73b1e06e0dac2fef886f2e3602b05f922048dd6a6bbc",
+          "status": "blocked"
+        }
+      ],
+      "preference_stability": "always_blocked_or_tied",
+      "prompt_variant": "image_artifact_reference",
+      "reference_minus_observed_reward_gap": {
+        "count": 3,
+        "maximum": 0.0,
+        "mean": 0.0,
+        "minimum": 0.0,
+        "negative_count": 0,
+        "population_std": 0.0,
+        "positive_count": 0,
+        "zero_count": 3
+      },
+      "review_item_id": "sha256:c6fca92af5546104cb606df8740d46da0f5ca3f51b9026a596eb248036fcfa08",
+      "reward_distribution_by_strategy": {
+        "degraded_control": {
+          "count": 3,
+          "maximum": 12.0,
+          "mean": 11.3333,
+          "minimum": 10.0,
+          "population_std": 0.9428
+        },
+        "observed_fixture": {
+          "count": 3,
+          "maximum": 98.0,
+          "mean": 98.0,
+          "minimum": 98.0,
+          "population_std": 0.0
+        },
+        "reference_aligned": {
+          "count": 3,
+          "maximum": 98.0,
+          "mean": 98.0,
+          "minimum": 98.0,
+          "population_std": 0.0
+        }
+      },
+      "status_counts": {
+        "blocked": 3,
+        "provisional_preference": 0
+      },
+      "strict_majority_candidate": null,
+      "training_eligible": false
+    },
+    {
+      "case_id": "sample-a2-s031-media-pipeline-unsupported-output",
+      "channel": "multimodal",
+      "chosen_by_strategy": {
+        "degraded_control": 0,
+        "observed_fixture": 0,
+        "reference_aligned": 0
+      },
+      "expected_variant": "expected-02",
+      "human_review_required": true,
+      "observation_count": 3,
+      "observations": [
+        {
+          "chosen_candidate_id": null,
+          "experiment_label": "baseline",
+          "reference_minus_observed_reward_gap": 0.0,
+          "rejected_candidate_id": null,
+          "rewards": {
+            "degraded_control": 10.0,
+            "observed_fixture": 98.0,
+            "reference_aligned": 98.0
+          },
+          "source_report_sha256": "sha256:8c4c38a6055e8a0e67655498e12b38428a6f1599c30be8d048f1dd3fb2518b9b",
+          "status": "blocked"
+        },
+        {
+          "chosen_candidate_id": null,
+          "experiment_label": "repeat_2",
+          "reference_minus_observed_reward_gap": 0.0,
+          "rejected_candidate_id": null,
+          "rewards": {
+            "degraded_control": 11.0,
+            "observed_fixture": 98.0,
+            "reference_aligned": 98.0
+          },
+          "source_report_sha256": "sha256:618fd957700841c488bd5a70a072cc581c082212122aa7a8e1d55cafe0531d89",
+          "status": "blocked"
+        },
+        {
+          "chosen_candidate_id": null,
+          "experiment_label": "repeat_3",
+          "reference_minus_observed_reward_gap": 0.0,
+          "rejected_candidate_id": null,
+          "rewards": {
+            "degraded_control": 11.0,
+            "observed_fixture": 98.0,
+            "reference_aligned": 98.0
+          },
+          "source_report_sha256": "sha256:e1c6f8d714ab41c686ec73b1e06e0dac2fef886f2e3602b05f922048dd6a6bbc",
+          "status": "blocked"
+        }
+      ],
+      "preference_stability": "always_blocked_or_tied",
+      "prompt_variant": "output_mode",
+      "reference_minus_observed_reward_gap": {
+        "count": 3,
+        "maximum": 0.0,
+        "mean": 0.0,
+        "minimum": 0.0,
+        "negative_count": 0,
+        "population_std": 0.0,
+        "positive_count": 0,
+        "zero_count": 3
+      },
+      "review_item_id": "sha256:c8f93ecade76bf649a95d58fa85b11304b6e90242919a5a5b639d584e9fe951b",
+      "reward_distribution_by_strategy": {
+        "degraded_control": {
+          "count": 3,
+          "maximum": 11.0,
+          "mean": 10.6667,
+          "minimum": 10.0,
+          "population_std": 0.4714
+        },
+        "observed_fixture": {
+          "count": 3,
+          "maximum": 98.0,
+          "mean": 98.0,
+          "minimum": 98.0,
+          "population_std": 0.0
+        },
+        "reference_aligned": {
+          "count": 3,
+          "maximum": 98.0,
+          "mean": 98.0,
+          "minimum": 98.0,
+          "population_std": 0.0
+        }
+      },
+      "status_counts": {
+        "blocked": 3,
+        "provisional_preference": 0
+      },
+      "strict_majority_candidate": null,
+      "training_eligible": false
+    },
+    {
+      "case_id": "sample-a2-s031-media-pipeline-unsupported-output",
+      "channel": "multimodal",
+      "chosen_by_strategy": {
+        "degraded_control": 0,
+        "observed_fixture": 1,
+        "reference_aligned": 3
+      },
+      "expected_variant": "expected-03",
+      "human_review_required": true,
+      "observation_count": 5,
+      "observations": [
+        {
+          "chosen_candidate_id": "reference_aligned",
+          "experiment_label": "baseline",
+          "reference_minus_observed_reward_gap": 4.0,
+          "rejected_candidate_id": "degraded_control",
+          "rewards": {
+            "degraded_control": 12.0,
+            "observed_fixture": 92.0,
+            "reference_aligned": 96.0
+          },
+          "source_report_sha256": "sha256:8c4c38a6055e8a0e67655498e12b38428a6f1599c30be8d048f1dd3fb2518b9b",
+          "status": "provisional_preference"
+        },
+        {
+          "chosen_candidate_id": "reference_aligned",
+          "experiment_label": "repeat_2",
+          "reference_minus_observed_reward_gap": 3.5,
+          "rejected_candidate_id": "degraded_control",
+          "rewards": {
+            "degraded_control": 12.0,
+            "observed_fixture": 92.5,
+            "reference_aligned": 96.0
+          },
+          "source_report_sha256": "sha256:618fd957700841c488bd5a70a072cc581c082212122aa7a8e1d55cafe0531d89",
+          "status": "provisional_preference"
+        },
+        {
+          "chosen_candidate_id": "reference_aligned",
+          "experiment_label": "repeat_3",
+          "reference_minus_observed_reward_gap": 3.0,
+          "rejected_candidate_id": "degraded_control",
+          "rewards": {
+            "degraded_control": 12.0,
+            "observed_fixture": 93.0,
+            "reference_aligned": 96.0
+          },
+          "source_report_sha256": "sha256:e1c6f8d714ab41c686ec73b1e06e0dac2fef886f2e3602b05f922048dd6a6bbc",
+          "status": "provisional_preference"
+        },
+        {
+          "chosen_candidate_id": null,
+          "experiment_label": "active_repeat_4",
+          "reference_minus_observed_reward_gap": 0.0,
+          "rejected_candidate_id": null,
+          "rewards": {
+            "degraded_control": 12.0,
+            "observed_fixture": 96.0,
+            "reference_aligned": 96.0
+          },
+          "source_report_sha256": "sha256:1710f2c0de3dd249678637673aa4ea51ac46ea318221807af6ed79985ba49137",
+          "status": "blocked"
+        },
+        {
+          "chosen_candidate_id": "observed_fixture",
+          "experiment_label": "active_repeat_5",
+          "reference_minus_observed_reward_gap": -1.0,
+          "rejected_candidate_id": "degraded_control",
+          "rewards": {
+            "degraded_control": 13.0,
+            "observed_fixture": 98.0,
+            "reference_aligned": 97.0
+          },
+          "source_report_sha256": "sha256:d9e0bdf4479c4070fbd313a0bce5fd22525344716ee7d930045354add8358a33",
+          "status": "provisional_preference"
+        }
+      ],
+      "preference_stability": "strict_majority_preference",
+      "prompt_variant": "duplicate_media",
+      "reference_minus_observed_reward_gap": {
+        "count": 5,
+        "maximum": 4.0,
+        "mean": 1.9,
+        "minimum": -1.0,
+        "negative_count": 1,
+        "population_std": 2.01,
+        "positive_count": 3,
+        "zero_count": 1
+      },
+      "review_item_id": "sha256:cbb8f3b93887d091284ad99e87c8ee7972ecf36e4808e13bf7b90057c4e35298",
+      "reward_distribution_by_strategy": {
+        "degraded_control": {
+          "count": 5,
+          "maximum": 13.0,
+          "mean": 12.2,
+          "minimum": 12.0,
+          "population_std": 0.4
+        },
+        "observed_fixture": {
+          "count": 5,
+          "maximum": 98.0,
+          "mean": 94.3,
+          "minimum": 92.0,
+          "population_std": 2.3152
+        },
+        "reference_aligned": {
+          "count": 5,
+          "maximum": 97.0,
+          "mean": 96.2,
+          "minimum": 96.0,
+          "population_std": 0.4
+        }
+      },
+      "status_counts": {
+        "blocked": 1,
+        "provisional_preference": 4
+      },
+      "strict_majority_candidate": "reference_aligned",
+      "training_eligible": false
+    },
+    {
+      "case_id": "sample-a2-s031-media-pipeline-unsupported-output",
+      "channel": "multimodal",
+      "chosen_by_strategy": {
+        "degraded_control": 0,
+        "observed_fixture": 0,
+        "reference_aligned": 0
+      },
+      "expected_variant": "expected-00",
+      "human_review_required": true,
+      "observation_count": 3,
+      "observations": [
+        {
+          "chosen_candidate_id": null,
+          "experiment_label": "baseline",
+          "reference_minus_observed_reward_gap": 0.0,
+          "rejected_candidate_id": null,
+          "rewards": {
+            "degraded_control": 10.0,
+            "observed_fixture": 98.0,
+            "reference_aligned": 98.0
+          },
+          "source_report_sha256": "sha256:8c4c38a6055e8a0e67655498e12b38428a6f1599c30be8d048f1dd3fb2518b9b",
+          "status": "blocked"
+        },
+        {
+          "chosen_candidate_id": null,
+          "experiment_label": "repeat_2",
+          "reference_minus_observed_reward_gap": 0.0,
+          "rejected_candidate_id": null,
+          "rewards": {
+            "degraded_control": 10.0,
+            "observed_fixture": 98.0,
+            "reference_aligned": 98.0
+          },
+          "source_report_sha256": "sha256:618fd957700841c488bd5a70a072cc581c082212122aa7a8e1d55cafe0531d89",
+          "status": "blocked"
+        },
+        {
+          "chosen_candidate_id": null,
+          "experiment_label": "repeat_3",
+          "reference_minus_observed_reward_gap": 0.0,
+          "rejected_candidate_id": null,
+          "rewards": {
+            "degraded_control": 10.0,
+            "observed_fixture": 98.0,
+            "reference_aligned": 98.0
+          },
+          "source_report_sha256": "sha256:e1c6f8d714ab41c686ec73b1e06e0dac2fef886f2e3602b05f922048dd6a6bbc",
+          "status": "blocked"
+        }
+      ],
+      "preference_stability": "always_blocked_or_tied",
+      "prompt_variant": "output_mode",
+      "reference_minus_observed_reward_gap": {
+        "count": 3,
+        "maximum": 0.0,
+        "mean": 0.0,
+        "minimum": 0.0,
+        "negative_count": 0,
+        "population_std": 0.0,
+        "positive_count": 0,
+        "zero_count": 3
+      },
+      "review_item_id": "sha256:ceefe9b31ef53e7a7ddbc25d96b00ee99fcb7205077de97d0b8af3a582d38572",
+      "reward_distribution_by_strategy": {
+        "degraded_control": {
+          "count": 3,
+          "maximum": 10.0,
+          "mean": 10.0,
+          "minimum": 10.0,
+          "population_std": 0.0
+        },
+        "observed_fixture": {
+          "count": 3,
+          "maximum": 98.0,
+          "mean": 98.0,
+          "minimum": 98.0,
+          "population_std": 0.0
+        },
+        "reference_aligned": {
+          "count": 3,
+          "maximum": 98.0,
+          "mean": 98.0,
+          "minimum": 98.0,
+          "population_std": 0.0
+        }
+      },
+      "status_counts": {
+        "blocked": 3,
+        "provisional_preference": 0
+      },
+      "strict_majority_candidate": null,
+      "training_eligible": false
+    },
+    {
+      "case_id": "sample-a2-s031-media-pipeline-unsupported-output",
+      "channel": "multimodal",
+      "chosen_by_strategy": {
+        "degraded_control": 0,
+        "observed_fixture": 0,
+        "reference_aligned": 0
+      },
+      "expected_variant": "expected-04",
+      "human_review_required": true,
+      "observation_count": 3,
+      "observations": [
+        {
+          "chosen_candidate_id": null,
+          "experiment_label": "baseline",
+          "reference_minus_observed_reward_gap": 0.0,
+          "rejected_candidate_id": null,
+          "rewards": {
+            "degraded_control": 11.0,
+            "observed_fixture": 98.0,
+            "reference_aligned": 98.0
+          },
+          "source_report_sha256": "sha256:8c4c38a6055e8a0e67655498e12b38428a6f1599c30be8d048f1dd3fb2518b9b",
+          "status": "blocked"
+        },
+        {
+          "chosen_candidate_id": null,
+          "experiment_label": "repeat_2",
+          "reference_minus_observed_reward_gap": 0.0,
+          "rejected_candidate_id": null,
+          "rewards": {
+            "degraded_control": 11.0,
+            "observed_fixture": 98.0,
+            "reference_aligned": 98.0
+          },
+          "source_report_sha256": "sha256:618fd957700841c488bd5a70a072cc581c082212122aa7a8e1d55cafe0531d89",
+          "status": "blocked"
+        },
+        {
+          "chosen_candidate_id": null,
+          "experiment_label": "repeat_3",
+          "reference_minus_observed_reward_gap": 0.0,
+          "rejected_candidate_id": null,
+          "rewards": {
+            "degraded_control": 11.0,
+            "observed_fixture": 98.0,
+            "reference_aligned": 98.0
+          },
+          "source_report_sha256": "sha256:e1c6f8d714ab41c686ec73b1e06e0dac2fef886f2e3602b05f922048dd6a6bbc",
+          "status": "blocked"
+        }
+      ],
+      "preference_stability": "always_blocked_or_tied",
+      "prompt_variant": "media_order",
+      "reference_minus_observed_reward_gap": {
+        "count": 3,
+        "maximum": 0.0,
+        "mean": 0.0,
+        "minimum": 0.0,
+        "negative_count": 0,
+        "population_std": 0.0,
+        "positive_count": 0,
+        "zero_count": 3
+      },
+      "review_item_id": "sha256:d423736b7a4538be62936674e5731f04636638e454c6d99a9900f5f555b1879f",
+      "reward_distribution_by_strategy": {
+        "degraded_control": {
+          "count": 3,
+          "maximum": 11.0,
+          "mean": 11.0,
+          "minimum": 11.0,
+          "population_std": 0.0
+        },
+        "observed_fixture": {
+          "count": 3,
+          "maximum": 98.0,
+          "mean": 98.0,
+          "minimum": 98.0,
+          "population_std": 0.0
+        },
+        "reference_aligned": {
+          "count": 3,
+          "maximum": 98.0,
+          "mean": 98.0,
+          "minimum": 98.0,
+          "population_std": 0.0
+        }
+      },
+      "status_counts": {
+        "blocked": 3,
+        "provisional_preference": 0
+      },
+      "strict_majority_candidate": null,
+      "training_eligible": false
+    },
+    {
+      "case_id": "sample-a2-s031-media-pipeline-unsupported-output",
+      "channel": "image",
+      "chosen_by_strategy": {
+        "degraded_control": 0,
+        "observed_fixture": 0,
+        "reference_aligned": 0
+      },
+      "expected_variant": "expected-04",
+      "human_review_required": true,
+      "observation_count": 3,
+      "observations": [
+        {
+          "chosen_candidate_id": null,
+          "experiment_label": "baseline",
+          "reference_minus_observed_reward_gap": 0.0,
+          "rejected_candidate_id": null,
+          "rewards": {
+            "degraded_control": 12.0,
+            "observed_fixture": 98.0,
+            "reference_aligned": 98.0
+          },
+          "source_report_sha256": "sha256:8c4c38a6055e8a0e67655498e12b38428a6f1599c30be8d048f1dd3fb2518b9b",
+          "status": "blocked"
+        },
+        {
+          "chosen_candidate_id": null,
+          "experiment_label": "repeat_2",
+          "reference_minus_observed_reward_gap": 0.0,
+          "rejected_candidate_id": null,
+          "rewards": {
+            "degraded_control": 11.0,
+            "observed_fixture": 98.0,
+            "reference_aligned": 98.0
+          },
+          "source_report_sha256": "sha256:618fd957700841c488bd5a70a072cc581c082212122aa7a8e1d55cafe0531d89",
+          "status": "blocked"
+        },
+        {
+          "chosen_candidate_id": null,
+          "experiment_label": "repeat_3",
+          "reference_minus_observed_reward_gap": 0.0,
+          "rejected_candidate_id": null,
+          "rewards": {
+            "degraded_control": 11.0,
+            "observed_fixture": 98.0,
+            "reference_aligned": 98.0
+          },
+          "source_report_sha256": "sha256:e1c6f8d714ab41c686ec73b1e06e0dac2fef886f2e3602b05f922048dd6a6bbc",
+          "status": "blocked"
+        }
+      ],
+      "preference_stability": "always_blocked_or_tied",
+      "prompt_variant": "image_artifact_reference",
+      "reference_minus_observed_reward_gap": {
+        "count": 3,
+        "maximum": 0.0,
+        "mean": 0.0,
+        "minimum": 0.0,
+        "negative_count": 0,
+        "population_std": 0.0,
+        "positive_count": 0,
+        "zero_count": 3
+      },
+      "review_item_id": "sha256:de7a2049c154cc86ef749dedfd226ab5074517a623613960c88b922f4e834da6",
+      "reward_distribution_by_strategy": {
+        "degraded_control": {
+          "count": 3,
+          "maximum": 12.0,
+          "mean": 11.3333,
+          "minimum": 11.0,
+          "population_std": 0.4714
+        },
+        "observed_fixture": {
+          "count": 3,
+          "maximum": 98.0,
+          "mean": 98.0,
+          "minimum": 98.0,
+          "population_std": 0.0
+        },
+        "reference_aligned": {
+          "count": 3,
+          "maximum": 98.0,
+          "mean": 98.0,
+          "minimum": 98.0,
+          "population_std": 0.0
+        }
+      },
+      "status_counts": {
+        "blocked": 3,
+        "provisional_preference": 0
+      },
+      "strict_majority_candidate": null,
+      "training_eligible": false
+    },
+    {
+      "case_id": "sample-a2-s031-media-pipeline-unsupported-output",
+      "channel": "multimodal",
+      "chosen_by_strategy": {
+        "degraded_control": 0,
+        "observed_fixture": 0,
+        "reference_aligned": 0
+      },
+      "expected_variant": "expected-02",
+      "human_review_required": true,
+      "observation_count": 3,
+      "observations": [
+        {
+          "chosen_candidate_id": null,
+          "experiment_label": "baseline",
+          "reference_minus_observed_reward_gap": 0.0,
+          "rejected_candidate_id": null,
+          "rewards": {
+            "degraded_control": 10.0,
+            "observed_fixture": 98.0,
+            "reference_aligned": 98.0
+          },
+          "source_report_sha256": "sha256:8c4c38a6055e8a0e67655498e12b38428a6f1599c30be8d048f1dd3fb2518b9b",
+          "status": "blocked"
+        },
+        {
+          "chosen_candidate_id": null,
+          "experiment_label": "repeat_2",
+          "reference_minus_observed_reward_gap": 0.0,
+          "rejected_candidate_id": null,
+          "rewards": {
+            "degraded_control": 11.0,
+            "observed_fixture": 98.0,
+            "reference_aligned": 98.0
+          },
+          "source_report_sha256": "sha256:618fd957700841c488bd5a70a072cc581c082212122aa7a8e1d55cafe0531d89",
+          "status": "blocked"
+        },
+        {
+          "chosen_candidate_id": null,
+          "experiment_label": "repeat_3",
+          "reference_minus_observed_reward_gap": 0.0,
+          "rejected_candidate_id": null,
+          "rewards": {
+            "degraded_control": 11.0,
+            "observed_fixture": 98.0,
+            "reference_aligned": 98.0
+          },
+          "source_report_sha256": "sha256:e1c6f8d714ab41c686ec73b1e06e0dac2fef886f2e3602b05f922048dd6a6bbc",
+          "status": "blocked"
+        }
+      ],
+      "preference_stability": "always_blocked_or_tied",
+      "prompt_variant": "media_order",
+      "reference_minus_observed_reward_gap": {
+        "count": 3,
+        "maximum": 0.0,
+        "mean": 0.0,
+        "minimum": 0.0,
+        "negative_count": 0,
+        "population_std": 0.0,
+        "positive_count": 0,
+        "zero_count": 3
+      },
+      "review_item_id": "sha256:e3a46ca2406db7dc4c2232cde2bcefe7d985848e3f6aec04d8cd7f3ca45456f8",
+      "reward_distribution_by_strategy": {
+        "degraded_control": {
+          "count": 3,
+          "maximum": 11.0,
+          "mean": 10.6667,
+          "minimum": 10.0,
+          "population_std": 0.4714
+        },
+        "observed_fixture": {
+          "count": 3,
+          "maximum": 98.0,
+          "mean": 98.0,
+          "minimum": 98.0,
+          "population_std": 0.0
+        },
+        "reference_aligned": {
+          "count": 3,
+          "maximum": 98.0,
+          "mean": 98.0,
+          "minimum": 98.0,
+          "population_std": 0.0
+        }
+      },
+      "status_counts": {
+        "blocked": 3,
+        "provisional_preference": 0
+      },
+      "strict_majority_candidate": null,
+      "training_eligible": false
+    },
+    {
+      "case_id": "sample-a2-s031-media-pipeline-unsupported-output",
+      "channel": "multimodal",
+      "chosen_by_strategy": {
+        "degraded_control": 0,
+        "observed_fixture": 0,
+        "reference_aligned": 0
+      },
+      "expected_variant": "expected-04",
+      "human_review_required": true,
+      "observation_count": 3,
+      "observations": [
+        {
+          "chosen_candidate_id": null,
+          "experiment_label": "baseline",
+          "reference_minus_observed_reward_gap": 0.0,
+          "rejected_candidate_id": null,
+          "rewards": {
+            "degraded_control": 18.0,
+            "observed_fixture": 98.0,
+            "reference_aligned": 98.0
+          },
+          "source_report_sha256": "sha256:8c4c38a6055e8a0e67655498e12b38428a6f1599c30be8d048f1dd3fb2518b9b",
+          "status": "blocked"
+        },
+        {
+          "chosen_candidate_id": null,
+          "experiment_label": "repeat_2",
+          "reference_minus_observed_reward_gap": 0.0,
+          "rejected_candidate_id": null,
+          "rewards": {
+            "degraded_control": 15.0,
+            "observed_fixture": 98.0,
+            "reference_aligned": 98.0
+          },
+          "source_report_sha256": "sha256:618fd957700841c488bd5a70a072cc581c082212122aa7a8e1d55cafe0531d89",
+          "status": "blocked"
+        },
+        {
+          "chosen_candidate_id": null,
+          "experiment_label": "repeat_3",
+          "reference_minus_observed_reward_gap": 0.0,
+          "rejected_candidate_id": null,
+          "rewards": {
+            "degraded_control": 18.0,
+            "observed_fixture": 98.0,
+            "reference_aligned": 98.0
+          },
+          "source_report_sha256": "sha256:e1c6f8d714ab41c686ec73b1e06e0dac2fef886f2e3602b05f922048dd6a6bbc",
+          "status": "blocked"
+        }
+      ],
+      "preference_stability": "always_blocked_or_tied",
+      "prompt_variant": "vision_clean_projection",
+      "reference_minus_observed_reward_gap": {
+        "count": 3,
+        "maximum": 0.0,
+        "mean": 0.0,
+        "minimum": 0.0,
+        "negative_count": 0,
+        "population_std": 0.0,
+        "positive_count": 0,
+        "zero_count": 3
+      },
+      "review_item_id": "sha256:eb0ad9e381357a6429cc69c509e3de56e95c01704236083bb9e61f464d068e9d",
+      "reward_distribution_by_strategy": {
+        "degraded_control": {
+          "count": 3,
+          "maximum": 18.0,
+          "mean": 17.0,
+          "minimum": 15.0,
+          "population_std": 1.4142
+        },
+        "observed_fixture": {
+          "count": 3,
+          "maximum": 98.0,
+          "mean": 98.0,
+          "minimum": 98.0,
+          "population_std": 0.0
+        },
+        "reference_aligned": {
+          "count": 3,
+          "maximum": 98.0,
+          "mean": 98.0,
+          "minimum": 98.0,
+          "population_std": 0.0
+        }
+      },
+      "status_counts": {
+        "blocked": 3,
+        "provisional_preference": 0
+      },
+      "strict_majority_candidate": null,
+      "training_eligible": false
+    },
+    {
+      "case_id": "sample-a2-s031-media-pipeline-unsupported-output",
+      "channel": "multimodal",
+      "chosen_by_strategy": {
+        "degraded_control": 0,
+        "observed_fixture": 0,
+        "reference_aligned": 0
+      },
+      "expected_variant": "expected-01",
+      "human_review_required": true,
+      "observation_count": 3,
+      "observations": [
+        {
+          "chosen_candidate_id": null,
+          "experiment_label": "baseline",
+          "reference_minus_observed_reward_gap": 0.0,
+          "rejected_candidate_id": null,
+          "rewards": {
+            "degraded_control": 15.0,
+            "observed_fixture": 98.0,
+            "reference_aligned": 98.0
+          },
+          "source_report_sha256": "sha256:8c4c38a6055e8a0e67655498e12b38428a6f1599c30be8d048f1dd3fb2518b9b",
+          "status": "blocked"
+        },
+        {
+          "chosen_candidate_id": null,
+          "experiment_label": "repeat_2",
+          "reference_minus_observed_reward_gap": 0.0,
+          "rejected_candidate_id": null,
+          "rewards": {
+            "degraded_control": 18.0,
+            "observed_fixture": 98.0,
+            "reference_aligned": 98.0
+          },
+          "source_report_sha256": "sha256:618fd957700841c488bd5a70a072cc581c082212122aa7a8e1d55cafe0531d89",
+          "status": "blocked"
+        },
+        {
+          "chosen_candidate_id": null,
+          "experiment_label": "repeat_3",
+          "reference_minus_observed_reward_gap": 0.0,
+          "rejected_candidate_id": null,
+          "rewards": {
+            "degraded_control": 16.0,
+            "observed_fixture": 98.0,
+            "reference_aligned": 98.0
+          },
+          "source_report_sha256": "sha256:e1c6f8d714ab41c686ec73b1e06e0dac2fef886f2e3602b05f922048dd6a6bbc",
+          "status": "blocked"
+        }
+      ],
+      "preference_stability": "always_blocked_or_tied",
+      "prompt_variant": "image_text_injection",
+      "reference_minus_observed_reward_gap": {
+        "count": 3,
+        "maximum": 0.0,
+        "mean": 0.0,
+        "minimum": 0.0,
+        "negative_count": 0,
+        "population_std": 0.0,
+        "positive_count": 0,
+        "zero_count": 3
+      },
+      "review_item_id": "sha256:edeef6e1a6b6eb3315f9d60d17ede6af16b1fc3baf6a7b967719c0ae631dad0d",
+      "reward_distribution_by_strategy": {
+        "degraded_control": {
+          "count": 3,
+          "maximum": 18.0,
+          "mean": 16.3333,
+          "minimum": 15.0,
+          "population_std": 1.2472
+        },
+        "observed_fixture": {
+          "count": 3,
+          "maximum": 98.0,
+          "mean": 98.0,
+          "minimum": 98.0,
+          "population_std": 0.0
+        },
+        "reference_aligned": {
+          "count": 3,
+          "maximum": 98.0,
+          "mean": 98.0,
+          "minimum": 98.0,
+          "population_std": 0.0
+        }
+      },
+      "status_counts": {
+        "blocked": 3,
+        "provisional_preference": 0
+      },
+      "strict_majority_candidate": null,
+      "training_eligible": false
+    },
+    {
+      "case_id": "sample-a2-s031-media-pipeline-unsupported-output",
+      "channel": "multimodal",
+      "chosen_by_strategy": {
+        "degraded_control": 0,
+        "observed_fixture": 0,
+        "reference_aligned": 5
+      },
+      "expected_variant": "expected-03",
+      "human_review_required": true,
+      "observation_count": 5,
+      "observations": [
+        {
+          "chosen_candidate_id": "reference_aligned",
+          "experiment_label": "baseline",
+          "reference_minus_observed_reward_gap": 4.0,
+          "rejected_candidate_id": "degraded_control",
+          "rewards": {
+            "degraded_control": 11.0,
+            "observed_fixture": 94.0,
+            "reference_aligned": 98.0
+          },
+          "source_report_sha256": "sha256:8c4c38a6055e8a0e67655498e12b38428a6f1599c30be8d048f1dd3fb2518b9b",
+          "status": "provisional_preference"
+        },
+        {
+          "chosen_candidate_id": "reference_aligned",
+          "experiment_label": "repeat_2",
+          "reference_minus_observed_reward_gap": 4.0,
+          "rejected_candidate_id": "degraded_control",
+          "rewards": {
+            "degraded_control": 11.0,
+            "observed_fixture": 94.0,
+            "reference_aligned": 98.0
+          },
+          "source_report_sha256": "sha256:618fd957700841c488bd5a70a072cc581c082212122aa7a8e1d55cafe0531d89",
+          "status": "provisional_preference"
+        },
+        {
+          "chosen_candidate_id": "reference_aligned",
+          "experiment_label": "repeat_3",
+          "reference_minus_observed_reward_gap": 4.0,
+          "rejected_candidate_id": "degraded_control",
+          "rewards": {
+            "degraded_control": 12.0,
+            "observed_fixture": 94.0,
+            "reference_aligned": 98.0
+          },
+          "source_report_sha256": "sha256:e1c6f8d714ab41c686ec73b1e06e0dac2fef886f2e3602b05f922048dd6a6bbc",
+          "status": "provisional_preference"
+        },
+        {
+          "chosen_candidate_id": "reference_aligned",
+          "experiment_label": "active_repeat_4",
+          "reference_minus_observed_reward_gap": 4.0,
+          "rejected_candidate_id": "degraded_control",
+          "rewards": {
+            "degraded_control": 12.0,
+            "observed_fixture": 94.0,
+            "reference_aligned": 98.0
+          },
+          "source_report_sha256": "sha256:1710f2c0de3dd249678637673aa4ea51ac46ea318221807af6ed79985ba49137",
+          "status": "provisional_preference"
+        },
+        {
+          "chosen_candidate_id": "reference_aligned",
+          "experiment_label": "active_repeat_5",
+          "reference_minus_observed_reward_gap": 4.0,
+          "rejected_candidate_id": "degraded_control",
+          "rewards": {
+            "degraded_control": 12.0,
+            "observed_fixture": 94.0,
+            "reference_aligned": 98.0
+          },
+          "source_report_sha256": "sha256:d9e0bdf4479c4070fbd313a0bce5fd22525344716ee7d930045354add8358a33",
+          "status": "provisional_preference"
+        }
+      ],
+      "preference_stability": "unanimous_stable_preference",
+      "prompt_variant": "ocr_clean_projection",
+      "reference_minus_observed_reward_gap": {
+        "count": 5,
+        "maximum": 4.0,
+        "mean": 4.0,
+        "minimum": 4.0,
+        "negative_count": 0,
+        "population_std": 0.0,
+        "positive_count": 5,
+        "zero_count": 0
+      },
+      "review_item_id": "sha256:eee2341a3858628aa195783fd2f0f9645e98794427da8be707c2864f725f663b",
+      "reward_distribution_by_strategy": {
+        "degraded_control": {
+          "count": 5,
+          "maximum": 12.0,
+          "mean": 11.6,
+          "minimum": 11.0,
+          "population_std": 0.4899
+        },
+        "observed_fixture": {
+          "count": 5,
+          "maximum": 94.0,
+          "mean": 94.0,
+          "minimum": 94.0,
+          "population_std": 0.0
+        },
+        "reference_aligned": {
+          "count": 5,
+          "maximum": 98.0,
+          "mean": 98.0,
+          "minimum": 98.0,
+          "population_std": 0.0
+        }
+      },
+      "status_counts": {
+        "blocked": 0,
+        "provisional_preference": 5
+      },
+      "strict_majority_candidate": "reference_aligned",
+      "training_eligible": false
+    },
+    {
+      "case_id": "sample-a2-s031-media-pipeline-unsupported-output",
+      "channel": "image",
+      "chosen_by_strategy": {
+        "degraded_control": 0,
+        "observed_fixture": 0,
+        "reference_aligned": 4
+      },
+      "expected_variant": "expected-03",
+      "human_review_required": true,
+      "observation_count": 5,
+      "observations": [
+        {
+          "chosen_candidate_id": "reference_aligned",
+          "experiment_label": "baseline",
+          "reference_minus_observed_reward_gap": 4.0,
+          "rejected_candidate_id": "degraded_control",
+          "rewards": {
+            "degraded_control": 12.0,
+            "observed_fixture": 94.0,
+            "reference_aligned": 98.0
+          },
+          "source_report_sha256": "sha256:8c4c38a6055e8a0e67655498e12b38428a6f1599c30be8d048f1dd3fb2518b9b",
+          "status": "provisional_preference"
+        },
+        {
+          "chosen_candidate_id": "reference_aligned",
+          "experiment_label": "repeat_2",
+          "reference_minus_observed_reward_gap": 4.0,
+          "rejected_candidate_id": "degraded_control",
+          "rewards": {
+            "degraded_control": 11.0,
+            "observed_fixture": 94.0,
+            "reference_aligned": 98.0
+          },
+          "source_report_sha256": "sha256:618fd957700841c488bd5a70a072cc581c082212122aa7a8e1d55cafe0531d89",
+          "status": "provisional_preference"
+        },
+        {
+          "chosen_candidate_id": null,
+          "experiment_label": "repeat_3",
+          "reference_minus_observed_reward_gap": 0.0,
+          "rejected_candidate_id": null,
+          "rewards": {
+            "degraded_control": 11.0,
+            "observed_fixture": 98.0,
+            "reference_aligned": 98.0
+          },
+          "source_report_sha256": "sha256:e1c6f8d714ab41c686ec73b1e06e0dac2fef886f2e3602b05f922048dd6a6bbc",
+          "status": "blocked"
+        },
+        {
+          "chosen_candidate_id": "reference_aligned",
+          "experiment_label": "active_repeat_4",
+          "reference_minus_observed_reward_gap": 4.0,
+          "rejected_candidate_id": "degraded_control",
+          "rewards": {
+            "degraded_control": 12.0,
+            "observed_fixture": 94.0,
+            "reference_aligned": 98.0
+          },
+          "source_report_sha256": "sha256:1710f2c0de3dd249678637673aa4ea51ac46ea318221807af6ed79985ba49137",
+          "status": "provisional_preference"
+        },
+        {
+          "chosen_candidate_id": "reference_aligned",
+          "experiment_label": "active_repeat_5",
+          "reference_minus_observed_reward_gap": 4.0,
+          "rejected_candidate_id": "degraded_control",
+          "rewards": {
+            "degraded_control": 12.0,
+            "observed_fixture": 94.0,
+            "reference_aligned": 98.0
+          },
+          "source_report_sha256": "sha256:d9e0bdf4479c4070fbd313a0bce5fd22525344716ee7d930045354add8358a33",
+          "status": "provisional_preference"
+        }
+      ],
+      "preference_stability": "strict_majority_preference",
+      "prompt_variant": "image_artifact_reference",
+      "reference_minus_observed_reward_gap": {
+        "count": 5,
+        "maximum": 4.0,
+        "mean": 3.2,
+        "minimum": 0.0,
+        "negative_count": 0,
+        "population_std": 1.6,
+        "positive_count": 4,
+        "zero_count": 1
+      },
+      "review_item_id": "sha256:ef681a5629f025873b47e62996be8a7a83ab0af946200d80c2c6b0477ae55059",
+      "reward_distribution_by_strategy": {
+        "degraded_control": {
+          "count": 5,
+          "maximum": 12.0,
+          "mean": 11.6,
+          "minimum": 11.0,
+          "population_std": 0.4899
+        },
+        "observed_fixture": {
+          "count": 5,
+          "maximum": 98.0,
+          "mean": 94.8,
+          "minimum": 94.0,
+          "population_std": 1.6
+        },
+        "reference_aligned": {
+          "count": 5,
+          "maximum": 98.0,
+          "mean": 98.0,
+          "minimum": 98.0,
+          "population_std": 0.0
+        }
+      },
+      "status_counts": {
+        "blocked": 1,
+        "provisional_preference": 4
+      },
+      "strict_majority_candidate": "reference_aligned",
+      "training_eligible": false
+    },
+    {
+      "case_id": "sample-a2-s031-media-pipeline-unsupported-output",
+      "channel": "multimodal",
+      "chosen_by_strategy": {
+        "degraded_control": 0,
+        "observed_fixture": 4,
+        "reference_aligned": 0
+      },
+      "expected_variant": "expected-04",
+      "human_review_required": true,
+      "observation_count": 5,
+      "observations": [
+        {
+          "chosen_candidate_id": "observed_fixture",
+          "experiment_label": "baseline",
+          "reference_minus_observed_reward_gap": -0.5,
+          "rejected_candidate_id": "degraded_control",
+          "rewards": {
+            "degraded_control": 18.0,
+            "observed_fixture": 96.5,
+            "reference_aligned": 96.0
+          },
+          "source_report_sha256": "sha256:8c4c38a6055e8a0e67655498e12b38428a6f1599c30be8d048f1dd3fb2518b9b",
+          "status": "provisional_preference"
+        },
+        {
+          "chosen_candidate_id": "observed_fixture",
+          "experiment_label": "repeat_2",
+          "reference_minus_observed_reward_gap": -2.0,
+          "rejected_candidate_id": "degraded_control",
+          "rewards": {
+            "degraded_control": 12.0,
+            "observed_fixture": 98.0,
+            "reference_aligned": 96.0
+          },
+          "source_report_sha256": "sha256:618fd957700841c488bd5a70a072cc581c082212122aa7a8e1d55cafe0531d89",
+          "status": "provisional_preference"
+        },
+        {
+          "chosen_candidate_id": null,
+          "experiment_label": "repeat_3",
+          "reference_minus_observed_reward_gap": 0.0,
+          "rejected_candidate_id": null,
+          "rewards": {
+            "degraded_control": 17.5,
+            "observed_fixture": 96.0,
+            "reference_aligned": 96.0
+          },
+          "source_report_sha256": "sha256:e1c6f8d714ab41c686ec73b1e06e0dac2fef886f2e3602b05f922048dd6a6bbc",
+          "status": "blocked"
+        },
+        {
+          "chosen_candidate_id": "observed_fixture",
+          "experiment_label": "active_repeat_4",
+          "reference_minus_observed_reward_gap": -2.0,
+          "rejected_candidate_id": "degraded_control",
+          "rewards": {
+            "degraded_control": 12.0,
+            "observed_fixture": 98.0,
+            "reference_aligned": 96.0
+          },
+          "source_report_sha256": "sha256:1710f2c0de3dd249678637673aa4ea51ac46ea318221807af6ed79985ba49137",
+          "status": "provisional_preference"
+        },
+        {
+          "chosen_candidate_id": "observed_fixture",
+          "experiment_label": "active_repeat_5",
+          "reference_minus_observed_reward_gap": -1.0,
+          "rejected_candidate_id": "degraded_control",
+          "rewards": {
+            "degraded_control": 12.0,
+            "observed_fixture": 98.0,
+            "reference_aligned": 97.0
+          },
+          "source_report_sha256": "sha256:d9e0bdf4479c4070fbd313a0bce5fd22525344716ee7d930045354add8358a33",
+          "status": "provisional_preference"
+        }
+      ],
+      "preference_stability": "strict_majority_preference",
+      "prompt_variant": "duplicate_media",
+      "reference_minus_observed_reward_gap": {
+        "count": 5,
+        "maximum": 0.0,
+        "mean": -1.1,
+        "minimum": -2.0,
+        "negative_count": 4,
+        "population_std": 0.8,
+        "positive_count": 0,
+        "zero_count": 1
+      },
+      "review_item_id": "sha256:ffcaf210f841de915b56b270cf70620d602f6406c365ad41cb0bf929abd8a107",
+      "reward_distribution_by_strategy": {
+        "degraded_control": {
+          "count": 5,
+          "maximum": 18.0,
+          "mean": 14.3,
+          "minimum": 12.0,
+          "population_std": 2.8213
+        },
+        "observed_fixture": {
+          "count": 5,
+          "maximum": 98.0,
+          "mean": 97.3,
+          "minimum": 96.0,
+          "population_std": 0.8718
+        },
+        "reference_aligned": {
+          "count": 5,
+          "maximum": 97.0,
+          "mean": 96.2,
+          "minimum": 96.0,
+          "population_std": 0.4
+        }
+      },
+      "status_counts": {
+        "blocked": 1,
+        "provisional_preference": 4
+      },
+      "strict_majority_candidate": "observed_fixture",
+      "training_eligible": false
+    }
+  ],
+  "native_media_uploaded": false,
+  "notes": [
+    "The report aggregates receipt-bound ReleaseFoundry observations without treating any ReleaseFoundry-only preference as human gold.",
+    "A strict majority is measured against all observations for a task, including blocked or tied observations.",
+    "The current three-candidate design separates severe controls reliably but often saturates near the top reward band.",
+    "Preference pairs remain ineligible for training until human adjudication confirms that the chosen candidate is actually better.",
+    "All source cases are text projections; this report does not claim native image, audio, video, or document evaluation."
+  ],
+  "preference_stability_summary": {
+    "chosen_by_strategy": {
+      "degraded_control": 0,
+      "observed_fixture": 12,
+      "reference_aligned": 28
+    },
+    "preference_stability_counts": {
+      "always_blocked_or_tied": 23,
+      "strict_majority_preference": 8,
+      "unanimous_stable_preference": 1,
+      "weak_or_conflicting_preference": 3
+    },
+    "reference_minus_observed_reward_gap": {
+      "count": 129,
+      "maximum": 12.0,
+      "mean": 0.7713,
+      "minimum": -2.0,
+      "negative_count": 12,
+      "population_std": 1.931,
+      "positive_count": 28,
+      "zero_count": 89
+    },
+    "reward_distribution_by_strategy": {
+      "degraded_control": {
+        "count": 129,
+        "maximum": 20.0,
+        "mean": 12.5659,
+        "minimum": 10.0,
+        "population_std": 2.1891
+      },
+      "observed_fixture": {
+        "count": 129,
+        "maximum": 98.0,
+        "mean": 96.9612,
+        "minimum": 86.0,
+        "population_std": 1.9256
+      },
+      "reference_aligned": {
+        "count": 129,
+        "maximum": 98.0,
+        "mean": 97.7326,
+        "minimum": 96.0,
+        "population_std": 0.6101
+      }
+    },
+    "status_counts": {
+      "blocked": 89,
+      "provisional_preference": 40
+    },
+    "strict_majority_by_strategy": {
+      "degraded_control": 0,
+      "observed_fixture": 2,
+      "reference_aligned": 7
+    },
+    "task_count_without_strict_majority": 26
+  },
+  "public_safety": {
+    "contains_api_key": false,
+    "contains_api_key_hash": false,
+    "contains_local_absolute_paths": false,
+    "contains_private_service_ids": false,
+    "contains_raw_candidate_response": false,
+    "contains_raw_prompt": false,
+    "contains_raw_tool_arguments": false
+  },
+  "release_authority": false,
+  "schema_version": "a2.releasefoundry_preference_stability.v1",
+  "source_preference_reports": [
+    {
+      "candidate_evaluation_count": 105,
+      "create_run_attempt_count": 3,
+      "create_run_retry_count": 0,
+      "experiment_label": "baseline",
+      "ref": "docs/evidence/a2_releasefoundry_exploratory_preference_calibration.json",
+      "sha256": "sha256:8c4c38a6055e8a0e67655498e12b38428a6f1599c30be8d048f1dd3fb2518b9b",
+      "task_count": 35
+    },
+    {
+      "candidate_evaluation_count": 105,
+      "create_run_attempt_count": 3,
+      "create_run_retry_count": 0,
+      "experiment_label": "repeat_2",
+      "ref": "docs/evidence/a2_releasefoundry_exploratory_preference_calibration_repeat_2.json",
+      "sha256": "sha256:618fd957700841c488bd5a70a072cc581c082212122aa7a8e1d55cafe0531d89",
+      "task_count": 35
+    },
+    {
+      "candidate_evaluation_count": 105,
+      "create_run_attempt_count": 3,
+      "create_run_retry_count": 0,
+      "experiment_label": "repeat_3",
+      "ref": "docs/evidence/a2_releasefoundry_exploratory_preference_calibration_repeat_3.json",
+      "sha256": "sha256:e1c6f8d714ab41c686ec73b1e06e0dac2fef886f2e3602b05f922048dd6a6bbc",
+      "task_count": 35
+    },
+    {
+      "candidate_evaluation_count": 36,
+      "create_run_attempt_count": 3,
+      "create_run_retry_count": 0,
+      "experiment_label": "active_repeat_4",
+      "ref": "docs/evidence/a2_releasefoundry_preference_active_repeat_4.json",
+      "sha256": "sha256:1710f2c0de3dd249678637673aa4ea51ac46ea318221807af6ed79985ba49137",
+      "task_count": 12
+    },
+    {
+      "candidate_evaluation_count": 36,
+      "create_run_attempt_count": 3,
+      "create_run_retry_count": 0,
+      "experiment_label": "active_repeat_5",
+      "ref": "docs/evidence/a2_releasefoundry_preference_active_repeat_5.json",
+      "sha256": "sha256:d9e0bdf4479c4070fbd313a0bce5fd22525344716ee7d930045354add8358a33",
+      "task_count": 12
+    }
+  ],
+  "text_projection_only": true,
+  "training_eligible": false
+}

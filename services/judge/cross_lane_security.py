@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 from pathlib import Path
@@ -75,6 +76,7 @@ def _a1_route_scope_summary(path: Path) -> dict[str, Any]:
             "A1 route scope / RLS parity snapshot is not available on this branch yet.",
         )
 
+    source_bytes = path.read_bytes()
     payload = _load_json(path)
     if not isinstance(payload, dict):
         return _invalid_source(path, "A1 route scope snapshot is not a JSON object.")
@@ -82,11 +84,22 @@ def _a1_route_scope_summary(path: Path) -> dict[str, Any]:
     routes = _route_values(payload)
     route_text = "\n".join(routes).lower()
     source_paths = _string_list(payload.get("source_paths"))
+    public_safe_source_verified = payload.get("public_safe") is True
+    source_policy_verified = _source_policy_verified(payload.get("source_policy"))
+    declared_route_counts, observed_route_counts, declared_route_counts_match = _route_count_consistency(payload)
+    tenancy_route_parity_verified = _tenancy_route_parity_verified(payload.get("tenancy_route_parity"))
     rls_or_tenant_hardening_observed = _contains_any(payload, ["rls", "tenant", "project_id", "organization_id"])
     return {
         "available": True,
         "path": path.as_posix(),
         "schema_version": str(payload.get("schema_version", "")),
+        "source_sha256": hashlib.sha256(source_bytes).hexdigest(),
+        "public_safe_source_verified": public_safe_source_verified,
+        "source_policy_verified": source_policy_verified,
+        "declared_route_counts": declared_route_counts,
+        "observed_route_counts": observed_route_counts,
+        "declared_route_counts_match": declared_route_counts_match,
+        "tenancy_route_parity_verified": tenancy_route_parity_verified,
         "route_count": len(routes),
         "api_key_route_count": route_text.count("api-key") + route_text.count("api-keys"),
         "release_gate_route_count": route_text.count("release-gate") + route_text.count("release_gate"),
@@ -97,10 +110,17 @@ def _a1_route_scope_summary(path: Path) -> dict[str, Any]:
         "intentional_difference_count": _intentional_difference_count(payload.get("intentional_route_differences")),
         "rls_or_tenant_hardening_observed": rls_or_tenant_hardening_observed,
         "source_paths": source_paths,
-        "ready_for_a2_security_context": bool(routes) and rls_or_tenant_hardening_observed,
+        "ready_for_a2_security_context": bool(
+            routes
+            and rls_or_tenant_hardening_observed
+            and public_safe_source_verified
+            and source_policy_verified
+            and declared_route_counts_match
+            and tenancy_route_parity_verified
+        ),
         "notes": [
             "A1 remains source of truth for backend route scope, tenant isolation, hosted auth, and RLS enforcement.",
-            "A2 consumes this only as public-safe security verification context.",
+            "A2 binds the public snapshot by SHA-256 and fails closed on route-count, source-policy, or tenancy-parity drift.",
         ],
     }
 
@@ -112,9 +132,15 @@ def _a3_auth_rbac_summary(doc_path: Path, openapi_path: Path) -> dict[str, Any]:
             "A3 Auth/RBAC boundary contract is not available on this branch yet.",
         )
 
-    text = doc_path.read_text(encoding="utf-8")
+    source_bytes = doc_path.read_bytes()
+    text = source_bytes.decode("utf-8")
     endpoints = sorted(set(re.findall(r"\b(?:GET|POST|PATCH|DELETE) /[A-Za-z0-9_./:{}-]+", text)))
-    openapi_paths = _a3_openapi_auth_paths(openapi_path)
+    documented_auth_operations = sorted(endpoint for endpoint in endpoints if "/auth/" in endpoint)
+    openapi_auth_operations = _a3_openapi_auth_operations(openapi_path)
+    openapi_paths = sorted({operation.split(" ", 1)[1] for operation in openapi_auth_operations})
+    auth_operation_parity_verified = bool(documented_auth_operations) and (
+        documented_auth_operations == openapi_auth_operations
+    )
     anchor_present = "ANCHOR: A3_AUTH_RBAC_BOUNDARY_CONTRACT" in text
     a1_dependency_declared = "A1 remains source of truth" in text
     a2_dependency_declared = "A2 remains source of truth" in text
@@ -129,9 +155,14 @@ def _a3_auth_rbac_summary(doc_path: Path, openapi_path: Path) -> dict[str, Any]:
         "available": True,
         "path": doc_path.as_posix(),
         "schema_version": "a3.auth_rbac_boundary.doc.v1",
+        "source_sha256": hashlib.sha256(source_bytes).hexdigest(),
+        "openapi_source_sha256": _sha256_if_exists(openapi_path),
         "anchor_present": anchor_present,
         "endpoint_count": len(endpoints),
         "endpoints": endpoints,
+        "documented_auth_operations": documented_auth_operations,
+        "openapi_auth_operations": openapi_auth_operations,
+        "auth_operation_parity_verified": auth_operation_parity_verified,
         "openapi_auth_path_count": len(openapi_paths),
         "openapi_auth_paths": openapi_paths,
         "a1_dependency_declared": a1_dependency_declared,
@@ -142,12 +173,12 @@ def _a3_auth_rbac_summary(doc_path: Path, openapi_path: Path) -> dict[str, Any]:
             anchor_present
             and a1_dependency_declared
             and a2_dependency_declared
-            and bool(openapi_paths)
+            and auth_operation_parity_verified
             and all(safety.values())
         ),
         "notes": [
             "A3 owns product-workflow display and local authorization contract shape.",
-            "A2 should verify denied states, abuse cases, redaction, and release policy effects.",
+            "A2 binds the A3 document and OpenAPI by SHA-256 and requires exact auth operation parity.",
         ],
     }
 
@@ -159,7 +190,8 @@ def _a3_fail_closed_rbac_summary(path: Path) -> dict[str, Any]:
             "A3 fail-closed RBAC write-path contract is not available on this branch yet.",
         )
 
-    text = path.read_text(encoding="utf-8")
+    source_bytes = path.read_bytes()
+    text = source_bytes.decode("utf-8")
     text_lower = text.lower()
     endpoints = sorted(set(re.findall(r"\b(?:GET|POST|PATCH|DELETE) /[A-Za-z0-9_./:{}-]+", text)))
     safety = {
@@ -182,6 +214,7 @@ def _a3_fail_closed_rbac_summary(path: Path) -> dict[str, Any]:
         "available": True,
         "path": path.as_posix(),
         "schema_version": "a3.fail_closed_rbac_write_paths.doc.v1",
+        "source_sha256": hashlib.sha256(source_bytes).hexdigest(),
         "endpoint_count": len(endpoints),
         "mutation_endpoint_count": len(mutation_endpoints),
         "endpoints": endpoints,
@@ -204,7 +237,8 @@ def _a3_event_outbox_summary(path: Path) -> dict[str, Any]:
             "A3 event outbox SaaS backbone contract is not available on this branch yet.",
         )
 
-    text = path.read_text(encoding="utf-8")
+    source_bytes = path.read_bytes()
+    text = source_bytes.decode("utf-8")
     text_lower = text.lower()
     endpoints = sorted(set(re.findall(r"\b(?:GET|POST|PATCH|DELETE) /[A-Za-z0-9_./:{}-]+", text)))
     write_endpoints = [endpoint for endpoint in endpoints if endpoint.startswith("POST ")]
@@ -223,6 +257,7 @@ def _a3_event_outbox_summary(path: Path) -> dict[str, Any]:
         "available": True,
         "path": path.as_posix(),
         "schema_version": "a3.event_outbox_saas_backbone.doc.v1",
+        "source_sha256": hashlib.sha256(source_bytes).hexdigest(),
         "endpoint_count": len(endpoints),
         "write_endpoint_count": len(write_endpoints),
         "endpoints": endpoints,
@@ -383,7 +418,7 @@ def _invalid_source(path: Path, reason: str) -> dict[str, Any]:
     }
 
 
-def _a3_openapi_auth_paths(path: Path) -> list[str]:
+def _a3_openapi_auth_operations(path: Path) -> list[str]:
     if not path.exists():
         return []
     payload = _load_json(path)
@@ -392,7 +427,21 @@ def _a3_openapi_auth_paths(path: Path) -> list[str]:
     paths = payload.get("paths")
     if not isinstance(paths, dict):
         return []
-    return sorted(str(route) for route in paths if "/auth/" in str(route))
+    operations: set[str] = set()
+    for route, path_item in paths.items():
+        route_text = str(route)
+        if "/auth/" not in route_text or not isinstance(path_item, dict):
+            continue
+        for method in ("get", "post", "patch", "delete"):
+            if isinstance(path_item.get(method), dict):
+                operations.add(f"{method.upper()} {route_text}")
+    return sorted(operations)
+
+
+def _sha256_if_exists(path: Path) -> str:
+    if not path.exists():
+        return ""
+    return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
 def _route_values(payload: dict[str, Any]) -> list[str]:
@@ -401,6 +450,59 @@ def _route_values(payload: dict[str, Any]) -> list[str]:
         if key.endswith("_routes") and isinstance(value, list):
             routes.update(str(item) for item in value)
     return sorted(route for route in routes if route.strip())
+
+
+def _source_policy_verified(value: Any) -> bool:
+    if not isinstance(value, dict):
+        return False
+    return (
+        value.get("private_evidence_read") is False
+        and value.get("raw_payloads_included") is False
+        and value.get("tokens_included") is False
+    )
+
+
+def _route_count_consistency(payload: dict[str, Any]) -> tuple[dict[str, int], dict[str, int], bool]:
+    route_fields = {
+        "go": ("go_manifest_routes", "go_route_count"),
+        "python": ("python_hosted_routes", "python_route_count"),
+        "typescript": ("ts_openapi_routes", "ts_route_count"),
+    }
+    declared: dict[str, int] = {}
+    observed: dict[str, int] = {}
+    all_match = True
+    for language, (routes_key, count_key) in route_fields.items():
+        routes = payload.get(routes_key)
+        count = payload.get(count_key)
+        if not isinstance(routes, list) or isinstance(count, bool) or not isinstance(count, int):
+            all_match = False
+            continue
+        declared[language] = count
+        observed[language] = len(routes)
+        if count != len(routes):
+            all_match = False
+    return declared, observed, all_match and len(declared) == len(route_fields)
+
+
+def _tenancy_route_parity_verified(value: Any) -> bool:
+    if not isinstance(value, dict) or value.get("exact_parity") is not True:
+        return False
+    expected = value.get("expected_route_count")
+    if isinstance(expected, bool) or not isinstance(expected, int) or expected <= 0:
+        return False
+    route_keys = ("go_routes", "python_routes", "typescript_routes")
+    route_sets: list[set[str]] = []
+    for key in route_keys:
+        routes = value.get(key)
+        if not isinstance(routes, list) or len(routes) != expected:
+            return False
+        normalized = {str(route) for route in routes if str(route).strip()}
+        if len(normalized) != expected:
+            return False
+        route_sets.append(normalized)
+    if any(value.get(key) not in ([], None) for key in ("go_only", "python_only", "typescript_only")):
+        return False
+    return route_sets[0] == route_sets[1] == route_sets[2]
 
 
 def _intentional_difference_count(value: Any) -> int:

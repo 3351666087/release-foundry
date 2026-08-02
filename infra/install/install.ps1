@@ -26,17 +26,22 @@ if (-not (Test-Path -LiteralPath $EnvFile -PathType Leaf)) {
 
 $required = @(
     "RELEASEFOUNDRY_POSTGRES_AUTH_SECRET",
+    "RELEASEFOUNDRY_POSTGRES_RUNTIME_SECRET",
     "RELEASEFOUNDRY_OBJECT_STORE_ACCESS_KEY",
-    "RELEASEFOUNDRY_OBJECT_STORE_SECRET_KEY"
+    "RELEASEFOUNDRY_OBJECT_STORE_SECRET_KEY",
+    "RELEASEFOUNDRY_IDENTITY_SESSION_HMAC_KEY",
+    "RELEASEFOUNDRY_IDENTITY_LIFECYCLE_RECEIPT_KEY"
 )
 $configured = @{}
 Get-Content -LiteralPath $EnvFile | ForEach-Object {
     if ($_ -match '^([A-Z0-9_]+)=(.+)$') {
-        $configured[$Matches[1]] = $true
+        $configured[$Matches[1]] = $Matches[2].Trim()
     }
 }
 foreach ($name in $required) {
-    if (-not $configured.ContainsKey($name)) {
+    $fileValue = if ($configured.ContainsKey($name)) { $configured[$name] } else { $null }
+    $processValue = [Environment]::GetEnvironmentVariable($name, "Process")
+    if ([string]::IsNullOrWhiteSpace($fileValue) -and [string]::IsNullOrWhiteSpace($processValue)) {
         throw "Required variable is missing or empty: $name"
     }
 }

@@ -15,6 +15,7 @@ from .calibration import (
     load_run_fixtures_by_case,
 )
 from .coverage import DEFAULT_RUN_FIXTURES
+from .result_persistence import stable_hash
 from .runner import DEFAULT_SCENARIO_PACK, load_scenario_pack
 from .sdk_parity import build_sdk_parity_report
 from .semantic_harness import (
@@ -62,7 +63,7 @@ def build_semantic_judge_collection_packet(
         language = language_by_case[case_id]
         run = fixture.get("run", fixture)
         prompt_material = _prompt_material(scenario, case, run)
-        prompt_hash = _hash12(prompt_material)
+        prompt_hash = stable_hash(prompt_material)
         cases.append(
             {
                 "audit_case_id": f"semantic-{language}-{case_id}",
@@ -76,7 +77,8 @@ def build_semantic_judge_collection_packet(
                 "sdk_input_path": case.get("sdk_input_paths", {}).get(language, ""),
                 "prompt_template_id": harness["prompt_contract"]["template_id"],
                 "prompt_input_fields": list(PROMPT_FIELDS),
-                "prompt_material_sha256_12": prompt_hash,
+                "prompt_material_sha256": prompt_hash,
+                "prompt_material_sha256_12": prompt_hash.removeprefix("sha256:")[:12],
                 "prompt_public_summary": _prompt_public_summary(run),
                 "expected": case.get("expected", {}),
                 "local_judge": case.get("local_judge", {}),
@@ -98,12 +100,16 @@ def build_semantic_judge_collection_packet(
         "semantic_harness_ready": bool(harness.get("harness_ready")),
         "covers_calibration_cases": len(cases) == int(calibration_matrix.get("case_count", 0)) and bool(cases),
         "covers_python_and_typescript": set(REQUIRED_SDK_LANGUAGES).issubset(allocation_counts),
-        "all_cases_have_prompt_hash": all(case["prompt_material_sha256_12"] for case in cases),
+        "all_cases_have_prompt_hash": all(
+            case["prompt_material_sha256"]
+            and case["prompt_material_sha256_12"]
+            for case in cases
+        ),
         "all_cases_have_fixture_ref": all(case["fixture_ref"] for case in cases),
         "all_cases_have_sdk_input_path": all(case["sdk_input_path"] for case in cases),
         "public_packet_omits_raw_prompt_and_response": True,
     }
-    return {
+    packet = {
         "schema_version": "a2.semantic_judge_collection_packet.v1",
         "packet_id": "a2_c4_semantic_judge_collection_packet",
         "dataset_id": calibration_matrix.get("dataset_id", ""),
@@ -125,11 +131,20 @@ def build_semantic_judge_collection_packet(
         },
         "semantic_judge_contract": {
             "prompt_template_id": harness["prompt_contract"]["template_id"],
+            "prompt_hash_contract": (
+                "metadata.prompt_hash must equal sha256(canonical JSON prompt material) "
+                "for the case; canonical JSON uses sorted keys, compact separators, and "
+                "ASCII escaping."
+            ),
             "prompt_input_fields": list(PROMPT_FIELDS),
             "required_output_fields": list(OUTPUT_FIELDS),
             "required_metadata_fields": list(REVIEWED_LIVE_METADATA_FIELDS),
             "cost_fields": ["prompt_tokens", "completion_tokens", "estimated_usd"],
             "review_status_required": "reviewed",
+            "reviewer_attestation_source": (
+                "Each private input row or row.metadata must contain reviewer_receipt "
+                "and reviewed_at_unix_ms."
+            ),
             "source_for_merge": "llm_judge",
             "importer": "scripts/a2_import_semantic_judge.py",
             "merge_command_source": "scripts/a2_merge_calibration_observations.py --source llm_judge",
@@ -153,8 +168,8 @@ def build_semantic_judge_collection_packet(
             ],
         },
         "recommended_commands": [
-            "python scripts/a2_import_semantic_judge.py --input docs/evidence/private_refs/a2_semantic_judge_review.redacted.json --evidence-ref docs/evidence/private_refs/a2_semantic_judge_review.redacted.json --output docs/evidence/private_refs/a2_semantic_judge_import.review.json",
-            "python scripts/a2_merge_calibration_observations.py --incoming docs/evidence/private_refs/a2_semantic_judge_import.review.json --source llm_judge --min-count 6 --output fixtures/a2/calibration/a2_g3_calibration_observations.json",
+            "python scripts/a2_import_semantic_judge.py --input docs/evidence/private_refs/a2_semantic_judge_review.redacted.json --evidence-ref docs/evidence/private_refs/a2_semantic_judge_review.redacted.json --collection-packet fixtures/a2/calibration/a2_semantic_judge_collection_packet.json --require-reviewed --require-complete --output docs/evidence/private_refs/a2_semantic_judge_import.review.json",
+            "python scripts/a2_merge_calibration_observations.py --incoming docs/evidence/private_refs/a2_semantic_judge_import.review.json --source llm_judge --semantic-collection-packet fixtures/a2/calibration/a2_semantic_judge_collection_packet.json --min-count 6 --require-reviewed --require-complete --output fixtures/a2/calibration/a2_g3_calibration_observations.json",
             "python -B scripts/a2_regenerate_fixtures.py --write",
         ],
         "cases": cases,
@@ -162,8 +177,13 @@ def build_semantic_judge_collection_packet(
             "deterministic": True,
             "purpose": "Prepare the exact six public-safe C4 semantic judge cases for private audited model-call collection.",
             "does_not_claim_c4_met": True,
+            "binding_authority": (
+                "Strict imports bind case_id, sdk_language, prompt_template_id, and "
+                "prompt_hash to this exact packet artifact."
+            ),
         },
     }
+    return {**packet, "artifact_hash": stable_hash(packet)}
 
 
 def _sdk_language_allocation(cases: list[dict[str, Any]]) -> dict[str, str]:
@@ -246,11 +266,6 @@ def _tool_args(call: dict[str, Any]) -> dict[str, Any]:
         if isinstance(value, dict):
             return value
     return {}
-
-
-def _hash12(value: dict[str, Any]) -> str:
-    text = json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
-    return hashlib.sha256(text.encode("utf-8")).hexdigest()[:12]
 
 
 def _contains_secret_like(value: str) -> bool:

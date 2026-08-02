@@ -23,6 +23,7 @@
   "evidence_blocker_count": 4,
   "scenario_selection_blocker_count": 0,
   "a1_output_policy_blocker_count": 0,
+  "judge_registry_blocker_count": 0,
   "warning_count": 3,
   "scenario_selection_gate": {
     "status": "ready",
@@ -85,6 +86,20 @@
       "docs/a1/api_calibration/real_api_evidence_index.json"
     ]
   },
+  "judge_registry_binding": {
+    "status": "verified",
+    "ready": true,
+    "registry_id": "a2_judge_version_registry",
+    "registry_hash": "sha256:fa51b974e28e13472cb1d2347714ca19aba8a7ca1b5e01b38e2841d2b256478f",
+    "active_release_id": "a2-local-deterministic-judge-0.1",
+    "default_version": "0.1.0",
+    "all_declared_judges_observed": true,
+    "gaps": [],
+    "evidence_refs": [
+      "fixtures/a2/results/a2_judge_versions.json"
+    ]
+  },
+  "judge_registry_hash": "sha256:fa51b974e28e13472cb1d2347714ca19aba8a7ca1b5e01b38e2841d2b256478f",
   "blockers": [
     {
       "type": "commercial_gate",
@@ -145,7 +160,7 @@
       "status": "not_merged",
       "severity": "high",
       "summary": "ReleaseFoundry server-side grading evidence is not publicly merge-safe.",
-      "required_action": "Reviewed ReleaseFoundry grading observations with review_status=reviewed and evidence_ref must be imported, merged, and regenerated before C3 is met.",
+      "required_action": "Reviewed ReleaseFoundry grading observations with review_status=reviewed, a canonical reviewer_receipt, a positive reviewed_at_unix_ms, and canonical private evidence_ref must be imported from one acceptance run bound to the fixed dataset identity, complete run lifecycle, exact test set, server-observed grader version, and independently verified per-test terminal scoring. The retained public run receipt must hash-bind every observation and match every run-level and per-test scoring field. Aggregate markers are not acceptance authority; merge and regenerate before C3 is met.",
       "missing_count": 6,
       "evidence_refs": [
         "fixtures/a2/calibration/a2_g3_calibration_observations.json"
@@ -157,7 +172,7 @@
       "status": "offline_reference_only",
       "severity": "high",
       "summary": "Audited live semantic judge evidence is not merged.",
-      "required_action": "Audited semantic judge observations must replace offline references before C4 is met.",
+      "required_action": "Audited semantic judge observations with canonical private evidence refs must replace offline references before C4 is met. Per-case evidence is acceptance authority; aggregate availability and reviewed-count markers must match it.",
       "missing_count": 6,
       "evidence_refs": [
         "fixtures/a2/calibration/a2_g3_calibration_observations.json"
@@ -228,8 +243,8 @@
       "collection_packet_ref": "fixtures/a2/calibration/a2_releasefoundry_grading_collection_packet.json",
       "commands": [
         "python scripts/a2_scan_releasefoundry_grading_evidence.py --input docs/evidence/private_refs/a2_releasefoundry_get_run.redacted.json --case-map fixtures/a2/calibration/releasefoundry_grading_batch_case_map.json",
-        "python scripts/a2_import_releasefoundry_grading.py --input docs/evidence/private_refs/a2_releasefoundry_get_run.redacted.json --case-map fixtures/a2/calibration/releasefoundry_grading_batch_case_map.json --evidence-ref docs/evidence/private_refs/a2_releasefoundry_get_run.redacted.json --review-status reviewed --output docs/evidence/private_refs/a2_releasefoundry_grading_import.review.json",
-        "python scripts/a2_merge_calibration_observations.py --incoming docs/evidence/private_refs/a2_releasefoundry_grading_import.review.json --source releasefoundry_grading --min-count 6 --output fixtures/a2/calibration/a2_g3_calibration_observations.json",
+        "python scripts/a2_import_releasefoundry_grading.py --input docs/evidence/private_refs/a2_releasefoundry_get_run.redacted.json --case-map fixtures/a2/calibration/releasefoundry_grading_batch_case_map.json --identity-file docs/evidence/private_refs/a2_releasefoundry_dataset_identity.private.json --identity-receipt docs/evidence/a2_releasefoundry_dataset_identity_receipt.json --evidence-ref docs/evidence/private_refs/a2_releasefoundry_get_run.redacted.json --review-status reviewed --reviewer-receipt \"$A2_REVIEWER_RECEIPT\" --reviewed-at-unix-ms \"$A2_REVIEWED_AT_UNIX_MS\" --require-reviewed --require-complete --output docs/evidence/private_refs/a2_releasefoundry_grading_import.review.json",
+        "python scripts/a2_merge_calibration_observations.py --incoming docs/evidence/private_refs/a2_releasefoundry_grading_import.review.json --source releasefoundry_grading --min-count 6 --require-reviewed --require-complete --output fixtures/a2/calibration/a2_g3_calibration_observations.json",
         "python scripts/a2_regenerate_fixtures.py --write"
       ]
     },
@@ -241,8 +256,8 @@
       "collection_packet_ref": "fixtures/a2/calibration/a2_semantic_judge_collection_packet.json",
       "commands": [
         "python scripts/a2_build_semantic_judge_collection_packet.py --check",
-        "python scripts/a2_import_semantic_judge.py --input docs/evidence/private_refs/a2_semantic_judge_review.redacted.json --evidence-ref docs/evidence/private_refs/a2_semantic_judge_review.redacted.json --output docs/evidence/private_refs/a2_semantic_judge_import.review.json",
-        "python scripts/a2_merge_calibration_observations.py --incoming docs/evidence/private_refs/a2_semantic_judge_import.review.json --source llm_judge --min-count 6 --output fixtures/a2/calibration/a2_g3_calibration_observations.json",
+        "python scripts/a2_import_semantic_judge.py --input docs/evidence/private_refs/a2_semantic_judge_review.redacted.json --evidence-ref docs/evidence/private_refs/a2_semantic_judge_review.redacted.json --collection-packet fixtures/a2/calibration/a2_semantic_judge_collection_packet.json --require-reviewed --require-complete --output docs/evidence/private_refs/a2_semantic_judge_import.review.json",
+        "python scripts/a2_merge_calibration_observations.py --incoming docs/evidence/private_refs/a2_semantic_judge_import.review.json --source llm_judge --semantic-collection-packet fixtures/a2/calibration/a2_semantic_judge_collection_packet.json --min-count 6 --require-reviewed --require-complete --output fixtures/a2/calibration/a2_g3_calibration_observations.json",
         "python scripts/a2_regenerate_fixtures.py --write"
       ]
     }
@@ -284,7 +299,7 @@
     {
       "level": "failure",
       "title": "C3 blocks release",
-      "message": "Reviewed ReleaseFoundry grading observations with review_status=reviewed and evidence_ref must be imported, merged, and regenerated before C3 is met.",
+      "message": "Reviewed ReleaseFoundry grading observations with review_status=reviewed, a canonical reviewer_receipt, a positive reviewed_at_unix_ms, and canonical private evidence_ref must be imported from one acceptance run bound to the fixed dataset identity, complete run lifecycle, exact test set, server-observed grader version, and independently verified per-test terminal scoring. The retained public run receipt must hash-bind every observation and match every run-level and per-test scoring field. Aggregate markers are not acceptance authority; merge and regenerate before C3 is met.",
       "evidence_refs": [
         "fixtures/a2/calibration/a2_g3_calibration_observations.json"
       ]
@@ -292,7 +307,7 @@
     {
       "level": "failure",
       "title": "C4 blocks release",
-      "message": "Audited semantic judge observations must replace offline references before C4 is met.",
+      "message": "Audited semantic judge observations with canonical private evidence refs must replace offline references before C4 is met. Per-case evidence is acceptance authority; aggregate availability and reviewed-count markers must match it.",
       "evidence_refs": [
         "fixtures/a2/calibration/a2_g3_calibration_observations.json"
       ]
@@ -362,7 +377,8 @@
       "blockers",
       "required_evidence",
       "scenario_selection_gate",
-      "a1_output_policy_gate"
+      "a1_output_policy_gate",
+      "judge_registry_binding"
     ],
     "stable_join_keys": [
       "case_id",
@@ -377,11 +393,21 @@
     "fixtures/a2/results/a2_g3_calibration_matrix.json",
     "fixtures/a2/results/a2_regression_replay_report.json",
     "fixtures/a2/results/a2_scenario_selection_report.json",
+    "fixtures/a2/results/a2_judge_versions.json",
     "docs/a1/api_calibration/real_api_evidence_index.json"
   ],
   "metadata": {
     "deterministic": true,
     "purpose": "Block unsafe agent releases until A2 replay, judge, evidence, review, and regression gates are proven.",
     "does_not_execute_live_calls": true
-  }
+  },
+  "source_commercial_readiness_hash": "sha256:d62102451951edc7cedc345d00f4fe76aa4fc1a7d9bba648809d46fea39a4f02",
+  "source_evidence_readiness_hash": "sha256:628a7bb4c8da33c9327170439308b03d5754eae64063ddb894fac51bb6560c4f",
+  "source_calibration_matrix_hash": "sha256:9f461aab0683cf0581ff86eef4dcf12e9780a983b32a4f0269717255afb9b204",
+  "source_case_book_hash": "sha256:3d4451f18c33ca1b9581044428013aae9e68b8be2a56c78536c2b717307d821b",
+  "source_regression_replay_hash": "sha256:70bedec4ba7cd930a4f8a5dede094c3ddd87e11dcdcb2ce394833102e874ba54",
+  "source_scenario_selection_hash": "sha256:73ec69dc3aefd45c86c630eaa9394711ff21f1862b9e53cecc2870b224ac2b26",
+  "source_a1_evidence_index_hash": "sha256:71988a89f7ab4844e6b20b4f90119ecf79012a2d6a811b7e2501970e72fdbf8f",
+  "source_judge_registry_hash": "sha256:fbf30a8405b33a7547abc2a74107c13cd12e1e0f47475a58f6c06dd44c9c8492",
+  "artifact_hash": "sha256:fba16648b8d503fe7dd0a9b114253314f109bd475bbad7d342ca4c912a6435fa"
 }

@@ -1,23 +1,53 @@
 {
   "accepted_modalities": [
-    "text",
-    "image",
-    "audio",
-    "file",
-    "video"
+    "text"
   ],
   "all_required_modalities_requested": true,
-  "api_call_count": 2,
+  "api_call_count": 8,
+  "artifact_download_attempt_count": 2,
+  "artifact_download_verified_count": 2,
+  "artifact_missing_modalities": [
+    "audio"
+  ],
+  "artifact_modality_coverage_complete": false,
+  "artifact_origin": "releasefoundry_generated_dataset",
+  "artifact_receipt_status": "partial",
+  "artifact_receipts": [
+    {
+      "byte_size": 16676,
+      "modality": "file",
+      "response_mime": "application/pdf",
+      "sha256": "0227bba126ba2b01c810631565bf48db4f4773f882d99c3684869880116acd44",
+      "verification_status": "verified"
+    },
+    {
+      "byte_size": 1265233,
+      "modality": "image",
+      "response_mime": "image/png",
+      "sha256": "945b4cbf99b9690196a3a7d36feef580ecf7873127f8ec7015d06df958f0b37d",
+      "verification_status": "verified"
+    }
+  ],
+  "artifact_receipts_public_safe": true,
+  "artifact_reference_count": 2,
+  "artifact_reference_modalities": [
+    "image",
+    "file"
+  ],
+  "artifact_verified_modalities": [
+    "image",
+    "file"
+  ],
   "auth": {
     "note_count": 0,
     "session_reached": true,
     "status": "ok",
     "tenant_id_present": true,
     "tenant_name_present": true,
-    "user_email_sha256_12": "b28feb653070",
+    "user_email_present": true,
     "user_id_present": true
   },
-  "base_url": "https://api.releasefoundry.example/testing-platform-api",
+  "base_url": "https://api.releasefoundry.io/testing-platform-api",
   "c3_grading_ready": false,
   "calls": [
     {
@@ -36,37 +66,257 @@
       }
     },
     {
-      "error_message": "[400] Usage limit exceeded for requests: 5/5 used, requested 1, 0 remaining",
-      "error_type": "ReleaseFoundryError",
-      "name": "create_request",
-      "status": "error"
+      "name": "list_requests",
+      "status": "ok",
+      "summary": {
+        "page_number": 1,
+        "type": "dict"
+      }
+    },
+    {
+      "name": "list_requests",
+      "status": "ok",
+      "summary": {
+        "page_number": 2,
+        "type": "dict"
+      }
+    },
+    {
+      "name": "wait_for_request",
+      "status": "ok",
+      "summary": {
+        "id_present": true,
+        "keys": [
+          "actual_duration_s",
+          "completed_at",
+          "created_at",
+          "estimated_duration_s",
+          "id",
+          "prompt_version_id",
+          "request",
+          "request_input_schema",
+          "request_name",
+          "request_status",
+          "requestor_id",
+          "requestor_tenant"
+        ],
+        "type": "dict"
+      }
+    },
+    {
+      "name": "get_request",
+      "status": "ok",
+      "summary": {
+        "id_present": true,
+        "keys": [
+          "actual_duration_s",
+          "completed_at",
+          "created_at",
+          "estimated_duration_s",
+          "id",
+          "prompt_version_id",
+          "request",
+          "request_input_schema",
+          "request_name",
+          "request_status",
+          "requestor_id",
+          "requestor_tenant"
+        ],
+        "type": "dict"
+      }
+    },
+    {
+      "name": "list_datasets",
+      "status": "ok",
+      "summary": {
+        "datasets_count": 10,
+        "datasets_item_keys": [
+          "agent_details",
+          "agent_id",
+          "created_at",
+          "creator",
+          "creator_details",
+          "dataset_source",
+          "dataset_type",
+          "description",
+          "id",
+          "name",
+          "repo_id",
+          "request_id",
+          "run_count",
+          "tenant"
+        ],
+        "keys": [
+          "_user",
+          "datasets",
+          "next_cursor",
+          "status"
+        ],
+        "status_value": "ok",
+        "type": "dict"
+      }
+    },
+    {
+      "name": "get_dataset",
+      "status": "ok",
+      "summary": {
+        "id_present": true,
+        "keys": [
+          "agent_id",
+          "created_at",
+          "creator",
+          "dataset_source",
+          "description",
+          "id",
+          "name",
+          "repo_id",
+          "request_id",
+          "tenant"
+        ],
+        "type": "dict"
+      }
+    },
+    {
+      "name": "get_dataset_artifact_links",
+      "status": "ok",
+      "summary": {
+        "id_present": true,
+        "signed_artifact_reference_count": 2,
+        "type": "dict"
+      }
     }
   ],
+  "create_request_attempt_count": 0,
   "create_request_reached": false,
-  "dataset_id_present": false,
-  "dataset_id_sha256_12": "",
+  "create_request_retry_count": 0,
+  "dataset_content_sha256": "7fb1a0a74105b5a3cb7b552fc7daa91fcd707dcffbe7604e74a4be246041b722",
+  "dataset_id_present": true,
+  "dataset_id_sha256_12": "5e968ce47ce4",
+  "dataset_request_binding_verified": true,
   "dataset_summary": {
-    "available": false
+    "available": true,
+    "keys": [
+      "agent_id",
+      "created_at",
+      "creator",
+      "dataset_source",
+      "description",
+      "id",
+      "name",
+      "repo_id",
+      "request_id",
+      "tenant"
+    ],
+    "observed_artifact_modalities": [
+      "text",
+      "image",
+      "file"
+    ],
+    "signed_urls_included": false
   },
-  "generated_at": "2026-07-10T23:46:02Z",
+  "excluded_modalities": [
+    "video"
+  ],
+  "generated_at": "2026-08-01T15:54:59Z",
   "generation_options": {
     "generate_audio": true,
     "generate_files": true,
     "generate_images": true,
-    "generate_videos": true
+    "generate_simulations": false,
+    "generate_videos": false,
+    "scenario_count": 1
   },
+  "media_upload_api_observed": false,
+  "modality_evidence": {
+    "audio": {
+      "artifact_observed": false,
+      "evidence_status": "request_config_accepted",
+      "grading_path": "request_configuration_only",
+      "input_support_status": "not_proven",
+      "request_accepted": true,
+      "requested": true
+    },
+    "file": {
+      "artifact_observed": true,
+      "evidence_status": "artifact_observed",
+      "grading_path": "generated_artifact",
+      "input_support_status": "not_proven",
+      "request_accepted": true,
+      "requested": true
+    },
+    "image": {
+      "artifact_observed": true,
+      "evidence_status": "artifact_observed",
+      "grading_path": "generated_artifact",
+      "input_support_status": "not_proven",
+      "request_accepted": true,
+      "requested": true
+    },
+    "text": {
+      "artifact_observed": true,
+      "evidence_status": "artifact_observed",
+      "grading_path": "native_text",
+      "input_support_status": "observed",
+      "request_accepted": true,
+      "requested": true
+    },
+    "video": {
+      "artifact_observed": false,
+      "evidence_status": "not_observed",
+      "grading_path": "not_observed",
+      "input_support_status": "unknown",
+      "request_accepted": false,
+      "requested": false
+    }
+  },
+  "mutation_guard_status": "reused_exact_request",
+  "native_media_uploaded": false,
   "notes": [
     "This is a redacted public summary of a real ReleaseFoundry multimodal request smoke.",
+    "The default smoke requests ReleaseFoundry-generated image, audio, and file artifacts; video is excluded unless explicitly opted in.",
+    "Every request-inventory page is scanned before create_request is allowed, preventing reuse misses beyond the first page.",
+    "Generated dataset artifacts do not prove that the SDK accepts caller-uploaded native media.",
     "The private ref is ignored by git and may contain raw API structure for human review.",
     "No API key, authorization header, signed URL, binary payload, or raw private response is stored in this public summary."
   ],
+  "observed_artifact_modalities": [
+    "text",
+    "image",
+    "file"
+  ],
   "private_ref": "docs/evidence/private_refs/a2_multimodal_real_api_smoke.private.json",
-  "private_ref_sha256_12": "084c566f8467",
+  "private_ref_sha256_12": "284d93ba3788",
+  "provider_limitations": {
+    "video": "provider_unverified"
+  },
   "public_safe": true,
-  "request_id_present": false,
-  "request_id_sha256_12": "",
-  "request_status": "",
+  "request_config_accepted_modalities": [
+    "text",
+    "image",
+    "audio",
+    "file"
+  ],
+  "request_content_sha256": "028068b1f07b95aa4d18f8ed38839c94ebe3f8f03042817dfd96d1bb25362370",
+  "request_id_present": true,
+  "request_id_sha256_12": "60f070e33932",
+  "request_inventory_complete": true,
+  "request_inventory_exact_match_count": 1,
+  "request_inventory_page_count": 2,
+  "request_reused": true,
+  "request_status": "completed",
+  "requested_modalities": [
+    "text",
+    "image",
+    "audio",
+    "file"
+  ],
+  "required_modalities": [
+    "text",
+    "image",
+    "audio",
+    "file"
+  ],
   "schema_version": "a2.multimodal_real_api_smoke.v1",
-  "sdk_source": "packages/sdk/releasefoundry",
-  "wait_completed": false
+  "sdk_source": "docs/a1/_pypi_artifacts/releasefoundry-0.3.1-py3-none-any.whl",
+  "wait_completed": true
 }

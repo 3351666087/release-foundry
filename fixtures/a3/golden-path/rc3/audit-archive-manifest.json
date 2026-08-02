@@ -1,8 +1,8 @@
 {
   "schema_version": "a3.audit_archive_manifest.v1",
-  "generated_at": "2026-07-20T14:39:32.963Z",
+  "generated_at": "2026-08-02T16:27:53.916Z",
   "source": "m40-05-rc3-local-candidate-binding",
-  "archive_id": "a3-archive-a3-bundle-0-2-0-rc-3-a3-golden-20260720-003-60c1e04d61-576f45dd557c",
+  "archive_id": "a3-archive-a3-bundle-0-2-0-rc-3-a3-golden-20260720-003-3de1d402fa-b8e4742a1bc7",
   "archive_format": {
     "format": "portable-directory-or-zip-manifest",
     "zip_compatible": true,
@@ -12,8 +12,8 @@
   },
   "archive_file": null,
   "bundle": {
-    "bundle_id": "a3-bundle-0-2-0-rc-3-a3-golden-20260720-003-60c1e04d61b0",
-    "bundle_root_hash": "576f45dd557cd5e58346610b9f5cd3cfd1c751792833af02f1aad1a54221202d",
+    "bundle_id": "a3-bundle-0-2-0-rc-3-a3-golden-20260720-003-3de1d402fa46",
+    "bundle_root_hash": "b8e4742a1bc7c4509ff131520f1b1fb02274dc0b56a61738c5fb2a6338165cba",
     "bundle_index_file": "fixtures/a3/golden-path/rc3/audit-bundle-index.json",
     "release": {
       "run_id": "a3-golden-20260720-003",
@@ -31,13 +31,13 @@
       "a2_integrity_verified": true,
       "a2_upstream_decision": "block",
       "a2_release_ready": false,
-      "a2_decision_ledger_head_hash": "sha256:bc608df9825ea316b374797ef76b4921bff4f6cee1943600d0297783e6be6303",
-      "a2_decision_record_id": "sha256:bb82c4c6fb858082a37922743ee114a19861c7317528cd354847c672630dcd2c",
+      "a2_decision_ledger_head_hash": "sha256:93343a7920b06dc0f232aee7b3eb82b793010ca8c2061043682b4e7ebc088797",
+      "a2_decision_record_id": "sha256:9941af3da9be5bfdb5de6d6164448b481cc3563675b0d5a088684846e63fba54",
       "candidate_id": "a3-golden-agent@0.2.0-rc.3",
       "candidate_binding_state": "exact",
       "candidate_binding_verified": true,
       "a2_grades_hash": "sha256:ffeba9ab8d7a2ccfb26ca8e135448cc9a2e6c8ead5b49837f77e5e73606a5304",
-      "a3_implementation_commit": "a0b427257c5cd80fbe3394b4a406fa21f50bae37",
+      "a3_implementation_commit": "e21ebcb1b09b2a709f5381e02f89933477453d82",
       "a3_recomputed_a2_decision": false,
       "failed_checks": [
         "a2_release_authority"
@@ -59,7 +59,7 @@
       "archive_role": "authority_record",
       "content_type": "application/json",
       "required": true,
-      "sha256": "835d7a2184c6ed697d1c94940e07369ac88ef6b941ef5c196d8d6920f7715fb5",
+      "sha256": "7ae07d7bf4d8f80b612567c0023b66b89594b7538e254d4a6ab8dda3cad5ace9",
       "byte_size": 1410,
       "created_by": "A2 trusted release authority reader",
       "origin": "a2_authoritative_evidence",
@@ -72,7 +72,7 @@
       "archive_role": "authority_record",
       "content_type": "application/json",
       "required": true,
-      "sha256": "9fd305038728b4f8e1797c343ed7cd2cf899157a0e8875f5214e1edb093f7270",
+      "sha256": "802ad43ee3c90a80019b9beec05635c73e0caf460d31ca3ab23ad458803b1302",
       "byte_size": 22164,
       "created_by": "A2 trusted release authority reader",
       "origin": "a2_authoritative_evidence",
@@ -85,7 +85,7 @@
       "archive_role": "bundle_index",
       "content_type": "application/json",
       "required": true,
-      "sha256": "20c71b3c3cd8d8984f36febd63a8109f04d19fe30ae42a8d167bc11cf99ea132",
+      "sha256": "ccfe864d1d89ca4ea0ad2cc01b6389269f5adea80c9ebc3ab1bd0c0bff44be0d",
       "byte_size": 14060,
       "created_by": "releasefoundry gate audit bundle index",
       "redaction_status": "redacted_or_safe_for_audit",
@@ -97,7 +97,7 @@
       "archive_role": "custody_record",
       "content_type": "application/json",
       "required": true,
-      "sha256": "029ba279fe2cef9442d7406949fa659501bc9e59961909561bc8b12d3f04ffec",
+      "sha256": "beda3f3c1dc919ca4e21f25c235d111744322430f42ff67c41c84feda41c1ab2",
       "byte_size": 1831,
       "created_by": "releasefoundry gate output writer",
       "origin": "a3_candidate_binding",
@@ -110,7 +110,7 @@
       "archive_role": "custody_record",
       "content_type": "application/json",
       "required": true,
-      "sha256": "ca7faa1ad582d626ee930d1d5a2e20bdd5b15209f002951e86e1dc6240e7f386",
+      "sha256": "148d8778aaf0149cbd53f6a1cdefacfc540cffb41950a57042a79608f8fee2a9",
       "byte_size": 1287,
       "created_by": "releasefoundry gate output writer",
       "origin": "a3_candidate_binding",
@@ -123,7 +123,7 @@
       "archive_role": "custody_record",
       "content_type": "application/json",
       "required": false,
-      "sha256": "8d9ef622c33fcafdbb7e1f3c9319d8bbf1a9d36d00dc5a8dbe0fe7079dcd4091",
+      "sha256": "9d3c5d869e79e855686d0f69f13348f10564e16bee151928d7058655d9c79a1c",
       "byte_size": 4098,
       "created_by": "releasefoundry gate generated artifact manifest",
       "redaction_status": "redacted_or_safe_for_audit",
@@ -135,7 +135,7 @@
       "archive_role": "deployment_record",
       "content_type": "application/json",
       "required": true,
-      "sha256": "4dc9d1316a2c3ad3e1d979a7b730659f2f077dbb65f14b4a2d1098a88b2be64c",
+      "sha256": "3fb32b88cac1219f1ea794347948fd776965d2e7e28453bc7d2bb038c1262265",
       "byte_size": 1980,
       "created_by": "A3 deployment acceptance probe reader",
       "origin": "deployment_acceptance_input",
@@ -160,7 +160,7 @@
       "archive_role": "generated_output",
       "content_type": "application/json",
       "required": true,
-      "sha256": "472f0675e079319959ff5201c2a0d6e29797556afffa3d40a567521a55575332",
+      "sha256": "40e575ea37df9d7e92510da1a18db701a17084e5a30b8f7f2e40ab65f9d0e0fe",
       "byte_size": 22014,
       "created_by": "releasefoundry gate output writer",
       "redaction_status": "redacted_or_safe_for_audit",
@@ -251,18 +251,18 @@
     "raw_private_key_stored": false,
     "dry_run_compatible": true
   },
-  "archive_root_hash": "da20552789861a7d4f16803850e86152f1f93aa36862ec86412ccab8b19bcd53",
+  "archive_root_hash": "53d4225c8e819c392a23dc4e1deef4756850ed62bee12f3bca6de0dae9dfca26",
   "signature": {
     "schema_version": "a3.audit_archive_signature.v1",
     "signature_status": "signed",
     "algorithm": "ed25519",
     "signed_payload": "canonical_archive_manifest_with_archive_root_hash",
-    "signed_payload_sha256": "0f0eb771febf39c178d34ebf56724cb7699ff07e51b41a88b6291c06ef1c141e",
+    "signed_payload_sha256": "3ee740486a0efdf6ff1f25885cb75f7b30c05a5d56f81c12103d0c9888f792c6",
     "signer": {
       "signer_type": "local-a3-gate-cli",
       "identity_binding": "self_signed_local_key_not_sso_bound",
-      "public_key_pem": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEAsKZzfdt/ldzNui9Dh7Ym8hVqePR4gV43IMTbktBx5HI=\n-----END PUBLIC KEY-----\n"
+      "public_key_pem": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEAMB5oAXq65JPNoF6p6IN+a86E5c3lcdRHtSEIpSJu34Q=\n-----END PUBLIC KEY-----\n"
     },
-    "signature_base64": "IYNyt/6y0pvBSAoxhfx0RLaskExgUaId76R56aiBgTt64E8kgkvffqc3wC8OjFJt3tI+Ta0JfdbqneXlKz+uAA=="
+    "signature_base64": "1Yy9pNBiqEmWeDOzxBVBVChd/I3euCTLAtaQiY5ETRg1D7rOIAhCvvX0c7xNC6nXP0kQFfzJYtgZKxJ1wXqYDw=="
   }
 }

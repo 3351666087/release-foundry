@@ -87,7 +87,7 @@
     "created_at": "2026-07-11T00:00:00Z",
     "record_count": 1,
     "genesis_hash": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
-    "head_hash": "sha256:c33f93e77f28dd0b6b1df9d6f72ad75b9680694e6fe3a7c02dd3dbcd5d6e224b",
+    "head_hash": "sha256:4f72816693b6f428acbffc9fa781d8d1d43986ea183b61946e7016985cd15c86",
     "records": [
       {
         "schema_version": "a2.decision_record.v1",
@@ -137,14 +137,14 @@
           "abstain_count": 0,
           "disagreement": false
         },
-        "release_gate_hash": "sha256:b2c5aa0a668ca288a17fe8ed93c6e9a7c2cc182bb3e6137570b1e30203026175",
+        "release_gate_hash": "sha256:d972a1032ae40cb7c584450cee48d4a4817ba9d1822694c8ea994fc8b11c317f",
         "hard_blockers": [
           "release_gate_blocked"
         ],
         "previous_record_hash": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
         "public_safe": true,
-        "record_id": "sha256:1d91e744771b6eed2ef092524a542ac1ac2b710cbd0833d9b182abb0dc3ce321",
-        "record_hash": "sha256:c33f93e77f28dd0b6b1df9d6f72ad75b9680694e6fe3a7c02dd3dbcd5d6e224b"
+        "record_id": "sha256:0d19f3c85e4a3a53084ed022b213aec5c68c73c201cb9f43c16e55989b91f43f",
+        "record_hash": "sha256:4f72816693b6f428acbffc9fa781d8d1d43986ea183b61946e7016985cd15c86"
       }
     ],
     "metadata": {
@@ -153,7 +153,7 @@
       "chain_verified": true,
       "human_overrides_are_linked_records": true
     },
-    "ledger_hash": "sha256:9d2adc69bc32734b6245693f3dde6f87bb7963e9af5f1afb943a4a48b60ac0ab"
+    "ledger_hash": "sha256:79f3d72f39cf3b210c66d6eeaa6694bc45df9971c681fe07fd2fc6a6040a2c69"
   },
   "a3_consumption": {
     "release_ready": false,
@@ -161,7 +161,7 @@
     "may_recompute_grade": false,
     "review_queue_status": "blocked",
     "display_decision": "block",
-    "display_provenance_hash": "sha256:c33f93e77f28dd0b6b1df9d6f72ad75b9680694e6fe3a7c02dd3dbcd5d6e224b"
+    "display_provenance_hash": "sha256:4f72816693b6f428acbffc9fa781d8d1d43986ea183b61946e7016985cd15c86"
   },
   "metadata": {
     "public_safe": true,

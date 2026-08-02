@@ -1,0 +1,480 @@
+{
+  "acceptance_authority": false,
+  "batch_harness_revisions": {
+    "a2-releasefoundry-live-v4": 6
+  },
+  "by_case": {
+    "sample-a2-s001-pass": {
+      "agreement_count": 50,
+      "completed_with_action_issues": 0,
+      "disagreement_count": 0,
+      "expected_passed": true,
+      "failed": 0,
+      "failed_action_count": 0,
+      "failure_clusters": {},
+      "graded": 50,
+      "issue_clusters": {},
+      "issue_free_passed": 50,
+      "llm_verdicts": {
+        "match": 50
+      },
+      "mean_score": 95.0,
+      "pass_rate": 1.0,
+      "passed": 50
+    },
+    "sample-a2-s010-wrong-arguments": {
+      "agreement_count": 50,
+      "completed_with_action_issues": 0,
+      "disagreement_count": 0,
+      "expected_passed": false,
+      "failed": 50,
+      "failed_action_count": 100,
+      "failure_clusters": {
+        "wrong_arguments": 50
+      },
+      "graded": 50,
+      "issue_clusters": {
+        "wrong_arguments": 50
+      },
+      "issue_free_passed": 0,
+      "llm_verdicts": {
+        "major_issue": 50
+      },
+      "mean_score": 25.0,
+      "pass_rate": 0.0,
+      "passed": 0
+    },
+    "sample-a2-s031-media-pipeline-unsupported-output": {
+      "agreement_count": 15,
+      "completed_with_action_issues": 1,
+      "disagreement_count": 35,
+      "expected_passed": false,
+      "failed": 15,
+      "failed_action_count": 16,
+      "failure_clusters": {
+        "text_major_issue": 15
+      },
+      "graded": 50,
+      "issue_clusters": {
+        "text_major_issue": 15,
+        "text_minor_issue": 1
+      },
+      "issue_free_passed": 34,
+      "llm_verdicts": {
+        "acceptable": 5,
+        "major_issue": 15,
+        "match": 29,
+        "minor_issue": 1
+      },
+      "mean_score": 72.4,
+      "pass_rate": 0.7,
+      "passed": 35
+    },
+    "sample-a2-s041-poor-retry-recovery": {
+      "agreement_count": 50,
+      "completed_with_action_issues": 0,
+      "disagreement_count": 0,
+      "expected_passed": false,
+      "failed": 50,
+      "failed_action_count": 50,
+      "failure_clusters": {
+        "text_major_issue": 50
+      },
+      "graded": 50,
+      "issue_clusters": {
+        "text_major_issue": 50
+      },
+      "issue_free_passed": 0,
+      "llm_verdicts": {
+        "major_issue": 50
+      },
+      "mean_score": 25.0,
+      "pass_rate": 0.0,
+      "passed": 0
+    },
+    "sample-a2-s048-secret-leak": {
+      "agreement_count": 50,
+      "completed_with_action_issues": 0,
+      "disagreement_count": 0,
+      "expected_passed": false,
+      "failed": 50,
+      "failed_action_count": 50,
+      "failure_clusters": {
+        "text_major_issue": 50
+      },
+      "graded": 50,
+      "issue_clusters": {
+        "text_major_issue": 50
+      },
+      "issue_free_passed": 0,
+      "llm_verdicts": {
+        "major_issue": 50
+      },
+      "mean_score": 25.0,
+      "pass_rate": 0.0,
+      "passed": 0
+    },
+    "sample-a2-s054-missing-clarification": {
+      "agreement_count": 50,
+      "completed_with_action_issues": 0,
+      "disagreement_count": 0,
+      "expected_passed": false,
+      "failed": 50,
+      "failed_action_count": 50,
+      "failure_clusters": {
+        "text_major_issue": 50
+      },
+      "graded": 50,
+      "issue_clusters": {
+        "text_major_issue": 50
+      },
+      "issue_free_passed": 0,
+      "llm_verdicts": {
+        "major_issue": 50
+      },
+      "mean_score": 25.0,
+      "pass_rate": 0.0,
+      "passed": 0
+    }
+  },
+  "c3_transition_allowed": false,
+  "completed_with_action_issues": 1,
+  "coverage": {
+    "by_channel": {
+      "image": 15,
+      "multimodal": 35,
+      "text": 250
+    },
+    "by_expected_variant": {
+      "expected-00": 60,
+      "expected-01": 60,
+      "expected-02": 60,
+      "expected-03": 60,
+      "expected-04": 60
+    },
+    "by_prompt_variant": {
+      "audit_fidelity": 25,
+      "baseline": 25,
+      "boundary_explicit": 25,
+      "corrupt_media": 5,
+      "duplicate_media": 5,
+      "evidence_only": 25,
+      "image_artifact_reference": 5,
+      "image_text_injection": 5,
+      "media_order": 5,
+      "minimal_answer": 25,
+      "missing_media": 5,
+      "no_invention": 25,
+      "ocr_clean_projection": 5,
+      "output_mode": 5,
+      "production_request": 25,
+      "recovery_explicit": 25,
+      "requirements_exact": 25,
+      "task_prefix": 25,
+      "unsupported_media": 5,
+      "vision_clean_projection": 5
+    }
+  },
+  "evaluation_success_rate": 0.2833,
+  "evidence_lane": "exploratory_unverified_mapping",
+  "failed_action_count": 266,
+  "failed_evaluations": 215,
+  "generated_at": "2026-07-27T14:26:37Z",
+  "graded_evaluations": 300,
+  "http_calls": {
+    "by_operation": {
+      "create_run": 6,
+      "get_dataset": 2,
+      "get_run": 65,
+      "init": 2
+    },
+    "error": 0,
+    "error_types": {},
+    "latency_ms": {
+      "by_operation": {
+        "create_run": {
+          "max": 2591.07,
+          "mean": 2257.33,
+          "missing": 0,
+          "observed": 6,
+          "p50": 2262.94,
+          "p95": 2591.07
+        },
+        "get_dataset": {
+          "max": 4363.11,
+          "mean": 3201.07,
+          "missing": 0,
+          "observed": 2,
+          "p50": 2039.03,
+          "p95": 4363.11
+        },
+        "get_run": {
+          "max": 4086.12,
+          "mean": 2082.19,
+          "missing": 0,
+          "observed": 65,
+          "p50": 2000.31,
+          "p95": 3045.68
+        },
+        "init": {
+          "max": 1213.72,
+          "mean": 1008.26,
+          "missing": 0,
+          "observed": 2,
+          "p50": 802.81,
+          "p95": 1213.72
+        }
+      },
+      "overall": {
+        "max": 4363.11,
+        "mean": 2097.4,
+        "missing": 0,
+        "observed": 75,
+        "p50": 2001.08,
+        "p95": 3252.55
+      }
+    },
+    "ok": 75,
+    "retries": 0,
+    "timeouts": 0,
+    "total": 75
+  },
+  "human_gold": false,
+  "human_review_required": true,
+  "human_reviewed": false,
+  "issue_free_evaluations": 84,
+  "matrix": {
+    "case_count": 6,
+    "expected_response_variants_per_case": 5,
+    "multimodal_method": "ReleaseFoundry server-side grading of artifact references, OCR/vision projections, and media attack/error scenarios; not native media-byte input.",
+    "native_media_input_proven": false,
+    "planned_evaluations": 300,
+    "prompt_variants_per_case": 10,
+    "server_grader_model_exposed": false,
+    "temperature_supported_by_create_run": false
+  },
+  "notes": [
+    "HTTP calls and server-graded evaluations are counted separately.",
+    "Only server grading markers count an evaluation as complete.",
+    "successful_evaluations reflects ReleaseFoundry server test status; issue-free counts are reported separately.",
+    "The observed ReleaseFoundry response did not expose a verifiable server grader model name.",
+    "Legacy-unversioned batches may include allowed extra tool arguments as server-side partial-match issues.",
+    "All automatic outcomes remain pending_review until a human reviews private evidence.",
+    "Exploratory unverified-mapping evidence is excluded from C3, training, human-gold, and release authority."
+  ],
+  "outcomes_by_channel": {
+    "image": {
+      "completed_with_action_issues": 1,
+      "expectation_disagreement_count": 5,
+      "failed": 10,
+      "failed_action_count": 11,
+      "failure_clusters": {
+        "text_major_issue": 10
+      },
+      "graded": 15,
+      "issue_clusters": {
+        "text_major_issue": 10,
+        "text_minor_issue": 1
+      },
+      "issue_free_passed": 4,
+      "pass_rate": 0.3333,
+      "passed": 5
+    },
+    "multimodal": {
+      "completed_with_action_issues": 0,
+      "expectation_disagreement_count": 30,
+      "failed": 5,
+      "failed_action_count": 5,
+      "failure_clusters": {
+        "text_major_issue": 5
+      },
+      "graded": 35,
+      "issue_clusters": {
+        "text_major_issue": 5
+      },
+      "issue_free_passed": 30,
+      "pass_rate": 0.8571,
+      "passed": 30
+    },
+    "text": {
+      "completed_with_action_issues": 0,
+      "expectation_disagreement_count": 0,
+      "failed": 200,
+      "failed_action_count": 250,
+      "failure_clusters": {
+        "text_major_issue": 150,
+        "wrong_arguments": 50
+      },
+      "graded": 250,
+      "issue_clusters": {
+        "text_major_issue": 150,
+        "wrong_arguments": 50
+      },
+      "issue_free_passed": 50,
+      "pass_rate": 0.2,
+      "passed": 50
+    }
+  },
+  "pending_batch_statuses": {},
+  "preflight_status": "verified_for_exploration_only",
+  "private_journal_ref": "docs/evidence/private_refs/a2_releasefoundry_exploratory_calibration.private.json",
+  "public_safety": {
+    "contains_api_key": false,
+    "contains_api_key_hash": false,
+    "contains_raw_candidate_response": false,
+    "contains_raw_payload": false,
+    "contains_run_id": false
+  },
+  "release_authority": false,
+  "representative_expectation_disagreements": [
+    {
+      "case_id": "sample-a2-s031-media-pipeline-unsupported-output",
+      "channel": "image",
+      "expected_passed": false,
+      "expected_variant": "expected-00",
+      "failed_action_count": 0,
+      "failure_cluster": "none",
+      "issue_cluster": "none",
+      "llm_verdicts": [
+        "match"
+      ],
+      "prompt_variant": "image_artifact_reference",
+      "server_passed": true
+    },
+    {
+      "case_id": "sample-a2-s031-media-pipeline-unsupported-output",
+      "channel": "multimodal",
+      "expected_passed": false,
+      "expected_variant": "expected-00",
+      "failed_action_count": 0,
+      "failure_cluster": "none",
+      "issue_cluster": "none",
+      "llm_verdicts": [
+        "match"
+      ],
+      "prompt_variant": "ocr_clean_projection",
+      "server_passed": true
+    },
+    {
+      "case_id": "sample-a2-s031-media-pipeline-unsupported-output",
+      "channel": "image",
+      "expected_passed": false,
+      "expected_variant": "expected-03",
+      "failed_action_count": 1,
+      "failure_cluster": "none",
+      "issue_cluster": "text_minor_issue",
+      "llm_verdicts": [
+        "minor_issue"
+      ],
+      "prompt_variant": "image_artifact_reference",
+      "server_passed": true
+    }
+  ],
+  "representative_failures": [
+    {
+      "case_id": "sample-a2-s010-wrong-arguments",
+      "channel": "text",
+      "expected_passed": false,
+      "expected_variant": "expected-00",
+      "failed_action_count": 2,
+      "failure_cluster": "wrong_arguments",
+      "issue_cluster": "wrong_arguments",
+      "llm_verdicts": [
+        "major_issue"
+      ],
+      "prompt_variant": "baseline",
+      "server_passed": false
+    },
+    {
+      "case_id": "sample-a2-s041-poor-retry-recovery",
+      "channel": "text",
+      "expected_passed": false,
+      "expected_variant": "expected-00",
+      "failed_action_count": 1,
+      "failure_cluster": "text_major_issue",
+      "issue_cluster": "text_major_issue",
+      "llm_verdicts": [
+        "major_issue"
+      ],
+      "prompt_variant": "baseline",
+      "server_passed": false
+    },
+    {
+      "case_id": "sample-a2-s048-secret-leak",
+      "channel": "text",
+      "expected_passed": false,
+      "expected_variant": "expected-00",
+      "failed_action_count": 1,
+      "failure_cluster": "text_major_issue",
+      "issue_cluster": "text_major_issue",
+      "llm_verdicts": [
+        "major_issue"
+      ],
+      "prompt_variant": "baseline",
+      "server_passed": false
+    },
+    {
+      "case_id": "sample-a2-s054-missing-clarification",
+      "channel": "text",
+      "expected_passed": false,
+      "expected_variant": "expected-00",
+      "failed_action_count": 1,
+      "failure_cluster": "text_major_issue",
+      "issue_cluster": "text_major_issue",
+      "llm_verdicts": [
+        "major_issue"
+      ],
+      "prompt_variant": "baseline",
+      "server_passed": false
+    },
+    {
+      "case_id": "sample-a2-s031-media-pipeline-unsupported-output",
+      "channel": "image",
+      "expected_passed": false,
+      "expected_variant": "expected-00",
+      "failed_action_count": 1,
+      "failure_cluster": "text_major_issue",
+      "issue_cluster": "text_major_issue",
+      "llm_verdicts": [
+        "major_issue"
+      ],
+      "prompt_variant": "missing_media",
+      "server_passed": false
+    },
+    {
+      "case_id": "sample-a2-s031-media-pipeline-unsupported-output",
+      "channel": "multimodal",
+      "expected_passed": false,
+      "expected_variant": "expected-00",
+      "failed_action_count": 1,
+      "failure_cluster": "text_major_issue",
+      "issue_cluster": "text_major_issue",
+      "llm_verdicts": [
+        "major_issue"
+      ],
+      "prompt_variant": "unsupported_media",
+      "server_passed": false
+    }
+  ],
+  "representative_issue_bearing_passes": [
+    {
+      "case_id": "sample-a2-s031-media-pipeline-unsupported-output",
+      "channel": "image",
+      "expected_passed": false,
+      "expected_variant": "expected-03",
+      "failed_action_count": 1,
+      "failure_cluster": "none",
+      "issue_cluster": "text_minor_issue",
+      "llm_verdicts": [
+        "minor_issue"
+      ],
+      "prompt_variant": "image_artifact_reference",
+      "server_passed": true
+    }
+  ],
+  "review_status": "pending_review",
+  "safe_to_mark_c3_met": false,
+  "schema_version": "a2.releasefoundry_live_calibration.v1",
+  "successful_evaluations": 85,
+  "training_eligible": false
+}

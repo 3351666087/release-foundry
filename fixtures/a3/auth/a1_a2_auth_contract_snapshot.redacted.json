@@ -1,6 +1,6 @@
 {
-  "schema_version": "a3.auth_contract_snapshot.v3",
-  "calibrated_at": "2026-07-12",
+  "schema_version": "a3.auth_contract_snapshot.v6",
+  "calibrated_at": "2026-07-24",
   "public_safe": true,
   "contains_secret_values": false,
   "main": {
@@ -10,10 +10,10 @@
     "contained_by_a3_branch": true
   },
   "a1": {
-    "ref": "main",
-    "sha": "c784163588e9e0839fe17c604f3285c42efe3661",
-    "pull_request_state": "merged_to_main",
-    "merged_to_main": true,
+    "ref": "origin/agent/a1-local-sdk-runner",
+    "sha": "689799750a9a092ffb3ce92d17100256310bd2e8",
+    "pull_request_state": "merged_into_a3_branch",
+    "merged_to_main": false,
     "authority": [
       "identity session",
       "oauth provider exchange",
@@ -30,9 +30,17 @@
       "GET /oauth/github/callback",
       "GET /v1/projects/{project_id}/oauth/github/connection",
       "POST /v1/projects/{project_id}/oauth/github/disconnect",
-      "POST /v1/identity-verification/challenges",
-      "POST /v1/identity-verification/verify",
+      "POST /v1/identity/registration/email/begin",
+      "POST /v1/identity/registration/email/complete",
+      "POST /v1/identity/login/email/begin",
+      "POST /v1/identity/login/email/complete",
+      "GET /v1/identity/oauth/google/start",
+      "GET /v1/identity/oauth/google/callback",
+      "GET /v1/identity/oauth/github/start",
+      "GET /v1/identity/oauth/github/callback",
       "POST /v1/projects/{project_id}/accounts/{account_id}/browser-sessions/refresh",
+      "GET /v1/me",
+      "POST /v1/identity/sessions/revoke",
       "GET /v1/accounts/{account_id}",
       "GET /v1/accounts/{account_id}/credentials",
       "GET /v1/accounts/{account_id}/memberships"
@@ -45,16 +53,21 @@
       "identity_delivery_outbox": "implemented_and_tested",
       "browser_session_lifecycle": "implemented_and_tested",
       "refresh_reuse_detection": "implemented_and_tested",
-      "oauth_initial_login": "not_implemented",
-      "registration_session_handoff": "not_implemented",
+      "oauth_initial_login": "coordinator_implemented_and_tested_provider_deployment_unconfigured",
+      "registration_session_handoff": "implemented_and_tested",
+      "login_session_handoff": "implemented_and_tested",
+      "browser_identity_read": "implemented_and_local_https_verified",
+      "browser_logout": "implemented_and_local_https_verified",
       "production_ready": false
     },
     "capabilities": {
       "oauth_account_linking": "implemented",
       "browser_session_refresh": "implemented",
       "verification_challenge_start": "implemented",
-      "verification_completion": "blocked_pending_browser_context",
-      "oauth_initial_login": "unavailable"
+      "verification_completion": "implemented_with_browser_intent",
+      "email_registration": "implemented",
+      "email_login": "implemented",
+      "oauth_initial_login": "coordinator_implemented_runtime_unavailable"
     }
   },
   "a2": {
@@ -116,29 +129,29 @@
       "api_reference_route",
       "google_oauth_start_adapter",
       "github_oauth_start_adapter",
-      "email_verification_request_adapter",
-      "email_verification_completion_adapter",
+      "email_registration_begin_complete_adapter",
+      "email_login_begin_complete_adapter",
+      "opaque_challenge_and_intent_state",
+      "secure_303_console_handoff",
       "identity_session_refresh_adapter",
+      "cookie_identity_read_adapter",
+      "protected_console_identity_gate",
+      "durable_cookie_session_logout",
+      "local_postgres_mailpit_https_stack",
       "capability_aware_login_and_signup_ui",
       "oauth_initial_login_fail_closed_correction",
       "a2_trusted_spine_reference_surface",
-      "merged_main_capability_status",
+      "merged_a1_peer_capability_status",
       "a2_five_level_scope_surface",
       "html_and_text_email_template_handoff"
     ]
   },
   "known_blockers": [
     {
-      "id": "verification_context_not_delivered_to_browser",
-      "severity": "blocking",
-      "fact": "The public challenge response intentionally omits challenge_id and the current A1 plaintext email also omits challenge_id, while verify requires challenge_id.",
-      "a3_behavior": "fail_closed"
-    },
-    {
-      "id": "oauth_initial_login_not_implemented",
+      "id": "oauth_initial_login_not_deployed",
       "severity": "blocking_for_hosted_login",
-      "fact": "The current Google and GitHub routes require an existing trusted session and implement credential linking; the callback returns a JSON connection result rather than an initial-login browser session redirect.",
-      "a3_behavior": "disable_login_buttons_and_disclose_account_linking_only"
+      "fact": "The production PostgreSQL coordinator is implemented and tested, but this A3 environment has no authorized provider credentials, Vault references, or deployed callback configuration.",
+      "a3_behavior": "disable_login_buttons_and_disclose_missing_provider_deployment"
     }
   ],
   "safety": {

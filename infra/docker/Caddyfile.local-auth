@@ -1,0 +1,41 @@
+{
+  admin off
+}
+
+https://localhost:4443 {
+  tls internal
+  encode zstd gzip
+
+  handle /v1/* {
+    reverse_proxy api:8787
+  }
+
+  handle /oauth/* {
+    reverse_proxy api:8787
+  }
+
+  handle /healthz {
+    reverse_proxy api:8787
+  }
+
+  handle /console {
+    redir * /apps/webapp/out/overview/ 302
+  }
+
+  handle /__health {
+    respond "ok" 200
+  }
+
+  handle / {
+    redir * /apps/webapp/out/login/ 302
+  }
+
+  handle_path /apps/webapp/out/* {
+    root * /srv/apps/webapp/out
+    file_server
+  }
+
+  handle {
+    respond "not found" 404
+  }
+}

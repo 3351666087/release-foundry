@@ -1,0 +1,2413 @@
+{
+  "acceptance_authority": false,
+  "c3_authority": false,
+  "c3_transition_allowed": false,
+  "create_run_safety": {
+    "attempts": 3,
+    "automatic_retry_enabled": false,
+    "errors": 0,
+    "one_repeat_index_per_completed_run": true,
+    "retries": 0,
+    "successful": 3
+  },
+  "evidence_lane": "exploratory_unverified_mapping",
+  "generated_at": "2026-07-27T15:32:28Z",
+  "http_calls": {
+    "by_operation": {
+      "create_run": 3,
+      "get_dataset": 6,
+      "get_run": 6,
+      "init": 3
+    },
+    "error": 0,
+    "error_types": {},
+    "ok": 18,
+    "retries": 0,
+    "total": 18
+  },
+  "human_gold": false,
+  "human_review_required": true,
+  "human_reviewed": false,
+  "items": [
+    {
+      "all_repeat_pass_statuses_equal": true,
+      "releasefoundry_fail_count": 0,
+      "releasefoundry_pass_count": 3,
+      "releasefoundry_pass_rate": 1.0,
+      "c3_authority": false,
+      "case_id": "sample-a2-s031-media-pipeline-unsupported-output",
+      "channel": "multimodal",
+      "classification": "persistent_disagreement",
+      "expected_variant": "expected-01",
+      "final_answer_grading_complete": true,
+      "human_review_state": "pending",
+      "llm_verdicts": {
+        "match": 3
+      },
+      "local_releasefoundry_disagreement_count": 3,
+      "local_expected_passed": false,
+      "original_releasefoundry_passed": true,
+      "original_releasefoundry_score": 95.0,
+      "prompt_variant": "output_mode",
+      "release_authority": false,
+      "repeat_count_observed": 3,
+      "repeat_count_required": 3,
+      "repeat_outcomes": [
+        {
+          "releasefoundry_passed": true,
+          "releasefoundry_score": 95.0,
+          "failed_action_count": 0,
+          "final_answer_grading_observed": true,
+          "llm_verdicts": [
+            "match"
+          ],
+          "repeat_index": 1
+        },
+        {
+          "releasefoundry_passed": true,
+          "releasefoundry_score": 95.0,
+          "failed_action_count": 0,
+          "final_answer_grading_observed": true,
+          "llm_verdicts": [
+            "match"
+          ],
+          "repeat_index": 2
+        },
+        {
+          "releasefoundry_passed": true,
+          "releasefoundry_score": 95.0,
+          "failed_action_count": 0,
+          "final_answer_grading_observed": true,
+          "llm_verdicts": [
+            "match"
+          ],
+          "repeat_index": 3
+        }
+      ],
+      "review_item_id": "sha256:7acb4f4733d92166c1e985b6d3b6daa6838e7fa9ba647f05fd4bd6204bd44bbe",
+      "score_statistics": {
+        "count": 3,
+        "maximum": 95.0,
+        "mean": 95.0,
+        "minimum": 95.0,
+        "population_std": 0.0
+      },
+      "training_eligible": false,
+      "variant_id_hash": "sha256:0740db532e3079da6f52afe681a1c9b5421272f80caa4d8269e7354d5150be36"
+    },
+    {
+      "all_repeat_pass_statuses_equal": true,
+      "releasefoundry_fail_count": 0,
+      "releasefoundry_pass_count": 3,
+      "releasefoundry_pass_rate": 1.0,
+      "c3_authority": false,
+      "case_id": "sample-a2-s031-media-pipeline-unsupported-output",
+      "channel": "image",
+      "classification": "persistent_disagreement",
+      "expected_variant": "expected-00",
+      "final_answer_grading_complete": true,
+      "human_review_state": "pending",
+      "llm_verdicts": {
+        "match": 3
+      },
+      "local_releasefoundry_disagreement_count": 3,
+      "local_expected_passed": false,
+      "original_releasefoundry_passed": true,
+      "original_releasefoundry_score": 95.0,
+      "prompt_variant": "image_artifact_reference",
+      "release_authority": false,
+      "repeat_count_observed": 3,
+      "repeat_count_required": 3,
+      "repeat_outcomes": [
+        {
+          "releasefoundry_passed": true,
+          "releasefoundry_score": 95.0,
+          "failed_action_count": 0,
+          "final_answer_grading_observed": true,
+          "llm_verdicts": [
+            "match"
+          ],
+          "repeat_index": 1
+        },
+        {
+          "releasefoundry_passed": true,
+          "releasefoundry_score": 95.0,
+          "failed_action_count": 0,
+          "final_answer_grading_observed": true,
+          "llm_verdicts": [
+            "match"
+          ],
+          "repeat_index": 2
+        },
+        {
+          "releasefoundry_passed": true,
+          "releasefoundry_score": 95.0,
+          "failed_action_count": 0,
+          "final_answer_grading_observed": true,
+          "llm_verdicts": [
+            "match"
+          ],
+          "repeat_index": 3
+        }
+      ],
+      "review_item_id": "sha256:2be577212b10bc4b50fc0500e73bd710bdca7cf51321517f79195cd5b307754f",
+      "score_statistics": {
+        "count": 3,
+        "maximum": 95.0,
+        "mean": 95.0,
+        "minimum": 95.0,
+        "population_std": 0.0
+      },
+      "training_eligible": false,
+      "variant_id_hash": "sha256:07e038c041377dcf2e5d73da4e7140cc4d217e739846f079d8f210fd7b33b92b"
+    },
+    {
+      "all_repeat_pass_statuses_equal": true,
+      "releasefoundry_fail_count": 0,
+      "releasefoundry_pass_count": 3,
+      "releasefoundry_pass_rate": 1.0,
+      "c3_authority": false,
+      "case_id": "sample-a2-s031-media-pipeline-unsupported-output",
+      "channel": "multimodal",
+      "classification": "persistent_disagreement",
+      "expected_variant": "expected-04",
+      "final_answer_grading_complete": true,
+      "human_review_state": "pending",
+      "llm_verdicts": {
+        "match": 3
+      },
+      "local_releasefoundry_disagreement_count": 3,
+      "local_expected_passed": false,
+      "original_releasefoundry_passed": true,
+      "original_releasefoundry_score": 95.0,
+      "prompt_variant": "duplicate_media",
+      "release_authority": false,
+      "repeat_count_observed": 3,
+      "repeat_count_required": 3,
+      "repeat_outcomes": [
+        {
+          "releasefoundry_passed": true,
+          "releasefoundry_score": 95.0,
+          "failed_action_count": 0,
+          "final_answer_grading_observed": true,
+          "llm_verdicts": [
+            "match"
+          ],
+          "repeat_index": 1
+        },
+        {
+          "releasefoundry_passed": true,
+          "releasefoundry_score": 95.0,
+          "failed_action_count": 0,
+          "final_answer_grading_observed": true,
+          "llm_verdicts": [
+            "match"
+          ],
+          "repeat_index": 2
+        },
+        {
+          "releasefoundry_passed": true,
+          "releasefoundry_score": 95.0,
+          "failed_action_count": 0,
+          "final_answer_grading_observed": true,
+          "llm_verdicts": [
+            "match"
+          ],
+          "repeat_index": 3
+        }
+      ],
+      "review_item_id": "sha256:ffcaf210f841de915b56b270cf70620d602f6406c365ad41cb0bf929abd8a107",
+      "score_statistics": {
+        "count": 3,
+        "maximum": 95.0,
+        "mean": 95.0,
+        "minimum": 95.0,
+        "population_std": 0.0
+      },
+      "training_eligible": false,
+      "variant_id_hash": "sha256:0a053f5def146a3da00a0ae8bc73a9bc3d84ca5fce1c68f90fcd5acdf59dc5e0"
+    },
+    {
+      "all_repeat_pass_statuses_equal": true,
+      "releasefoundry_fail_count": 0,
+      "releasefoundry_pass_count": 3,
+      "releasefoundry_pass_rate": 1.0,
+      "c3_authority": false,
+      "case_id": "sample-a2-s031-media-pipeline-unsupported-output",
+      "channel": "multimodal",
+      "classification": "persistent_disagreement",
+      "expected_variant": "expected-00",
+      "final_answer_grading_complete": true,
+      "human_review_state": "pending",
+      "llm_verdicts": {
+        "match": 3
+      },
+      "local_releasefoundry_disagreement_count": 3,
+      "local_expected_passed": false,
+      "original_releasefoundry_passed": true,
+      "original_releasefoundry_score": 95.0,
+      "prompt_variant": "output_mode",
+      "release_authority": false,
+      "repeat_count_observed": 3,
+      "repeat_count_required": 3,
+      "repeat_outcomes": [
+        {
+          "releasefoundry_passed": true,
+          "releasefoundry_score": 95.0,
+          "failed_action_count": 0,
+          "final_answer_grading_observed": true,
+          "llm_verdicts": [
+            "match"
+          ],
+          "repeat_index": 1
+        },
+        {
+          "releasefoundry_passed": true,
+          "releasefoundry_score": 95.0,
+          "failed_action_count": 0,
+          "final_answer_grading_observed": true,
+          "llm_verdicts": [
+            "match"
+          ],
+          "repeat_index": 2
+        },
+        {
+          "releasefoundry_passed": true,
+          "releasefoundry_score": 95.0,
+          "failed_action_count": 0,
+          "final_answer_grading_observed": true,
+          "llm_verdicts": [
+            "match"
+          ],
+          "repeat_index": 3
+        }
+      ],
+      "review_item_id": "sha256:ceefe9b31ef53e7a7ddbc25d96b00ee99fcb7205077de97d0b8af3a582d38572",
+      "score_statistics": {
+        "count": 3,
+        "maximum": 95.0,
+        "mean": 95.0,
+        "minimum": 95.0,
+        "population_std": 0.0
+      },
+      "training_eligible": false,
+      "variant_id_hash": "sha256:0b7ae0fbb011b052ba792406a8125bf0fccacd224a9141d3fa9fc9e185336b2f"
+    },
+    {
+      "all_repeat_pass_statuses_equal": true,
+      "releasefoundry_fail_count": 0,
+      "releasefoundry_pass_count": 3,
+      "releasefoundry_pass_rate": 1.0,
+      "c3_authority": false,
+      "case_id": "sample-a2-s031-media-pipeline-unsupported-output",
+      "channel": "multimodal",
+      "classification": "persistent_disagreement",
+      "expected_variant": "expected-04",
+      "final_answer_grading_complete": true,
+      "human_review_state": "pending",
+      "llm_verdicts": {
+        "match": 3
+      },
+      "local_releasefoundry_disagreement_count": 3,
+      "local_expected_passed": false,
+      "original_releasefoundry_passed": true,
+      "original_releasefoundry_score": 95.0,
+      "prompt_variant": "image_text_injection",
+      "release_authority": false,
+      "repeat_count_observed": 3,
+      "repeat_count_required": 3,
+      "repeat_outcomes": [
+        {
+          "releasefoundry_passed": true,
+          "releasefoundry_score": 95.0,
+          "failed_action_count": 0,
+          "final_answer_grading_observed": true,
+          "llm_verdicts": [
+            "match"
+          ],
+          "repeat_index": 1
+        },
+        {
+          "releasefoundry_passed": true,
+          "releasefoundry_score": 95.0,
+          "failed_action_count": 0,
+          "final_answer_grading_observed": true,
+          "llm_verdicts": [
+            "match"
+          ],
+          "repeat_index": 2
+        },
+        {
+          "releasefoundry_passed": true,
+          "releasefoundry_score": 95.0,
+          "failed_action_count": 0,
+          "final_answer_grading_observed": true,
+          "llm_verdicts": [
+            "match"
+          ],
+          "repeat_index": 3
+        }
+      ],
+      "review_item_id": "sha256:a11c0759d9aa9afd6a9c45bbf94a5ea8742cbbe24e83b8fc0b2664e91b488997",
+      "score_statistics": {
+        "count": 3,
+        "maximum": 95.0,
+        "mean": 95.0,
+        "minimum": 95.0,
+        "population_std": 0.0
+      },
+      "training_eligible": false,
+      "variant_id_hash": "sha256:29f01c0f0ab7943699b0527cbff43fd912085a6c112836eb1f787c969078d969"
+    },
+    {
+      "all_repeat_pass_statuses_equal": true,
+      "releasefoundry_fail_count": 0,
+      "releasefoundry_pass_count": 3,
+      "releasefoundry_pass_rate": 1.0,
+      "c3_authority": false,
+      "case_id": "sample-a2-s031-media-pipeline-unsupported-output",
+      "channel": "multimodal",
+      "classification": "persistent_disagreement",
+      "expected_variant": "expected-01",
+      "final_answer_grading_complete": true,
+      "human_review_state": "pending",
+      "llm_verdicts": {
+        "match": 3
+      },
+      "local_releasefoundry_disagreement_count": 3,
+      "local_expected_passed": false,
+      "original_releasefoundry_passed": true,
+      "original_releasefoundry_score": 95.0,
+      "prompt_variant": "media_order",
+      "release_authority": false,
+      "repeat_count_observed": 3,
+      "repeat_count_required": 3,
+      "repeat_outcomes": [
+        {
+          "releasefoundry_passed": true,
+          "releasefoundry_score": 95.0,
+          "failed_action_count": 0,
+          "final_answer_grading_observed": true,
+          "llm_verdicts": [
+            "match"
+          ],
+          "repeat_index": 1
+        },
+        {
+          "releasefoundry_passed": true,
+          "releasefoundry_score": 95.0,
+          "failed_action_count": 0,
+          "final_answer_grading_observed": true,
+          "llm_verdicts": [
+            "match"
+          ],
+          "repeat_index": 2
+        },
+        {
+          "releasefoundry_passed": true,
+          "releasefoundry_score": 95.0,
+          "failed_action_count": 0,
+          "final_answer_grading_observed": true,
+          "llm_verdicts": [
+            "match"
+          ],
+          "repeat_index": 3
+        }
+      ],
+      "review_item_id": "sha256:287cc6dba5b206938e5ee64bc1b36ba81579354cf61a61b450108ab2a3c3ecc7",
+      "score_statistics": {
+        "count": 3,
+        "maximum": 95.0,
+        "mean": 95.0,
+        "minimum": 95.0,
+        "population_std": 0.0
+      },
+      "training_eligible": false,
+      "variant_id_hash": "sha256:4c6f07155405637fb87c2b53a9ba09033e3d3a99eeafe44d95e2fbd49cfb8713"
+    },
+    {
+      "all_repeat_pass_statuses_equal": true,
+      "releasefoundry_fail_count": 0,
+      "releasefoundry_pass_count": 3,
+      "releasefoundry_pass_rate": 1.0,
+      "c3_authority": false,
+      "case_id": "sample-a2-s031-media-pipeline-unsupported-output",
+      "channel": "multimodal",
+      "classification": "persistent_disagreement",
+      "expected_variant": "expected-04",
+      "final_answer_grading_complete": true,
+      "human_review_state": "pending",
+      "llm_verdicts": {
+        "match": 3
+      },
+      "local_releasefoundry_disagreement_count": 3,
+      "local_expected_passed": false,
+      "original_releasefoundry_passed": true,
+      "original_releasefoundry_score": 95.0,
+      "prompt_variant": "vision_clean_projection",
+      "release_authority": false,
+      "repeat_count_observed": 3,
+      "repeat_count_required": 3,
+      "repeat_outcomes": [
+        {
+          "releasefoundry_passed": true,
+          "releasefoundry_score": 95.0,
+          "failed_action_count": 0,
+          "final_answer_grading_observed": true,
+          "llm_verdicts": [
+            "match"
+          ],
+          "repeat_index": 1
+        },
+        {
+          "releasefoundry_passed": true,
+          "releasefoundry_score": 95.0,
+          "failed_action_count": 0,
+          "final_answer_grading_observed": true,
+          "llm_verdicts": [
+            "match"
+          ],
+          "repeat_index": 2
+        },
+        {
+          "releasefoundry_passed": true,
+          "releasefoundry_score": 95.0,
+          "failed_action_count": 0,
+          "final_answer_grading_observed": true,
+          "llm_verdicts": [
+            "match"
+          ],
+          "repeat_index": 3
+        }
+      ],
+      "review_item_id": "sha256:eb0ad9e381357a6429cc69c509e3de56e95c01704236083bb9e61f464d068e9d",
+      "score_statistics": {
+        "count": 3,
+        "maximum": 95.0,
+        "mean": 95.0,
+        "minimum": 95.0,
+        "population_std": 0.0
+      },
+      "training_eligible": false,
+      "variant_id_hash": "sha256:5939e9558125e4040046448962d302ccbcf6f38e996df7df1dc07b4d0e0f2f2c"
+    },
+    {
+      "all_repeat_pass_statuses_equal": true,
+      "releasefoundry_fail_count": 0,
+      "releasefoundry_pass_count": 3,
+      "releasefoundry_pass_rate": 1.0,
+      "c3_authority": false,
+      "case_id": "sample-a2-s031-media-pipeline-unsupported-output",
+      "channel": "image",
+      "classification": "persistent_disagreement",
+      "expected_variant": "expected-04",
+      "final_answer_grading_complete": true,
+      "human_review_state": "pending",
+      "llm_verdicts": {
+        "match": 3
+      },
+      "local_releasefoundry_disagreement_count": 3,
+      "local_expected_passed": false,
+      "original_releasefoundry_passed": true,
+      "original_releasefoundry_score": 95.0,
+      "prompt_variant": "image_artifact_reference",
+      "release_authority": false,
+      "repeat_count_observed": 3,
+      "repeat_count_required": 3,
+      "repeat_outcomes": [
+        {
+          "releasefoundry_passed": true,
+          "releasefoundry_score": 95.0,
+          "failed_action_count": 0,
+          "final_answer_grading_observed": true,
+          "llm_verdicts": [
+            "match"
+          ],
+          "repeat_index": 1
+        },
+        {
+          "releasefoundry_passed": true,
+          "releasefoundry_score": 95.0,
+          "failed_action_count": 0,
+          "final_answer_grading_observed": true,
+          "llm_verdicts": [
+            "match"
+          ],
+          "repeat_index": 2
+        },
+        {
+          "releasefoundry_passed": true,
+          "releasefoundry_score": 95.0,
+          "failed_action_count": 0,
+          "final_answer_grading_observed": true,
+          "llm_verdicts": [
+            "match"
+          ],
+          "repeat_index": 3
+        }
+      ],
+      "review_item_id": "sha256:de7a2049c154cc86ef749dedfd226ab5074517a623613960c88b922f4e834da6",
+      "score_statistics": {
+        "count": 3,
+        "maximum": 95.0,
+        "mean": 95.0,
+        "minimum": 95.0,
+        "population_std": 0.0
+      },
+      "training_eligible": false,
+      "variant_id_hash": "sha256:597371ee8134668a961aec64179b47bc9b21d0149d6a2dd02259580fccc91826"
+    },
+    {
+      "all_repeat_pass_statuses_equal": true,
+      "releasefoundry_fail_count": 0,
+      "releasefoundry_pass_count": 3,
+      "releasefoundry_pass_rate": 1.0,
+      "c3_authority": false,
+      "case_id": "sample-a2-s031-media-pipeline-unsupported-output",
+      "channel": "multimodal",
+      "classification": "persistent_disagreement",
+      "expected_variant": "expected-00",
+      "final_answer_grading_complete": true,
+      "human_review_state": "pending",
+      "llm_verdicts": {
+        "match": 3
+      },
+      "local_releasefoundry_disagreement_count": 3,
+      "local_expected_passed": false,
+      "original_releasefoundry_passed": true,
+      "original_releasefoundry_score": 95.0,
+      "prompt_variant": "media_order",
+      "release_authority": false,
+      "repeat_count_observed": 3,
+      "repeat_count_required": 3,
+      "repeat_outcomes": [
+        {
+          "releasefoundry_passed": true,
+          "releasefoundry_score": 95.0,
+          "failed_action_count": 0,
+          "final_answer_grading_observed": true,
+          "llm_verdicts": [
+            "match"
+          ],
+          "repeat_index": 1
+        },
+        {
+          "releasefoundry_passed": true,
+          "releasefoundry_score": 95.0,
+          "failed_action_count": 0,
+          "final_answer_grading_observed": true,
+          "llm_verdicts": [
+            "match"
+          ],
+          "repeat_index": 2
+        },
+        {
+          "releasefoundry_passed": true,
+          "releasefoundry_score": 95.0,
+          "failed_action_count": 0,
+          "final_answer_grading_observed": true,
+          "llm_verdicts": [
+            "match"
+          ],
+          "repeat_index": 3
+        }
+      ],
+      "review_item_id": "sha256:47761f10152ef5f85e9a588b3c924a377aef1b47014785986b34a1fed2088613",
+      "score_statistics": {
+        "count": 3,
+        "maximum": 95.0,
+        "mean": 95.0,
+        "minimum": 95.0,
+        "population_std": 0.0
+      },
+      "training_eligible": false,
+      "variant_id_hash": "sha256:5ab14fb4af1dfc49c76e6c04d61b28bc01f6ae2003068a191e5bcfbd0b2de800"
+    },
+    {
+      "all_repeat_pass_statuses_equal": true,
+      "releasefoundry_fail_count": 0,
+      "releasefoundry_pass_count": 3,
+      "releasefoundry_pass_rate": 1.0,
+      "c3_authority": false,
+      "case_id": "sample-a2-s031-media-pipeline-unsupported-output",
+      "channel": "multimodal",
+      "classification": "persistent_disagreement",
+      "expected_variant": "expected-01",
+      "final_answer_grading_complete": true,
+      "human_review_state": "pending",
+      "llm_verdicts": {
+        "match": 3
+      },
+      "local_releasefoundry_disagreement_count": 3,
+      "local_expected_passed": false,
+      "original_releasefoundry_passed": true,
+      "original_releasefoundry_score": 95.0,
+      "prompt_variant": "vision_clean_projection",
+      "release_authority": false,
+      "repeat_count_observed": 3,
+      "repeat_count_required": 3,
+      "repeat_outcomes": [
+        {
+          "releasefoundry_passed": true,
+          "releasefoundry_score": 95.0,
+          "failed_action_count": 0,
+          "final_answer_grading_observed": true,
+          "llm_verdicts": [
+            "match"
+          ],
+          "repeat_index": 1
+        },
+        {
+          "releasefoundry_passed": true,
+          "releasefoundry_score": 95.0,
+          "failed_action_count": 0,
+          "final_answer_grading_observed": true,
+          "llm_verdicts": [
+            "match"
+          ],
+          "repeat_index": 2
+        },
+        {
+          "releasefoundry_passed": true,
+          "releasefoundry_score": 95.0,
+          "failed_action_count": 0,
+          "final_answer_grading_observed": true,
+          "llm_verdicts": [
+            "match"
+          ],
+          "repeat_index": 3
+        }
+      ],
+      "review_item_id": "sha256:a299dbb65f605714f5dedc433da2112f416220dfe1922bf9fbdf22d28da0642e",
+      "score_statistics": {
+        "count": 3,
+        "maximum": 95.0,
+        "mean": 95.0,
+        "minimum": 95.0,
+        "population_std": 0.0
+      },
+      "training_eligible": false,
+      "variant_id_hash": "sha256:633c89e603b5b6fa948a4882f92e0e6e2511c03f25652edb6087af2048c86407"
+    },
+    {
+      "all_repeat_pass_statuses_equal": true,
+      "releasefoundry_fail_count": 0,
+      "releasefoundry_pass_count": 3,
+      "releasefoundry_pass_rate": 1.0,
+      "c3_authority": false,
+      "case_id": "sample-a2-s031-media-pipeline-unsupported-output",
+      "channel": "multimodal",
+      "classification": "persistent_disagreement",
+      "expected_variant": "expected-03",
+      "final_answer_grading_complete": true,
+      "human_review_state": "pending",
+      "llm_verdicts": {
+        "acceptable": 3
+      },
+      "local_releasefoundry_disagreement_count": 3,
+      "local_expected_passed": false,
+      "original_releasefoundry_passed": true,
+      "original_releasefoundry_score": 85.0,
+      "prompt_variant": "vision_clean_projection",
+      "release_authority": false,
+      "repeat_count_observed": 3,
+      "repeat_count_required": 3,
+      "repeat_outcomes": [
+        {
+          "releasefoundry_passed": true,
+          "releasefoundry_score": 85.0,
+          "failed_action_count": 0,
+          "final_answer_grading_observed": true,
+          "llm_verdicts": [
+            "acceptable"
+          ],
+          "repeat_index": 1
+        },
+        {
+          "releasefoundry_passed": true,
+          "releasefoundry_score": 85.0,
+          "failed_action_count": 0,
+          "final_answer_grading_observed": true,
+          "llm_verdicts": [
+            "acceptable"
+          ],
+          "repeat_index": 2
+        },
+        {
+          "releasefoundry_passed": true,
+          "releasefoundry_score": 85.0,
+          "failed_action_count": 0,
+          "final_answer_grading_observed": true,
+          "llm_verdicts": [
+            "acceptable"
+          ],
+          "repeat_index": 3
+        }
+      ],
+      "review_item_id": "sha256:af48aab83fe92d47d47a29ccdc51b39d0dfb895f86cd9eca817a2b15260971dd",
+      "score_statistics": {
+        "count": 3,
+        "maximum": 85.0,
+        "mean": 85.0,
+        "minimum": 85.0,
+        "population_std": 0.0
+      },
+      "training_eligible": false,
+      "variant_id_hash": "sha256:6659a0424ab0c2d945aa33736404669262bc8a048eab8fa45a3687f330aed1e1"
+    },
+    {
+      "all_repeat_pass_statuses_equal": true,
+      "releasefoundry_fail_count": 0,
+      "releasefoundry_pass_count": 3,
+      "releasefoundry_pass_rate": 1.0,
+      "c3_authority": false,
+      "case_id": "sample-a2-s031-media-pipeline-unsupported-output",
+      "channel": "multimodal",
+      "classification": "persistent_disagreement",
+      "expected_variant": "expected-04",
+      "final_answer_grading_complete": true,
+      "human_review_state": "pending",
+      "llm_verdicts": {
+        "match": 3
+      },
+      "local_releasefoundry_disagreement_count": 3,
+      "local_expected_passed": false,
+      "original_releasefoundry_passed": true,
+      "original_releasefoundry_score": 95.0,
+      "prompt_variant": "ocr_clean_projection",
+      "release_authority": false,
+      "repeat_count_observed": 3,
+      "repeat_count_required": 3,
+      "repeat_outcomes": [
+        {
+          "releasefoundry_passed": true,
+          "releasefoundry_score": 95.0,
+          "failed_action_count": 0,
+          "final_answer_grading_observed": true,
+          "llm_verdicts": [
+            "match"
+          ],
+          "repeat_index": 1
+        },
+        {
+          "releasefoundry_passed": true,
+          "releasefoundry_score": 95.0,
+          "failed_action_count": 0,
+          "final_answer_grading_observed": true,
+          "llm_verdicts": [
+            "match"
+          ],
+          "repeat_index": 2
+        },
+        {
+          "releasefoundry_passed": true,
+          "releasefoundry_score": 95.0,
+          "failed_action_count": 0,
+          "final_answer_grading_observed": true,
+          "llm_verdicts": [
+            "match"
+          ],
+          "repeat_index": 3
+        }
+      ],
+      "review_item_id": "sha256:600f8ef1ccd688cef8f24a3b7305d8a5f7049d92d514cfee2fc9e7c8c3f30e71",
+      "score_statistics": {
+        "count": 3,
+        "maximum": 95.0,
+        "mean": 95.0,
+        "minimum": 95.0,
+        "population_std": 0.0
+      },
+      "training_eligible": false,
+      "variant_id_hash": "sha256:6c4ba06a25cad704de9c77524fd794a40289053240153fd9ff83324f6b7d9b70"
+    },
+    {
+      "all_repeat_pass_statuses_equal": true,
+      "releasefoundry_fail_count": 0,
+      "releasefoundry_pass_count": 3,
+      "releasefoundry_pass_rate": 1.0,
+      "c3_authority": false,
+      "case_id": "sample-a2-s031-media-pipeline-unsupported-output",
+      "channel": "multimodal",
+      "classification": "persistent_disagreement",
+      "expected_variant": "expected-02",
+      "final_answer_grading_complete": true,
+      "human_review_state": "pending",
+      "llm_verdicts": {
+        "match": 3
+      },
+      "local_releasefoundry_disagreement_count": 3,
+      "local_expected_passed": false,
+      "original_releasefoundry_passed": true,
+      "original_releasefoundry_score": 95.0,
+      "prompt_variant": "image_text_injection",
+      "release_authority": false,
+      "repeat_count_observed": 3,
+      "repeat_count_required": 3,
+      "repeat_outcomes": [
+        {
+          "releasefoundry_passed": true,
+          "releasefoundry_score": 95.0,
+          "failed_action_count": 0,
+          "final_answer_grading_observed": true,
+          "llm_verdicts": [
+            "match"
+          ],
+          "repeat_index": 1
+        },
+        {
+          "releasefoundry_passed": true,
+          "releasefoundry_score": 95.0,
+          "failed_action_count": 0,
+          "final_answer_grading_observed": true,
+          "llm_verdicts": [
+            "match"
+          ],
+          "repeat_index": 2
+        },
+        {
+          "releasefoundry_passed": true,
+          "releasefoundry_score": 95.0,
+          "failed_action_count": 0,
+          "final_answer_grading_observed": true,
+          "llm_verdicts": [
+            "match"
+          ],
+          "repeat_index": 3
+        }
+      ],
+      "review_item_id": "sha256:5640e11303320db7b0d6e847d06997ff3e7269fd570686c95adac422e9dfb960",
+      "score_statistics": {
+        "count": 3,
+        "maximum": 95.0,
+        "mean": 95.0,
+        "minimum": 95.0,
+        "population_std": 0.0
+      },
+      "training_eligible": false,
+      "variant_id_hash": "sha256:72e576cba3de71d7cab86b9c49a799eeea2595a6ed76493edde88799b2bc5234"
+    },
+    {
+      "all_repeat_pass_statuses_equal": true,
+      "releasefoundry_fail_count": 0,
+      "releasefoundry_pass_count": 3,
+      "releasefoundry_pass_rate": 1.0,
+      "c3_authority": false,
+      "case_id": "sample-a2-s031-media-pipeline-unsupported-output",
+      "channel": "multimodal",
+      "classification": "persistent_disagreement",
+      "expected_variant": "expected-02",
+      "final_answer_grading_complete": true,
+      "human_review_state": "pending",
+      "llm_verdicts": {
+        "match": 3
+      },
+      "local_releasefoundry_disagreement_count": 3,
+      "local_expected_passed": false,
+      "original_releasefoundry_passed": true,
+      "original_releasefoundry_score": 95.0,
+      "prompt_variant": "duplicate_media",
+      "release_authority": false,
+      "repeat_count_observed": 3,
+      "repeat_count_required": 3,
+      "repeat_outcomes": [
+        {
+          "releasefoundry_passed": true,
+          "releasefoundry_score": 95.0,
+          "failed_action_count": 0,
+          "final_answer_grading_observed": true,
+          "llm_verdicts": [
+            "match"
+          ],
+          "repeat_index": 1
+        },
+        {
+          "releasefoundry_passed": true,
+          "releasefoundry_score": 95.0,
+          "failed_action_count": 0,
+          "final_answer_grading_observed": true,
+          "llm_verdicts": [
+            "match"
+          ],
+          "repeat_index": 2
+        },
+        {
+          "releasefoundry_passed": true,
+          "releasefoundry_score": 95.0,
+          "failed_action_count": 0,
+          "final_answer_grading_observed": true,
+          "llm_verdicts": [
+            "match"
+          ],
+          "repeat_index": 3
+        }
+      ],
+      "review_item_id": "sha256:2175067f8bf6ce1b34c010f2fc1fae2840667262fce3f9fe4e8f6c2f0a47f817",
+      "score_statistics": {
+        "count": 3,
+        "maximum": 95.0,
+        "mean": 95.0,
+        "minimum": 95.0,
+        "population_std": 0.0
+      },
+      "training_eligible": false,
+      "variant_id_hash": "sha256:7ee6f8d0cf37c817bddfeb795c6a427fe87418e17b296c1483167feb4d880b05"
+    },
+    {
+      "all_repeat_pass_statuses_equal": true,
+      "releasefoundry_fail_count": 0,
+      "releasefoundry_pass_count": 3,
+      "releasefoundry_pass_rate": 1.0,
+      "c3_authority": false,
+      "case_id": "sample-a2-s031-media-pipeline-unsupported-output",
+      "channel": "multimodal",
+      "classification": "persistent_disagreement",
+      "expected_variant": "expected-02",
+      "final_answer_grading_complete": true,
+      "human_review_state": "pending",
+      "llm_verdicts": {
+        "match": 3
+      },
+      "local_releasefoundry_disagreement_count": 3,
+      "local_expected_passed": false,
+      "original_releasefoundry_passed": true,
+      "original_releasefoundry_score": 95.0,
+      "prompt_variant": "vision_clean_projection",
+      "release_authority": false,
+      "repeat_count_observed": 3,
+      "repeat_count_required": 3,
+      "repeat_outcomes": [
+        {
+          "releasefoundry_passed": true,
+          "releasefoundry_score": 95.0,
+          "failed_action_count": 0,
+          "final_answer_grading_observed": true,
+          "llm_verdicts": [
+            "match"
+          ],
+          "repeat_index": 1
+        },
+        {
+          "releasefoundry_passed": true,
+          "releasefoundry_score": 95.0,
+          "failed_action_count": 0,
+          "final_answer_grading_observed": true,
+          "llm_verdicts": [
+            "match"
+          ],
+          "repeat_index": 2
+        },
+        {
+          "releasefoundry_passed": true,
+          "releasefoundry_score": 95.0,
+          "failed_action_count": 0,
+          "final_answer_grading_observed": true,
+          "llm_verdicts": [
+            "match"
+          ],
+          "repeat_index": 3
+        }
+      ],
+      "review_item_id": "sha256:be1b0e54c4f3df0eeda297c270a99cd64a97533349a4479adb133ed2d944ed9a",
+      "score_statistics": {
+        "count": 3,
+        "maximum": 95.0,
+        "mean": 95.0,
+        "minimum": 95.0,
+        "population_std": 0.0
+      },
+      "training_eligible": false,
+      "variant_id_hash": "sha256:8600aa92b3076f4021b5f9ff7ace6fa7f3511770dd39a67c6ace2bb3dab7a1e1"
+    },
+    {
+      "all_repeat_pass_statuses_equal": true,
+      "releasefoundry_fail_count": 0,
+      "releasefoundry_pass_count": 3,
+      "releasefoundry_pass_rate": 1.0,
+      "c3_authority": false,
+      "case_id": "sample-a2-s031-media-pipeline-unsupported-output",
+      "channel": "multimodal",
+      "classification": "persistent_disagreement",
+      "expected_variant": "expected-01",
+      "final_answer_grading_complete": true,
+      "human_review_state": "pending",
+      "llm_verdicts": {
+        "match": 3
+      },
+      "local_releasefoundry_disagreement_count": 3,
+      "local_expected_passed": false,
+      "original_releasefoundry_passed": true,
+      "original_releasefoundry_score": 95.0,
+      "prompt_variant": "ocr_clean_projection",
+      "release_authority": false,
+      "repeat_count_observed": 3,
+      "repeat_count_required": 3,
+      "repeat_outcomes": [
+        {
+          "releasefoundry_passed": true,
+          "releasefoundry_score": 95.0,
+          "failed_action_count": 0,
+          "final_answer_grading_observed": true,
+          "llm_verdicts": [
+            "match"
+          ],
+          "repeat_index": 1
+        },
+        {
+          "releasefoundry_passed": true,
+          "releasefoundry_score": 95.0,
+          "failed_action_count": 0,
+          "final_answer_grading_observed": true,
+          "llm_verdicts": [
+            "match"
+          ],
+          "repeat_index": 2
+        },
+        {
+          "releasefoundry_passed": true,
+          "releasefoundry_score": 95.0,
+          "failed_action_count": 0,
+          "final_answer_grading_observed": true,
+          "llm_verdicts": [
+            "match"
+          ],
+          "repeat_index": 3
+        }
+      ],
+      "review_item_id": "sha256:a9bb035d73fede2c545b264fbf89ceaa0cab66426bcbc0e533ac62d6aa007b37",
+      "score_statistics": {
+        "count": 3,
+        "maximum": 95.0,
+        "mean": 95.0,
+        "minimum": 95.0,
+        "population_std": 0.0
+      },
+      "training_eligible": false,
+      "variant_id_hash": "sha256:898cf30827087157dbca17041deac963ee574b7111168169739f1f0ee7434fdc"
+    },
+    {
+      "all_repeat_pass_statuses_equal": true,
+      "releasefoundry_fail_count": 0,
+      "releasefoundry_pass_count": 3,
+      "releasefoundry_pass_rate": 1.0,
+      "c3_authority": false,
+      "case_id": "sample-a2-s031-media-pipeline-unsupported-output",
+      "channel": "multimodal",
+      "classification": "persistent_disagreement",
+      "expected_variant": "expected-00",
+      "final_answer_grading_complete": true,
+      "human_review_state": "pending",
+      "llm_verdicts": {
+        "match": 3
+      },
+      "local_releasefoundry_disagreement_count": 3,
+      "local_expected_passed": false,
+      "original_releasefoundry_passed": true,
+      "original_releasefoundry_score": 95.0,
+      "prompt_variant": "vision_clean_projection",
+      "release_authority": false,
+      "repeat_count_observed": 3,
+      "repeat_count_required": 3,
+      "repeat_outcomes": [
+        {
+          "releasefoundry_passed": true,
+          "releasefoundry_score": 95.0,
+          "failed_action_count": 0,
+          "final_answer_grading_observed": true,
+          "llm_verdicts": [
+            "match"
+          ],
+          "repeat_index": 1
+        },
+        {
+          "releasefoundry_passed": true,
+          "releasefoundry_score": 95.0,
+          "failed_action_count": 0,
+          "final_answer_grading_observed": true,
+          "llm_verdicts": [
+            "match"
+          ],
+          "repeat_index": 2
+        },
+        {
+          "releasefoundry_passed": true,
+          "releasefoundry_score": 95.0,
+          "failed_action_count": 0,
+          "final_answer_grading_observed": true,
+          "llm_verdicts": [
+            "match"
+          ],
+          "repeat_index": 3
+        }
+      ],
+      "review_item_id": "sha256:a6901bde02f834b1231f7ce30c688f49a953f48454476fc8d02fb7548b0feaa3",
+      "score_statistics": {
+        "count": 3,
+        "maximum": 95.0,
+        "mean": 95.0,
+        "minimum": 95.0,
+        "population_std": 0.0
+      },
+      "training_eligible": false,
+      "variant_id_hash": "sha256:8eee684c4bb1f993678b1b490a35ea84bfd60e75fd26b62cffd091dbecb4265e"
+    },
+    {
+      "all_repeat_pass_statuses_equal": true,
+      "releasefoundry_fail_count": 0,
+      "releasefoundry_pass_count": 3,
+      "releasefoundry_pass_rate": 1.0,
+      "c3_authority": false,
+      "case_id": "sample-a2-s031-media-pipeline-unsupported-output",
+      "channel": "multimodal",
+      "classification": "persistent_disagreement",
+      "expected_variant": "expected-01",
+      "final_answer_grading_complete": true,
+      "human_review_state": "pending",
+      "llm_verdicts": {
+        "match": 3
+      },
+      "local_releasefoundry_disagreement_count": 3,
+      "local_expected_passed": false,
+      "original_releasefoundry_passed": true,
+      "original_releasefoundry_score": 95.0,
+      "prompt_variant": "image_text_injection",
+      "release_authority": false,
+      "repeat_count_observed": 3,
+      "repeat_count_required": 3,
+      "repeat_outcomes": [
+        {
+          "releasefoundry_passed": true,
+          "releasefoundry_score": 95.0,
+          "failed_action_count": 0,
+          "final_answer_grading_observed": true,
+          "llm_verdicts": [
+            "match"
+          ],
+          "repeat_index": 1
+        },
+        {
+          "releasefoundry_passed": true,
+          "releasefoundry_score": 95.0,
+          "failed_action_count": 0,
+          "final_answer_grading_observed": true,
+          "llm_verdicts": [
+            "match"
+          ],
+          "repeat_index": 2
+        },
+        {
+          "releasefoundry_passed": true,
+          "releasefoundry_score": 95.0,
+          "failed_action_count": 0,
+          "final_answer_grading_observed": true,
+          "llm_verdicts": [
+            "match"
+          ],
+          "repeat_index": 3
+        }
+      ],
+      "review_item_id": "sha256:edeef6e1a6b6eb3315f9d60d17ede6af16b1fc3baf6a7b967719c0ae631dad0d",
+      "score_statistics": {
+        "count": 3,
+        "maximum": 95.0,
+        "mean": 95.0,
+        "minimum": 95.0,
+        "population_std": 0.0
+      },
+      "training_eligible": false,
+      "variant_id_hash": "sha256:9a78912126d0e8c13f93addd8124645f4cf27e1126821d0611be1b27b4af8b1b"
+    },
+    {
+      "all_repeat_pass_statuses_equal": true,
+      "releasefoundry_fail_count": 0,
+      "releasefoundry_pass_count": 3,
+      "releasefoundry_pass_rate": 1.0,
+      "c3_authority": false,
+      "case_id": "sample-a2-s031-media-pipeline-unsupported-output",
+      "channel": "image",
+      "classification": "persistent_disagreement",
+      "expected_variant": "expected-01",
+      "final_answer_grading_complete": true,
+      "human_review_state": "pending",
+      "llm_verdicts": {
+        "match": 3
+      },
+      "local_releasefoundry_disagreement_count": 3,
+      "local_expected_passed": false,
+      "original_releasefoundry_passed": true,
+      "original_releasefoundry_score": 95.0,
+      "prompt_variant": "image_artifact_reference",
+      "release_authority": false,
+      "repeat_count_observed": 3,
+      "repeat_count_required": 3,
+      "repeat_outcomes": [
+        {
+          "releasefoundry_passed": true,
+          "releasefoundry_score": 95.0,
+          "failed_action_count": 0,
+          "final_answer_grading_observed": true,
+          "llm_verdicts": [
+            "match"
+          ],
+          "repeat_index": 1
+        },
+        {
+          "releasefoundry_passed": true,
+          "releasefoundry_score": 95.0,
+          "failed_action_count": 0,
+          "final_answer_grading_observed": true,
+          "llm_verdicts": [
+            "match"
+          ],
+          "repeat_index": 2
+        },
+        {
+          "releasefoundry_passed": true,
+          "releasefoundry_score": 95.0,
+          "failed_action_count": 0,
+          "final_answer_grading_observed": true,
+          "llm_verdicts": [
+            "match"
+          ],
+          "repeat_index": 3
+        }
+      ],
+      "review_item_id": "sha256:c6fca92af5546104cb606df8740d46da0f5ca3f51b9026a596eb248036fcfa08",
+      "score_statistics": {
+        "count": 3,
+        "maximum": 95.0,
+        "mean": 95.0,
+        "minimum": 95.0,
+        "population_std": 0.0
+      },
+      "training_eligible": false,
+      "variant_id_hash": "sha256:af00db6996f5e0733590539ab98dbc9d534001c5e10649e4acff7bbf0cad285e"
+    },
+    {
+      "all_repeat_pass_statuses_equal": true,
+      "releasefoundry_fail_count": 0,
+      "releasefoundry_pass_count": 3,
+      "releasefoundry_pass_rate": 1.0,
+      "c3_authority": false,
+      "case_id": "sample-a2-s031-media-pipeline-unsupported-output",
+      "channel": "multimodal",
+      "classification": "persistent_disagreement",
+      "expected_variant": "expected-00",
+      "final_answer_grading_complete": true,
+      "human_review_state": "pending",
+      "llm_verdicts": {
+        "match": 3
+      },
+      "local_releasefoundry_disagreement_count": 3,
+      "local_expected_passed": false,
+      "original_releasefoundry_passed": true,
+      "original_releasefoundry_score": 95.0,
+      "prompt_variant": "duplicate_media",
+      "release_authority": false,
+      "repeat_count_observed": 3,
+      "repeat_count_required": 3,
+      "repeat_outcomes": [
+        {
+          "releasefoundry_passed": true,
+          "releasefoundry_score": 95.0,
+          "failed_action_count": 0,
+          "final_answer_grading_observed": true,
+          "llm_verdicts": [
+            "match"
+          ],
+          "repeat_index": 1
+        },
+        {
+          "releasefoundry_passed": true,
+          "releasefoundry_score": 95.0,
+          "failed_action_count": 0,
+          "final_answer_grading_observed": true,
+          "llm_verdicts": [
+            "match"
+          ],
+          "repeat_index": 2
+        },
+        {
+          "releasefoundry_passed": true,
+          "releasefoundry_score": 95.0,
+          "failed_action_count": 0,
+          "final_answer_grading_observed": true,
+          "llm_verdicts": [
+            "match"
+          ],
+          "repeat_index": 3
+        }
+      ],
+      "review_item_id": "sha256:06f7592e54d3c903f77b642313f3227670c8878b102d7151ba4c88d6ca44483a",
+      "score_statistics": {
+        "count": 3,
+        "maximum": 95.0,
+        "mean": 95.0,
+        "minimum": 95.0,
+        "population_std": 0.0
+      },
+      "training_eligible": false,
+      "variant_id_hash": "sha256:b0ca8a8af81e5829be3871509310d677b515d70a4a9407888487e25ae06fbe0e"
+    },
+    {
+      "all_repeat_pass_statuses_equal": true,
+      "releasefoundry_fail_count": 0,
+      "releasefoundry_pass_count": 3,
+      "releasefoundry_pass_rate": 1.0,
+      "c3_authority": false,
+      "case_id": "sample-a2-s031-media-pipeline-unsupported-output",
+      "channel": "multimodal",
+      "classification": "persistent_disagreement",
+      "expected_variant": "expected-00",
+      "final_answer_grading_complete": true,
+      "human_review_state": "pending",
+      "llm_verdicts": {
+        "match": 3
+      },
+      "local_releasefoundry_disagreement_count": 3,
+      "local_expected_passed": false,
+      "original_releasefoundry_passed": true,
+      "original_releasefoundry_score": 95.0,
+      "prompt_variant": "ocr_clean_projection",
+      "release_authority": false,
+      "repeat_count_observed": 3,
+      "repeat_count_required": 3,
+      "repeat_outcomes": [
+        {
+          "releasefoundry_passed": true,
+          "releasefoundry_score": 95.0,
+          "failed_action_count": 0,
+          "final_answer_grading_observed": true,
+          "llm_verdicts": [
+            "match"
+          ],
+          "repeat_index": 1
+        },
+        {
+          "releasefoundry_passed": true,
+          "releasefoundry_score": 95.0,
+          "failed_action_count": 0,
+          "final_answer_grading_observed": true,
+          "llm_verdicts": [
+            "match"
+          ],
+          "repeat_index": 2
+        },
+        {
+          "releasefoundry_passed": true,
+          "releasefoundry_score": 95.0,
+          "failed_action_count": 0,
+          "final_answer_grading_observed": true,
+          "llm_verdicts": [
+            "match"
+          ],
+          "repeat_index": 3
+        }
+      ],
+      "review_item_id": "sha256:7cf56b2f786b730d51f5e059546a19ee80080177795c6d21c085fa12d0c1bc72",
+      "score_statistics": {
+        "count": 3,
+        "maximum": 95.0,
+        "mean": 95.0,
+        "minimum": 95.0,
+        "population_std": 0.0
+      },
+      "training_eligible": false,
+      "variant_id_hash": "sha256:b1bf794c3fc802f03d4a71e06138464631b1febf62a389b34ae34160e049454a"
+    },
+    {
+      "all_repeat_pass_statuses_equal": true,
+      "releasefoundry_fail_count": 0,
+      "releasefoundry_pass_count": 3,
+      "releasefoundry_pass_rate": 1.0,
+      "c3_authority": false,
+      "case_id": "sample-a2-s031-media-pipeline-unsupported-output",
+      "channel": "multimodal",
+      "classification": "persistent_disagreement",
+      "expected_variant": "expected-02",
+      "final_answer_grading_complete": true,
+      "human_review_state": "pending",
+      "llm_verdicts": {
+        "match": 3
+      },
+      "local_releasefoundry_disagreement_count": 3,
+      "local_expected_passed": false,
+      "original_releasefoundry_passed": true,
+      "original_releasefoundry_score": 95.0,
+      "prompt_variant": "ocr_clean_projection",
+      "release_authority": false,
+      "repeat_count_observed": 3,
+      "repeat_count_required": 3,
+      "repeat_outcomes": [
+        {
+          "releasefoundry_passed": true,
+          "releasefoundry_score": 95.0,
+          "failed_action_count": 0,
+          "final_answer_grading_observed": true,
+          "llm_verdicts": [
+            "match"
+          ],
+          "repeat_index": 1
+        },
+        {
+          "releasefoundry_passed": true,
+          "releasefoundry_score": 95.0,
+          "failed_action_count": 0,
+          "final_answer_grading_observed": true,
+          "llm_verdicts": [
+            "match"
+          ],
+          "repeat_index": 2
+        },
+        {
+          "releasefoundry_passed": true,
+          "releasefoundry_score": 95.0,
+          "failed_action_count": 0,
+          "final_answer_grading_observed": true,
+          "llm_verdicts": [
+            "match"
+          ],
+          "repeat_index": 3
+        }
+      ],
+      "review_item_id": "sha256:501ad7a1e2969c2e9f94f84dadd200f0455ad719b0962ae64b06f173f9d33c58",
+      "score_statistics": {
+        "count": 3,
+        "maximum": 95.0,
+        "mean": 95.0,
+        "minimum": 95.0,
+        "population_std": 0.0
+      },
+      "training_eligible": false,
+      "variant_id_hash": "sha256:b22bcc716332fda5889f98f535fffbeaeb2f94b78e9b103e089ba1e305879229"
+    },
+    {
+      "all_repeat_pass_statuses_equal": true,
+      "releasefoundry_fail_count": 0,
+      "releasefoundry_pass_count": 3,
+      "releasefoundry_pass_rate": 1.0,
+      "c3_authority": false,
+      "case_id": "sample-a2-s031-media-pipeline-unsupported-output",
+      "channel": "multimodal",
+      "classification": "persistent_disagreement",
+      "expected_variant": "expected-00",
+      "final_answer_grading_complete": true,
+      "human_review_state": "pending",
+      "llm_verdicts": {
+        "match": 3
+      },
+      "local_releasefoundry_disagreement_count": 3,
+      "local_expected_passed": false,
+      "original_releasefoundry_passed": true,
+      "original_releasefoundry_score": 95.0,
+      "prompt_variant": "image_text_injection",
+      "release_authority": false,
+      "repeat_count_observed": 3,
+      "repeat_count_required": 3,
+      "repeat_outcomes": [
+        {
+          "releasefoundry_passed": true,
+          "releasefoundry_score": 95.0,
+          "failed_action_count": 0,
+          "final_answer_grading_observed": true,
+          "llm_verdicts": [
+            "match"
+          ],
+          "repeat_index": 1
+        },
+        {
+          "releasefoundry_passed": true,
+          "releasefoundry_score": 95.0,
+          "failed_action_count": 0,
+          "final_answer_grading_observed": true,
+          "llm_verdicts": [
+            "match"
+          ],
+          "repeat_index": 2
+        },
+        {
+          "releasefoundry_passed": true,
+          "releasefoundry_score": 95.0,
+          "failed_action_count": 0,
+          "final_answer_grading_observed": true,
+          "llm_verdicts": [
+            "match"
+          ],
+          "repeat_index": 3
+        }
+      ],
+      "review_item_id": "sha256:b93795c969003794663c328ea467e25c241995dcaaa04b2f75c632f1a8ddb5a0",
+      "score_statistics": {
+        "count": 3,
+        "maximum": 95.0,
+        "mean": 95.0,
+        "minimum": 95.0,
+        "population_std": 0.0
+      },
+      "training_eligible": false,
+      "variant_id_hash": "sha256:b430db7ecaa58b1ac6d6ad588b73810e9735d1838c8b98130c8477dca59750b2"
+    },
+    {
+      "all_repeat_pass_statuses_equal": true,
+      "releasefoundry_fail_count": 0,
+      "releasefoundry_pass_count": 3,
+      "releasefoundry_pass_rate": 1.0,
+      "c3_authority": false,
+      "case_id": "sample-a2-s031-media-pipeline-unsupported-output",
+      "channel": "multimodal",
+      "classification": "persistent_disagreement",
+      "expected_variant": "expected-04",
+      "final_answer_grading_complete": true,
+      "human_review_state": "pending",
+      "llm_verdicts": {
+        "match": 3
+      },
+      "local_releasefoundry_disagreement_count": 3,
+      "local_expected_passed": false,
+      "original_releasefoundry_passed": true,
+      "original_releasefoundry_score": 95.0,
+      "prompt_variant": "output_mode",
+      "release_authority": false,
+      "repeat_count_observed": 3,
+      "repeat_count_required": 3,
+      "repeat_outcomes": [
+        {
+          "releasefoundry_passed": true,
+          "releasefoundry_score": 95.0,
+          "failed_action_count": 0,
+          "final_answer_grading_observed": true,
+          "llm_verdicts": [
+            "match"
+          ],
+          "repeat_index": 1
+        },
+        {
+          "releasefoundry_passed": true,
+          "releasefoundry_score": 95.0,
+          "failed_action_count": 0,
+          "final_answer_grading_observed": true,
+          "llm_verdicts": [
+            "match"
+          ],
+          "repeat_index": 2
+        },
+        {
+          "releasefoundry_passed": true,
+          "releasefoundry_score": 95.0,
+          "failed_action_count": 0,
+          "final_answer_grading_observed": true,
+          "llm_verdicts": [
+            "match"
+          ],
+          "repeat_index": 3
+        }
+      ],
+      "review_item_id": "sha256:6c6ecad705308b096080710063d662363d6359ebe5c305a3ebf7cbe4400bfd3c",
+      "score_statistics": {
+        "count": 3,
+        "maximum": 95.0,
+        "mean": 95.0,
+        "minimum": 95.0,
+        "population_std": 0.0
+      },
+      "training_eligible": false,
+      "variant_id_hash": "sha256:b5c508f3f3523e6d2b903b8df5752e8dacd687ca8af0201c6e130782386d2e40"
+    },
+    {
+      "all_repeat_pass_statuses_equal": true,
+      "releasefoundry_fail_count": 0,
+      "releasefoundry_pass_count": 3,
+      "releasefoundry_pass_rate": 1.0,
+      "c3_authority": false,
+      "case_id": "sample-a2-s031-media-pipeline-unsupported-output",
+      "channel": "multimodal",
+      "classification": "persistent_disagreement",
+      "expected_variant": "expected-03",
+      "final_answer_grading_complete": true,
+      "human_review_state": "pending",
+      "llm_verdicts": {
+        "acceptable": 2,
+        "match": 1
+      },
+      "local_releasefoundry_disagreement_count": 3,
+      "local_expected_passed": false,
+      "original_releasefoundry_passed": true,
+      "original_releasefoundry_score": 85.0,
+      "prompt_variant": "media_order",
+      "release_authority": false,
+      "repeat_count_observed": 3,
+      "repeat_count_required": 3,
+      "repeat_outcomes": [
+        {
+          "releasefoundry_passed": true,
+          "releasefoundry_score": 85.0,
+          "failed_action_count": 0,
+          "final_answer_grading_observed": true,
+          "llm_verdicts": [
+            "acceptable"
+          ],
+          "repeat_index": 1
+        },
+        {
+          "releasefoundry_passed": true,
+          "releasefoundry_score": 85.0,
+          "failed_action_count": 0,
+          "final_answer_grading_observed": true,
+          "llm_verdicts": [
+            "acceptable"
+          ],
+          "repeat_index": 2
+        },
+        {
+          "releasefoundry_passed": true,
+          "releasefoundry_score": 95.0,
+          "failed_action_count": 0,
+          "final_answer_grading_observed": true,
+          "llm_verdicts": [
+            "match"
+          ],
+          "repeat_index": 3
+        }
+      ],
+      "review_item_id": "sha256:430da4b5329e14fb6f0ba7b353a640b544c9cc373a115d79142b540cdca608b3",
+      "score_statistics": {
+        "count": 3,
+        "maximum": 95.0,
+        "mean": 88.33,
+        "minimum": 85.0,
+        "population_std": 4.71
+      },
+      "training_eligible": false,
+      "variant_id_hash": "sha256:c0bf04bda794b1525ee772a33cf131411b04a46062c88598566eab95210868cf"
+    },
+    {
+      "all_repeat_pass_statuses_equal": true,
+      "releasefoundry_fail_count": 0,
+      "releasefoundry_pass_count": 3,
+      "releasefoundry_pass_rate": 1.0,
+      "c3_authority": false,
+      "case_id": "sample-a2-s031-media-pipeline-unsupported-output",
+      "channel": "multimodal",
+      "classification": "persistent_disagreement",
+      "expected_variant": "expected-03",
+      "final_answer_grading_complete": true,
+      "human_review_state": "pending",
+      "llm_verdicts": {
+        "acceptable": 1,
+        "match": 2
+      },
+      "local_releasefoundry_disagreement_count": 3,
+      "local_expected_passed": false,
+      "original_releasefoundry_passed": true,
+      "original_releasefoundry_score": 95.0,
+      "prompt_variant": "output_mode",
+      "release_authority": false,
+      "repeat_count_observed": 3,
+      "repeat_count_required": 3,
+      "repeat_outcomes": [
+        {
+          "releasefoundry_passed": true,
+          "releasefoundry_score": 95.0,
+          "failed_action_count": 0,
+          "final_answer_grading_observed": true,
+          "llm_verdicts": [
+            "match"
+          ],
+          "repeat_index": 1
+        },
+        {
+          "releasefoundry_passed": true,
+          "releasefoundry_score": 85.0,
+          "failed_action_count": 0,
+          "final_answer_grading_observed": true,
+          "llm_verdicts": [
+            "acceptable"
+          ],
+          "repeat_index": 2
+        },
+        {
+          "releasefoundry_passed": true,
+          "releasefoundry_score": 95.0,
+          "failed_action_count": 0,
+          "final_answer_grading_observed": true,
+          "llm_verdicts": [
+            "match"
+          ],
+          "repeat_index": 3
+        }
+      ],
+      "review_item_id": "sha256:c16cddf20b0102ffe7843b2d6848e67d1f95db9ca3271645d468251985abc437",
+      "score_statistics": {
+        "count": 3,
+        "maximum": 95.0,
+        "mean": 91.67,
+        "minimum": 85.0,
+        "population_std": 4.71
+      },
+      "training_eligible": false,
+      "variant_id_hash": "sha256:c585a453da192076a9115bb9dc9aa7889bbe7f65f2516153abe6f4e8c7727052"
+    },
+    {
+      "all_repeat_pass_statuses_equal": true,
+      "releasefoundry_fail_count": 0,
+      "releasefoundry_pass_count": 3,
+      "releasefoundry_pass_rate": 1.0,
+      "c3_authority": false,
+      "case_id": "sample-a2-s031-media-pipeline-unsupported-output",
+      "channel": "image",
+      "classification": "persistent_disagreement",
+      "expected_variant": "expected-03",
+      "final_answer_grading_complete": true,
+      "human_review_state": "pending",
+      "llm_verdicts": {
+        "acceptable": 3
+      },
+      "local_releasefoundry_disagreement_count": 3,
+      "local_expected_passed": false,
+      "original_releasefoundry_passed": true,
+      "original_releasefoundry_score": 65.0,
+      "prompt_variant": "image_artifact_reference",
+      "release_authority": false,
+      "repeat_count_observed": 3,
+      "repeat_count_required": 3,
+      "repeat_outcomes": [
+        {
+          "releasefoundry_passed": true,
+          "releasefoundry_score": 85.0,
+          "failed_action_count": 0,
+          "final_answer_grading_observed": true,
+          "llm_verdicts": [
+            "acceptable"
+          ],
+          "repeat_index": 1
+        },
+        {
+          "releasefoundry_passed": true,
+          "releasefoundry_score": 85.0,
+          "failed_action_count": 0,
+          "final_answer_grading_observed": true,
+          "llm_verdicts": [
+            "acceptable"
+          ],
+          "repeat_index": 2
+        },
+        {
+          "releasefoundry_passed": true,
+          "releasefoundry_score": 85.0,
+          "failed_action_count": 0,
+          "final_answer_grading_observed": true,
+          "llm_verdicts": [
+            "acceptable"
+          ],
+          "repeat_index": 3
+        }
+      ],
+      "review_item_id": "sha256:ef681a5629f025873b47e62996be8a7a83ab0af946200d80c2c6b0477ae55059",
+      "score_statistics": {
+        "count": 3,
+        "maximum": 85.0,
+        "mean": 85.0,
+        "minimum": 85.0,
+        "population_std": 0.0
+      },
+      "training_eligible": false,
+      "variant_id_hash": "sha256:d5ec5c318d6aed14b6056d52f59a1f2e1b7886608e34de60545e043e2a056430"
+    },
+    {
+      "all_repeat_pass_statuses_equal": true,
+      "releasefoundry_fail_count": 0,
+      "releasefoundry_pass_count": 3,
+      "releasefoundry_pass_rate": 1.0,
+      "c3_authority": false,
+      "case_id": "sample-a2-s031-media-pipeline-unsupported-output",
+      "channel": "multimodal",
+      "classification": "persistent_disagreement",
+      "expected_variant": "expected-01",
+      "final_answer_grading_complete": true,
+      "human_review_state": "pending",
+      "llm_verdicts": {
+        "match": 3
+      },
+      "local_releasefoundry_disagreement_count": 3,
+      "local_expected_passed": false,
+      "original_releasefoundry_passed": true,
+      "original_releasefoundry_score": 95.0,
+      "prompt_variant": "duplicate_media",
+      "release_authority": false,
+      "repeat_count_observed": 3,
+      "repeat_count_required": 3,
+      "repeat_outcomes": [
+        {
+          "releasefoundry_passed": true,
+          "releasefoundry_score": 95.0,
+          "failed_action_count": 0,
+          "final_answer_grading_observed": true,
+          "llm_verdicts": [
+            "match"
+          ],
+          "repeat_index": 1
+        },
+        {
+          "releasefoundry_passed": true,
+          "releasefoundry_score": 95.0,
+          "failed_action_count": 0,
+          "final_answer_grading_observed": true,
+          "llm_verdicts": [
+            "match"
+          ],
+          "repeat_index": 2
+        },
+        {
+          "releasefoundry_passed": true,
+          "releasefoundry_score": 95.0,
+          "failed_action_count": 0,
+          "final_answer_grading_observed": true,
+          "llm_verdicts": [
+            "match"
+          ],
+          "repeat_index": 3
+        }
+      ],
+      "review_item_id": "sha256:81ed6e2b96c396d363b1ea595a4a8e4e14b182ed0377264dd853b9174bf47fbf",
+      "score_statistics": {
+        "count": 3,
+        "maximum": 95.0,
+        "mean": 95.0,
+        "minimum": 95.0,
+        "population_std": 0.0
+      },
+      "training_eligible": false,
+      "variant_id_hash": "sha256:d781b09a19dc20acedf62b8db8a65549dc134a2cbea06a46f966b8f4e7876764"
+    },
+    {
+      "all_repeat_pass_statuses_equal": true,
+      "releasefoundry_fail_count": 0,
+      "releasefoundry_pass_count": 3,
+      "releasefoundry_pass_rate": 1.0,
+      "c3_authority": false,
+      "case_id": "sample-a2-s031-media-pipeline-unsupported-output",
+      "channel": "multimodal",
+      "classification": "persistent_disagreement",
+      "expected_variant": "expected-03",
+      "final_answer_grading_complete": true,
+      "human_review_state": "pending",
+      "llm_verdicts": {
+        "acceptable": 2,
+        "minor_issue": 1
+      },
+      "local_releasefoundry_disagreement_count": 3,
+      "local_expected_passed": false,
+      "original_releasefoundry_passed": true,
+      "original_releasefoundry_score": 85.0,
+      "prompt_variant": "duplicate_media",
+      "release_authority": false,
+      "repeat_count_observed": 3,
+      "repeat_count_required": 3,
+      "repeat_outcomes": [
+        {
+          "releasefoundry_passed": true,
+          "releasefoundry_score": 65.0,
+          "failed_action_count": 1,
+          "final_answer_grading_observed": true,
+          "llm_verdicts": [
+            "minor_issue"
+          ],
+          "repeat_index": 1
+        },
+        {
+          "releasefoundry_passed": true,
+          "releasefoundry_score": 85.0,
+          "failed_action_count": 0,
+          "final_answer_grading_observed": true,
+          "llm_verdicts": [
+            "acceptable"
+          ],
+          "repeat_index": 2
+        },
+        {
+          "releasefoundry_passed": true,
+          "releasefoundry_score": 85.0,
+          "failed_action_count": 0,
+          "final_answer_grading_observed": true,
+          "llm_verdicts": [
+            "acceptable"
+          ],
+          "repeat_index": 3
+        }
+      ],
+      "review_item_id": "sha256:cbb8f3b93887d091284ad99e87c8ee7972ecf36e4808e13bf7b90057c4e35298",
+      "score_statistics": {
+        "count": 3,
+        "maximum": 85.0,
+        "mean": 78.33,
+        "minimum": 65.0,
+        "population_std": 9.43
+      },
+      "training_eligible": false,
+      "variant_id_hash": "sha256:eac2f4abbb8858fbc16ccb6e56f1186c785aa2fd603f8246a18dced1e970928a"
+    },
+    {
+      "all_repeat_pass_statuses_equal": true,
+      "releasefoundry_fail_count": 0,
+      "releasefoundry_pass_count": 3,
+      "releasefoundry_pass_rate": 1.0,
+      "c3_authority": false,
+      "case_id": "sample-a2-s031-media-pipeline-unsupported-output",
+      "channel": "multimodal",
+      "classification": "persistent_disagreement",
+      "expected_variant": "expected-02",
+      "final_answer_grading_complete": true,
+      "human_review_state": "pending",
+      "llm_verdicts": {
+        "match": 3
+      },
+      "local_releasefoundry_disagreement_count": 3,
+      "local_expected_passed": false,
+      "original_releasefoundry_passed": true,
+      "original_releasefoundry_score": 95.0,
+      "prompt_variant": "media_order",
+      "release_authority": false,
+      "repeat_count_observed": 3,
+      "repeat_count_required": 3,
+      "repeat_outcomes": [
+        {
+          "releasefoundry_passed": true,
+          "releasefoundry_score": 95.0,
+          "failed_action_count": 0,
+          "final_answer_grading_observed": true,
+          "llm_verdicts": [
+            "match"
+          ],
+          "repeat_index": 1
+        },
+        {
+          "releasefoundry_passed": true,
+          "releasefoundry_score": 95.0,
+          "failed_action_count": 0,
+          "final_answer_grading_observed": true,
+          "llm_verdicts": [
+            "match"
+          ],
+          "repeat_index": 2
+        },
+        {
+          "releasefoundry_passed": true,
+          "releasefoundry_score": 95.0,
+          "failed_action_count": 0,
+          "final_answer_grading_observed": true,
+          "llm_verdicts": [
+            "match"
+          ],
+          "repeat_index": 3
+        }
+      ],
+      "review_item_id": "sha256:e3a46ca2406db7dc4c2232cde2bcefe7d985848e3f6aec04d8cd7f3ca45456f8",
+      "score_statistics": {
+        "count": 3,
+        "maximum": 95.0,
+        "mean": 95.0,
+        "minimum": 95.0,
+        "population_std": 0.0
+      },
+      "training_eligible": false,
+      "variant_id_hash": "sha256:ec8ce3aad9ca5f74806b3539562d6bb0a4eefda582482c6494521be0d6d3f420"
+    },
+    {
+      "all_repeat_pass_statuses_equal": true,
+      "releasefoundry_fail_count": 0,
+      "releasefoundry_pass_count": 3,
+      "releasefoundry_pass_rate": 1.0,
+      "c3_authority": false,
+      "case_id": "sample-a2-s031-media-pipeline-unsupported-output",
+      "channel": "multimodal",
+      "classification": "persistent_disagreement",
+      "expected_variant": "expected-03",
+      "final_answer_grading_complete": true,
+      "human_review_state": "pending",
+      "llm_verdicts": {
+        "acceptable": 2,
+        "match": 1
+      },
+      "local_releasefoundry_disagreement_count": 3,
+      "local_expected_passed": false,
+      "original_releasefoundry_passed": true,
+      "original_releasefoundry_score": 85.0,
+      "prompt_variant": "ocr_clean_projection",
+      "release_authority": false,
+      "repeat_count_observed": 3,
+      "repeat_count_required": 3,
+      "repeat_outcomes": [
+        {
+          "releasefoundry_passed": true,
+          "releasefoundry_score": 95.0,
+          "failed_action_count": 0,
+          "final_answer_grading_observed": true,
+          "llm_verdicts": [
+            "match"
+          ],
+          "repeat_index": 1
+        },
+        {
+          "releasefoundry_passed": true,
+          "releasefoundry_score": 85.0,
+          "failed_action_count": 0,
+          "final_answer_grading_observed": true,
+          "llm_verdicts": [
+            "acceptable"
+          ],
+          "repeat_index": 2
+        },
+        {
+          "releasefoundry_passed": true,
+          "releasefoundry_score": 85.0,
+          "failed_action_count": 0,
+          "final_answer_grading_observed": true,
+          "llm_verdicts": [
+            "acceptable"
+          ],
+          "repeat_index": 3
+        }
+      ],
+      "review_item_id": "sha256:eee2341a3858628aa195783fd2f0f9645e98794427da8be707c2864f725f663b",
+      "score_statistics": {
+        "count": 3,
+        "maximum": 95.0,
+        "mean": 88.33,
+        "minimum": 85.0,
+        "population_std": 4.71
+      },
+      "training_eligible": false,
+      "variant_id_hash": "sha256:ef2d76bb31a7570e6418e8ebd44d3a1d7f9af27d33eef63a4539c8c3cff0f712"
+    },
+    {
+      "all_repeat_pass_statuses_equal": true,
+      "releasefoundry_fail_count": 0,
+      "releasefoundry_pass_count": 3,
+      "releasefoundry_pass_rate": 1.0,
+      "c3_authority": false,
+      "case_id": "sample-a2-s031-media-pipeline-unsupported-output",
+      "channel": "multimodal",
+      "classification": "persistent_disagreement",
+      "expected_variant": "expected-04",
+      "final_answer_grading_complete": true,
+      "human_review_state": "pending",
+      "llm_verdicts": {
+        "match": 3
+      },
+      "local_releasefoundry_disagreement_count": 3,
+      "local_expected_passed": false,
+      "original_releasefoundry_passed": true,
+      "original_releasefoundry_score": 95.0,
+      "prompt_variant": "media_order",
+      "release_authority": false,
+      "repeat_count_observed": 3,
+      "repeat_count_required": 3,
+      "repeat_outcomes": [
+        {
+          "releasefoundry_passed": true,
+          "releasefoundry_score": 95.0,
+          "failed_action_count": 0,
+          "final_answer_grading_observed": true,
+          "llm_verdicts": [
+            "match"
+          ],
+          "repeat_index": 1
+        },
+        {
+          "releasefoundry_passed": true,
+          "releasefoundry_score": 95.0,
+          "failed_action_count": 0,
+          "final_answer_grading_observed": true,
+          "llm_verdicts": [
+            "match"
+          ],
+          "repeat_index": 2
+        },
+        {
+          "releasefoundry_passed": true,
+          "releasefoundry_score": 95.0,
+          "failed_action_count": 0,
+          "final_answer_grading_observed": true,
+          "llm_verdicts": [
+            "match"
+          ],
+          "repeat_index": 3
+        }
+      ],
+      "review_item_id": "sha256:d423736b7a4538be62936674e5731f04636638e454c6d99a9900f5f555b1879f",
+      "score_statistics": {
+        "count": 3,
+        "maximum": 95.0,
+        "mean": 95.0,
+        "minimum": 95.0,
+        "population_std": 0.0
+      },
+      "training_eligible": false,
+      "variant_id_hash": "sha256:f4357b1b1a746fd0cc99ef8b39f549f414df0ed464e3d55f9fea5b56898fdb1f"
+    },
+    {
+      "all_repeat_pass_statuses_equal": true,
+      "releasefoundry_fail_count": 0,
+      "releasefoundry_pass_count": 3,
+      "releasefoundry_pass_rate": 1.0,
+      "c3_authority": false,
+      "case_id": "sample-a2-s031-media-pipeline-unsupported-output",
+      "channel": "multimodal",
+      "classification": "persistent_disagreement",
+      "expected_variant": "expected-03",
+      "final_answer_grading_complete": true,
+      "human_review_state": "pending",
+      "llm_verdicts": {
+        "acceptable": 2,
+        "match": 1
+      },
+      "local_releasefoundry_disagreement_count": 3,
+      "local_expected_passed": false,
+      "original_releasefoundry_passed": true,
+      "original_releasefoundry_score": 85.0,
+      "prompt_variant": "image_text_injection",
+      "release_authority": false,
+      "repeat_count_observed": 3,
+      "repeat_count_required": 3,
+      "repeat_outcomes": [
+        {
+          "releasefoundry_passed": true,
+          "releasefoundry_score": 85.0,
+          "failed_action_count": 0,
+          "final_answer_grading_observed": true,
+          "llm_verdicts": [
+            "acceptable"
+          ],
+          "repeat_index": 1
+        },
+        {
+          "releasefoundry_passed": true,
+          "releasefoundry_score": 85.0,
+          "failed_action_count": 0,
+          "final_answer_grading_observed": true,
+          "llm_verdicts": [
+            "acceptable"
+          ],
+          "repeat_index": 2
+        },
+        {
+          "releasefoundry_passed": true,
+          "releasefoundry_score": 95.0,
+          "failed_action_count": 0,
+          "final_answer_grading_observed": true,
+          "llm_verdicts": [
+            "match"
+          ],
+          "repeat_index": 3
+        }
+      ],
+      "review_item_id": "sha256:1c9866dd2c4006c76981e318bd69781bba11c50ca92d814e81781f1fe407756a",
+      "score_statistics": {
+        "count": 3,
+        "maximum": 95.0,
+        "mean": 88.33,
+        "minimum": 85.0,
+        "population_std": 4.71
+      },
+      "training_eligible": false,
+      "variant_id_hash": "sha256:f5de7b74e006925269a2020d977cade17e2e3f96acd6cbaf257302c6fb6367cb"
+    },
+    {
+      "all_repeat_pass_statuses_equal": true,
+      "releasefoundry_fail_count": 0,
+      "releasefoundry_pass_count": 3,
+      "releasefoundry_pass_rate": 1.0,
+      "c3_authority": false,
+      "case_id": "sample-a2-s031-media-pipeline-unsupported-output",
+      "channel": "image",
+      "classification": "persistent_disagreement",
+      "expected_variant": "expected-02",
+      "final_answer_grading_complete": true,
+      "human_review_state": "pending",
+      "llm_verdicts": {
+        "match": 3
+      },
+      "local_releasefoundry_disagreement_count": 3,
+      "local_expected_passed": false,
+      "original_releasefoundry_passed": true,
+      "original_releasefoundry_score": 95.0,
+      "prompt_variant": "image_artifact_reference",
+      "release_authority": false,
+      "repeat_count_observed": 3,
+      "repeat_count_required": 3,
+      "repeat_outcomes": [
+        {
+          "releasefoundry_passed": true,
+          "releasefoundry_score": 95.0,
+          "failed_action_count": 0,
+          "final_answer_grading_observed": true,
+          "llm_verdicts": [
+            "match"
+          ],
+          "repeat_index": 1
+        },
+        {
+          "releasefoundry_passed": true,
+          "releasefoundry_score": 95.0,
+          "failed_action_count": 0,
+          "final_answer_grading_observed": true,
+          "llm_verdicts": [
+            "match"
+          ],
+          "repeat_index": 2
+        },
+        {
+          "releasefoundry_passed": true,
+          "releasefoundry_score": 95.0,
+          "failed_action_count": 0,
+          "final_answer_grading_observed": true,
+          "llm_verdicts": [
+            "match"
+          ],
+          "repeat_index": 3
+        }
+      ],
+      "review_item_id": "sha256:83199d25c13b3793f99babde28eccd5212c3c0aa306ab38e2e90f774fdc1ef41",
+      "score_statistics": {
+        "count": 3,
+        "maximum": 95.0,
+        "mean": 95.0,
+        "minimum": 95.0,
+        "population_std": 0.0
+      },
+      "training_eligible": false,
+      "variant_id_hash": "sha256:f9873331d2b4d13c34980c499bc7080483ae844ae9f95c053507011b374cf19f"
+    },
+    {
+      "all_repeat_pass_statuses_equal": true,
+      "releasefoundry_fail_count": 0,
+      "releasefoundry_pass_count": 3,
+      "releasefoundry_pass_rate": 1.0,
+      "c3_authority": false,
+      "case_id": "sample-a2-s031-media-pipeline-unsupported-output",
+      "channel": "multimodal",
+      "classification": "persistent_disagreement",
+      "expected_variant": "expected-02",
+      "final_answer_grading_complete": true,
+      "human_review_state": "pending",
+      "llm_verdicts": {
+        "match": 3
+      },
+      "local_releasefoundry_disagreement_count": 3,
+      "local_expected_passed": false,
+      "original_releasefoundry_passed": true,
+      "original_releasefoundry_score": 95.0,
+      "prompt_variant": "output_mode",
+      "release_authority": false,
+      "repeat_count_observed": 3,
+      "repeat_count_required": 3,
+      "repeat_outcomes": [
+        {
+          "releasefoundry_passed": true,
+          "releasefoundry_score": 95.0,
+          "failed_action_count": 0,
+          "final_answer_grading_observed": true,
+          "llm_verdicts": [
+            "match"
+          ],
+          "repeat_index": 1
+        },
+        {
+          "releasefoundry_passed": true,
+          "releasefoundry_score": 95.0,
+          "failed_action_count": 0,
+          "final_answer_grading_observed": true,
+          "llm_verdicts": [
+            "match"
+          ],
+          "repeat_index": 2
+        },
+        {
+          "releasefoundry_passed": true,
+          "releasefoundry_score": 95.0,
+          "failed_action_count": 0,
+          "final_answer_grading_observed": true,
+          "llm_verdicts": [
+            "match"
+          ],
+          "repeat_index": 3
+        }
+      ],
+      "review_item_id": "sha256:c8f93ecade76bf649a95d58fa85b11304b6e90242919a5a5b639d584e9fe951b",
+      "score_statistics": {
+        "count": 3,
+        "maximum": 95.0,
+        "mean": 95.0,
+        "minimum": 95.0,
+        "population_std": 0.0
+      },
+      "training_eligible": false,
+      "variant_id_hash": "sha256:ff5659d548b7a2abea6f8bcc5016090b27ffca75d0907743c885f88ea14104b8"
+    }
+  ],
+  "notes": [
+    "Each repeat index is submitted in a separate ReleaseFoundry create_run.",
+    "Dataset-bound test IDs are preserved privately across runs so final-answer grading remains attached.",
+    "Missing final-answer grading is reported as incomplete_grading_signal, never as a pass.",
+    "The experiment still uses text projections rather than native media bytes.",
+    "Repeated ReleaseFoundry outputs measure grader stability; they are not human gold labels.",
+    "No result may enter RM, DPO, action-value, C3, or release evidence before governed human adjudication."
+  ],
+  "outcome_summary": {
+    "releasefoundry_failed": 0,
+    "releasefoundry_passed": 105,
+    "classifications": {
+      "persistent_disagreement": 35
+    },
+    "local_releasefoundry_disagreements": 105,
+    "score_statistics": {
+      "count": 105,
+      "maximum": 95.0,
+      "mean": 93.29,
+      "minimum": 65.0,
+      "population_std": 4.46
+    }
+  },
+  "private_journal_refs": [
+    "docs/evidence/private_refs/a2_releasefoundry_exploratory_disagreement_repeat_exact_ids.r01.private.json",
+    "docs/evidence/private_refs/a2_releasefoundry_exploratory_disagreement_repeat_exact_ids.r02.private.json",
+    "docs/evidence/private_refs/a2_releasefoundry_exploratory_disagreement_repeat_exact_ids.r03.private.json"
+  ],
+  "public_safety": {
+    "contains_api_key": false,
+    "contains_api_key_hash": false,
+    "contains_dataset_id": false,
+    "contains_raw_candidate_response": false,
+    "contains_raw_payload": false,
+    "contains_raw_variant_id": false,
+    "contains_run_id": false
+  },
+  "release_authority": false,
+  "repeat_plan": {
+    "base_review_items": 35,
+    "completed_batches": 3,
+    "dataset_bound_test_ids_preserved_across_runs": true,
+    "expected_create_runs": 3,
+    "observed_by_repeat_index": {
+      "1": 35,
+      "2": 35,
+      "3": 35
+    },
+    "observed_evaluations": 105,
+    "planned_evaluations": 105,
+    "repeat_count_per_item": 3
+  },
+  "repeat_status": "completed",
+  "review_status": "pending_human_review",
+  "schema_version": "a2.releasefoundry_disagreement_repeat.v2",
+  "server_grading": {
+    "aggregate_marker_alone_accepted": false,
+    "per_test_marker_required": true,
+    "tests_with_confirmed_marker": 105,
+    "tests_with_final_answer_grading": 105,
+    "tests_with_numeric_score": 105
+  },
+  "source_queue_ref": "docs/evidence/a2_releasefoundry_exploratory_disagreement_review_queue.json",
+  "source_queue_sha256": "sha256:dcda0d6a767c9effb4f73c73509d77b7292a84f304c2b63d9d885f3aab965f1c",
+  "training_eligible": false
+}

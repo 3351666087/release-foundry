@@ -1,0 +1,138 @@
+{
+  "c3_grading_ready": false,
+  "caller_native_input_support_proven": false,
+  "caller_native_submission": {
+    "audio": "provider_surface_missing",
+    "file": "provider_surface_missing",
+    "image": "provider_surface_missing",
+    "video": "provider_unverified"
+  },
+  "generated_artifact_capabilities": {
+    "audio": "verified",
+    "file": "verified",
+    "image": "verified",
+    "video": "provider_unverified"
+  },
+  "generated_artifact_evidence": [
+    {
+      "path": "docs/evidence/a2_multimodal_real_api_smoke.json",
+      "sha256": "53ec59570b232dc95a8234d08969dfb9b621a906c14ff5252361e425a1d12335",
+      "verified_modalities": []
+    },
+    {
+      "path": "docs/evidence/a2_multimodal_audio_real_api_smoke.json",
+      "sha256": "00c328b0cace92a0e7fa68056d908b95ac7838a26a3b975e630ee964c96d4593",
+      "verified_modalities": [
+        "audio"
+      ]
+    },
+    {
+      "path": "docs/evidence/a2_multimodal_image_real_api_smoke.json",
+      "sha256": "7c2fa7e57c90863765eff248e8a5257d64b5a0b64ce208f8612fd92286f9acfb",
+      "verified_modalities": [
+        "image"
+      ]
+    },
+    {
+      "path": "docs/evidence/a2_multimodal_file_real_api_smoke.json",
+      "sha256": "99f46a228101b1b08df13606d3363bff4bcb6d8ef5274830a9ce034a5495b113",
+      "verified_modalities": [
+        "file"
+      ]
+    }
+  ],
+  "generated_at": "2026-08-02T16:13:56Z",
+  "immutable_media_url_parameter_observed": false,
+  "live_session": {
+    "api_call_count": 0,
+    "attempted": false,
+    "mutation_attempt_count": 0,
+    "reached": false,
+    "requested": false,
+    "status": "not_requested"
+  },
+  "mutation_attempt_count": 0,
+  "native_media_uploaded": false,
+  "notes": [
+    "accepted_inputs describes the tested agent's declared input capabilities; it is not a caller media transport.",
+    "RunBuilder.TestBuilder.add_user_file records file_path metadata inside a run result; the pinned implementation performs no file I/O.",
+    "EvalRunner passes action content text to agent.respond and does not expose a native media byte transport in the audited path.",
+    "Generic dict parameters may carry undocumented nested values, but this probe does not call undocumented endpoints or treat them as a verified media submission API.",
+    "Verified image, audio, and file capabilities refer only to ReleaseFoundry-generated dataset artifacts. Video remains provider-unverified."
+  ],
+  "public_safe": true,
+  "schema_version": "a2.releasefoundry_native_media_surface.v1",
+  "sdk": {
+    "artifact_path": "docs/a1/_pypi_artifacts/releasefoundry-0.3.1-py3-none-any.whl",
+    "artifact_sha256": "c20c36f7406b569c968e20a00b4a0a32fab02e22d7db51a62a61b14069087e87",
+    "package_name": "releasefoundry",
+    "source_file_sha256": {
+      "releasefoundry/client.py": "9cc481a4b111fc86e3727366ff35631f136e8bcefaa2733a1f222cf309d107c5",
+      "releasefoundry/eval.py": "91c46032f4cfc24a00bedb5ac563486a2bada4961a8e9160425a11a1d5dac748",
+      "releasefoundry/run_builder.py": "679f0fed5768289d833b2d9ea7410368182af1788af90eeb623d4f900200fa27"
+    },
+    "version": "0.3.1"
+  },
+  "static_audit": {
+    "accepted_inputs": {
+      "classification": "agent_capability_declaration_not_media_transport",
+      "observed": true
+    },
+    "add_user_file": {
+      "classification": "metadata_only",
+      "file_io_calls_observed": [],
+      "observed": true,
+      "parameters": [
+        "self",
+        "file_path",
+        "description",
+        "action_index"
+      ],
+      "records_file_path": true
+    },
+    "dataset_ingestion_method_names_observed": [],
+    "eval_runner": {
+      "action_content_read": true,
+      "agent_respond_receives_content": true,
+      "classification": "text_content_only_observed",
+      "native_file_action_call_observed": false
+    },
+    "expected_surface_matches": true,
+    "generic_payload_parameters_observed": [
+      "create_request.request",
+      "create_request.request_input_schema"
+    ],
+    "immutable_media_url_parameters_observed": [],
+    "public_client_methods": [
+      {
+        "name": "create_request",
+        "parameters": [
+          "self",
+          "request_name",
+          "request",
+          "request_input_schema",
+          "tenant_id",
+          "requestor_id"
+        ]
+      },
+      {
+        "name": "from_env",
+        "parameters": [
+          "cls",
+          "timeout"
+        ]
+      },
+      {
+        "name": "init",
+        "parameters": [
+          "self"
+        ]
+      }
+    ],
+    "status": "completed",
+    "surface_fingerprint_sha256": "9e91500eb8e32980046901aed7b62497c5c7b6599704a20020479dc112aba775",
+    "upload_method_names_observed": []
+  },
+  "undocumented_endpoint_probed": false,
+  "upload_method_observed": false
+}

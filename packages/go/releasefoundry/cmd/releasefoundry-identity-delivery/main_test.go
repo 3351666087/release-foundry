@@ -379,6 +379,7 @@ func identityDeliveryTestEnvironment() map[string]string {
 		"RELEASEFOUNDRY_IDENTITY_DELIVERY_VAULT_URL":                   "https://vault.internal/v1/open",
 		"RELEASEFOUNDRY_IDENTITY_DELIVERY_EMAIL_RELAY_URL":             "https://relay.internal/v1/email/send",
 		"RELEASEFOUNDRY_IDENTITY_DELIVERY_SMS_RELAY_URL":               "https://relay.internal/v1/sms/send",
+		"RELEASEFOUNDRY_IDENTITY_VERIFICATION_BROWSER_URL":             "https://app.example.test/login/verify",
 		"RELEASEFOUNDRY_IDENTITY_DELIVERY_MTLS_PROFILE_MODE":           "separate",
 		"RELEASEFOUNDRY_IDENTITY_DELIVERY_VAULT_MTLS_CA_FILE":          "/run/secrets/vault-ca.pem",
 		"RELEASEFOUNDRY_IDENTITY_DELIVERY_VAULT_MTLS_CLIENT_CERT_FILE": "/run/secrets/vault-cert.pem",

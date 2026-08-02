@@ -33,6 +33,7 @@ const runtimeMarkers = {
   commercial: "buildCommercialControlPlaneKit",
   "dataset-adapter": "datasetSourceToCases",
   "delivery-protocol": "identityDeliveryProtocolContractManifest",
+  "event-spool": "DurableEventSpool",
   evidence: "buildPrivateEvidenceIndex",
   "github-oauth": "GitHubOAuthHttpClient",
   "identity-client": "IdentityClient",
@@ -48,6 +49,7 @@ const runtimeMarkers = {
   "session-lifecycle": "SessionLifecycleClient",
   storage: "LocalFilesystemObjectStorage",
   "stripe-executor": "StripeTestHostedExecutor",
+  tenancy: "TenancyClient",
   trace: "TraceRecorder",
   "unified-identity": "UnifiedIdentityHttpClient",
 };

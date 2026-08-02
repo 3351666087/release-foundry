@@ -15,6 +15,7 @@ from .account_connection import (
     AccountConnectionDisconnect,
     AccountConnectionStart,
 )
+from .tenancy import TENANCY_ROUTES
 
 JsonDict = dict[str, Any]
 SAAS_CLIENT_VERSION = "releasefoundry.saas_ingestion_client.v1"
@@ -78,6 +79,22 @@ MUTATING_CALIBRATION_MODALITIES = ("text", "image", "audio", "file", "video")
 MUTATING_CALIBRATION_INDEX_SCHEMA_VERSION = "releasefoundry.official_api_mutating_calibration_index.v1"
 
 UNSUPPORTED_GO_ROUTE_GAPS: dict[str, dict[str, str]] = {
+    "GET /v1/accounts/{account_id}/security": {
+        "reason": "Go exposes account security posture through the dedicated unified identity client; the generic hosted SaaS client does not own authenticated account-security state.",
+        "consumer_action": "consume through UnifiedIdentityClient.get_security_posture and keep session credentials outside generic hosted route manifests",
+    },
+    "POST /v1/accounts/{account_id}/two-factor/disable": {
+        "reason": "Go disables optional TOTP through the dedicated recent-authenticated unified identity client; the generic hosted SaaS client must not own account-security mutation proofs.",
+        "consumer_action": "consume through UnifiedIdentityClient.disable_two_factor and keep session, CSRF, idempotency, processor, and recovery material outside generic hosted route manifests",
+    },
+    "POST /v1/accounts/{account_id}/two-factor/recovery-codes/consume": {
+        "reason": "Go authenticates and atomically consumes one recovery code through the dedicated unified identity client; the generic hosted SaaS client must not retain recovery-code input.",
+        "consumer_action": "consume through UnifiedIdentityClient.consume_two_factor_recovery_code and keep the one-time code plus session and CSRF proof outside generic hosted route manifests",
+    },
+    "POST /v1/accounts/{account_id}/two-factor/recovery-codes/rotate": {
+        "reason": "Go rotates recovery codes through the dedicated recent-authenticated unified identity client and one-use no-store handoff; the generic hosted SaaS client does not own that boundary.",
+        "consumer_action": "consume through UnifiedIdentityClient.rotate_two_factor_recovery_codes and never persist recovery codes in generic hosted client state",
+    },
     "GET /health": {
         "reason": "Go exposes a root health alias; the hosted Python client uses scoped SaaS/OpenAPI helpers instead of consuming this alias.",
         "replacement_route": "GET /healthz",
@@ -108,6 +125,22 @@ UNSUPPORTED_GO_ROUTE_GAPS: dict[str, dict[str, str]] = {
         "reason": "Go exposes the canonical localhost Google account-connection callback; the hosted Python route client does not execute browser redirects.",
         "consumer_action": "keep explicit until the shared generated OpenAPI client models provider callbacks without exposing authorization codes",
     },
+    "GET /v1/identity/oauth/github/callback": {
+        "reason": "Go completes GitHub first login through a dedicated same-origin browser callback that consumes one-time state and hands off only hardened session cookies; the generic hosted SaaS client must not accept OAuth codes or browser intent material.",
+        "consumer_action": "invoke through the browser identity surface and keep authorization codes, state, PKCE, nonce, and session cookies outside generic hosted route manifests",
+    },
+    "GET /v1/identity/oauth/github/start": {
+        "reason": "Go starts GitHub first login through a dedicated same-origin browser redirect with server-selected account-creation policy; the generic hosted SaaS client does not own browser OAuth navigation.",
+        "consumer_action": "invoke through the browser identity surface and keep first login separate from authenticated explicit credential binding",
+    },
+    "GET /v1/identity/oauth/google/callback": {
+        "reason": "Go completes Google first login through a dedicated same-origin browser callback that consumes one-time state and hands off only hardened session cookies; the generic hosted SaaS client must not accept OAuth codes or browser intent material.",
+        "consumer_action": "invoke through the browser identity surface and keep authorization codes, state, PKCE, nonce, and session cookies outside generic hosted route manifests",
+    },
+    "GET /v1/identity/oauth/google/start": {
+        "reason": "Go starts Google first login through a dedicated same-origin browser redirect with server-selected account-creation policy; the generic hosted SaaS client does not own browser OAuth navigation.",
+        "consumer_action": "invoke through the browser identity surface and keep first login separate from authenticated explicit credential binding",
+    },
     "GET /v1/identity/providers": {
         "reason": "Go exposes deployment-aware registration, login, and linking readiness through the dedicated identity lifecycle contract; the generic hosted SaaS route client does not model identity-provider discovery.",
         "consumer_action": "consume through the dedicated Python/TypeScript identity contracts and keep deployment readiness distinct from static code capability",
@@ -135,6 +168,26 @@ UNSUPPORTED_GO_ROUTE_GAPS: dict[str, dict[str, str]] = {
         "reason": "Go keeps a root bootstrap alias; hosted clients consume the versioned bootstrap route.",
         "replacement_route": "POST /v1/bootstrap",
         "consumer_action": "keep unsupported until root bootstrap aliases are part of generated SDK contracts",
+    },
+    "POST /v1/accounts/{account_id}/password/change/begin": {
+        "reason": "Go accepts password change material only through the dedicated trusted unified identity transport; the generic hosted SaaS client must not carry password proofs.",
+        "consumer_action": "consume through UnifiedIdentityClient.begin_password_change with recent-auth and idempotency context kept out of generic SaaS payloads",
+    },
+    "POST /v1/accounts/{account_id}/password/enroll/begin": {
+        "reason": "Go accepts initial password material only through the dedicated trusted unified identity transport; the generic hosted SaaS client must not carry passwords.",
+        "consumer_action": "consume through UnifiedIdentityClient.begin_password_enroll and keep password material out of generic SaaS payloads and logs",
+    },
+    "POST /v1/accounts/{account_id}/password/recover/begin": {
+        "reason": "Go accepts verified-email password recovery material only through the dedicated trusted unified identity transport; the generic hosted SaaS client does not own recovery authority.",
+        "consumer_action": "consume through UnifiedIdentityClient.begin_password_recovery after server-issued verification and keep recovery proof material out of generic SaaS payloads",
+    },
+    "POST /v1/accounts/{account_id}/two-factor/enroll/begin": {
+        "reason": "Go starts TOTP enrollment through the dedicated trusted unified identity transport; the generic hosted SaaS client must not receive provisioning secrets.",
+        "consumer_action": "consume through UnifiedIdentityClient.begin_two_factor_enroll and treat provisioning output as a one-use handoff",
+    },
+    "POST /v1/accounts/{account_id}/two-factor/enroll/confirm": {
+        "reason": "Go confirms TOTP enrollment through the dedicated trusted unified identity transport; the generic hosted SaaS client must not carry TOTP proof or recovery codes.",
+        "consumer_action": "consume through UnifiedIdentityClient.confirm_two_factor_enroll and keep TOTP and one-use recovery material out of generic SaaS payloads and logs",
     },
     "POST /v1/identity/login/complete": {
         "reason": "Go authenticates an existing credential through the dedicated identity lifecycle contract; generic hosted SaaS operations intentionally cannot create, merge, or link accounts during login.",
@@ -238,6 +291,15 @@ UNSUPPORTED_GO_ROUTE_GAPS.update(
             "consumer_action": "keep the route explicit in parity evidence until both hosted SDKs implement the provider-safe China payment contract",
         }
         for route in _CHINA_PAYMENT_GO_ONLY_ROUTES
+    }
+)
+UNSUPPORTED_GO_ROUTE_GAPS.update(
+    {
+        f"{method} {path}": {
+            "reason": "Go exposes the PostgreSQL-authoritative tenancy lifecycle through the dedicated cookie-authenticated tenancy client; the generic hosted SaaS client must not accept caller identity or session overrides.",
+            "consumer_action": "consume through TenancyClient so the canonical caller remains bound to the trusted server session and Idempotency-Key stays header-only",
+        }
+        for _operation, method, path in TENANCY_ROUTES
     }
 )
 

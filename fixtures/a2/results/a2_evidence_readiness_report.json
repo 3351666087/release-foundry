@@ -2,6 +2,10 @@
   "schema_version": "a2.evidence_readiness.v1",
   "report_id": "a2_g3_evidence_readiness",
   "dataset_id": "a2-g3-calibration",
+  "source_matrix_hash": "sha256:9f461aab0683cf0581ff86eef4dcf12e9780a983b32a4f0269717255afb9b204",
+  "source_batch_plan_hash": "sha256:0477ac7f5ddc12d5dddf9e76f504251eb5b8d58fcb3343f6cfbebc1cef8649a5",
+  "source_semantic_harness_hash": "sha256:4e4a8fcd249b0f94c38dc25f433f79af8c87e6f46839447f77d47ecbb547d243",
+  "source_case_map_hash": "sha256:f87f233d3d5bf0e95adeaaec94811d1afa064d1b6eb45a8933c6ac623fb3bd49",
   "status": "awaiting_private_evidence",
   "ready_for_external_collection": true,
   "readiness_checks": {
@@ -14,6 +18,8 @@
     "semantic_sdk_language_matrix_ready": true,
     "official_sdk_smoke_readonly_ok": true,
     "multimodal_real_api_smoke_reached": true,
+    "multimodal_generated_artifacts_verified": true,
+    "releasefoundry_native_media_surface_audited": true,
     "private_payload_boundary_documented": true
   },
   "calibration_case_count": 6,
@@ -85,13 +91,49 @@
     "expected_reviewed_observation_count": 6,
     "required_review_fields": [
       "metadata.review_status",
+      "metadata.reviewer_receipt",
+      "metadata.reviewed_at_unix_ms",
       "evidence_ref"
+    ],
+    "required_terminal_scoring_fields": [
+      "metadata.terminal_scoring_receipt_schema_version",
+      "metadata.terminal_status",
+      "metadata.terminal_status_verified",
+      "metadata.timestamps_verified",
+      "metadata.response_evidence_verified",
+      "metadata.server_grading_signal_verified",
+      "metadata.terminal_scoring_verified",
+      "metadata.grading_signal_types",
+      "metadata.terminal_receipt_blockers",
+      "metadata.run_terminal_receipt_schema_version",
+      "metadata.run_terminal_receipt_sha256",
+      "metadata.run_expected_test_count",
+      "metadata.run_verified_test_count",
+      "metadata.run_receipt_complete",
+      "metadata.run_dataset_id_verified",
+      "metadata.run_result_terminal_verified",
+      "metadata.server_grading_lifecycle_verified",
+      "metadata.exact_test_set_verified",
+      "metadata.all_expected_tests_terminal_scoring_verified",
+      "metadata.observed_judge_version",
+      "metadata.judge_version_source",
+      "metadata.judge_version_verified",
+      "metadata.aggregate_marker_used_as_acceptance_authority",
+      "metadata.run_terminal_receipt_blockers",
+      "metadata.dataset_identity_receipt_schema_version",
+      "metadata.dataset_identity_verified",
+      "metadata.dataset_identity_receipt_sha256",
+      "metadata.dataset_identity_manifest_sha256",
+      "metadata.dataset_identity_content_sha256",
+      "metadata.dataset_identity_content_collection",
+      "metadata.dataset_identity_content_item_count",
+      "metadata.dataset_identity_blockers"
     ],
     "private_input_ref": "docs/evidence/private_refs/a2_releasefoundry_get_run.redacted.json",
     "commands": [
       "python scripts/a2_scan_releasefoundry_grading_evidence.py --input docs/evidence/private_refs/a2_releasefoundry_get_run.redacted.json --case-map fixtures/a2/calibration/releasefoundry_grading_batch_case_map.json",
-      "python scripts/a2_import_releasefoundry_grading.py --input docs/evidence/private_refs/a2_releasefoundry_get_run.redacted.json --case-map fixtures/a2/calibration/releasefoundry_grading_batch_case_map.json --evidence-ref docs/evidence/private_refs/a2_releasefoundry_get_run.redacted.json --review-status reviewed --output docs/evidence/private_refs/a2_releasefoundry_grading_import.review.json",
-      "python scripts/a2_merge_calibration_observations.py --incoming docs/evidence/private_refs/a2_releasefoundry_grading_import.review.json --source releasefoundry_grading --min-count 6 --output fixtures/a2/calibration/a2_g3_calibration_observations.json",
+      "python scripts/a2_import_releasefoundry_grading.py --input docs/evidence/private_refs/a2_releasefoundry_get_run.redacted.json --case-map fixtures/a2/calibration/releasefoundry_grading_batch_case_map.json --identity-file docs/evidence/private_refs/a2_releasefoundry_dataset_identity.private.json --identity-receipt docs/evidence/a2_releasefoundry_dataset_identity_receipt.json --evidence-ref docs/evidence/private_refs/a2_releasefoundry_get_run.redacted.json --review-status reviewed --reviewer-receipt \"$A2_REVIEWER_RECEIPT\" --reviewed-at-unix-ms \"$A2_REVIEWED_AT_UNIX_MS\" --require-reviewed --require-complete --output docs/evidence/private_refs/a2_releasefoundry_grading_import.review.json",
+      "python scripts/a2_merge_calibration_observations.py --incoming docs/evidence/private_refs/a2_releasefoundry_grading_import.review.json --source releasefoundry_grading --min-count 6 --require-reviewed --require-complete --output fixtures/a2/calibration/a2_g3_calibration_observations.json",
       "python scripts/a2_regenerate_fixtures.py --write"
     ]
   },
@@ -937,9 +979,9 @@
     "available": true,
     "path": "docs/evidence/a2_real_api_smoke.json",
     "schema_version": "a2.real_api_smoke.v1",
-    "generated_at": "2026-07-09T13:35:50Z",
-    "sdk_source": "packages/sdk/releasefoundry",
-    "base_url": "https://api.releasefoundry.example/testing-platform-api",
+    "generated_at": "2026-07-27T13:30:37Z",
+    "sdk_source": "docs/a1/_pypi_artifacts/releasefoundry-0.3.1-py3-none-any.whl",
+    "base_url": "https://api.releasefoundry.io/testing-platform-api",
     "api_call_count": 6,
     "ok_call_count": 6,
     "error_call_count": 0,
@@ -965,50 +1007,340 @@
     "available": true,
     "path": "docs/evidence/a2_multimodal_real_api_smoke.json",
     "schema_version": "a2.multimodal_real_api_smoke.v1",
-    "generated_at": "2026-07-10T23:46:02Z",
-    "sdk_source": "packages/sdk/releasefoundry",
-    "base_url": "https://api.releasefoundry.example/testing-platform-api",
+    "request_content_sha256": "028068b1f07b95aa4d18f8ed38839c94ebe3f8f03042817dfd96d1bb25362370",
+    "generated_at": "2026-08-01T15:54:59Z",
+    "sdk_source": "docs/a1/_pypi_artifacts/releasefoundry-0.3.1-py3-none-any.whl",
+    "base_url": "https://api.releasefoundry.io/testing-platform-api",
     "private_ref": "docs/evidence/private_refs/a2_multimodal_real_api_smoke.private.json",
-    "private_ref_sha256_12": "084c566f8467",
-    "accepted_modalities": [
+    "private_ref_sha256_12": "284d93ba3788",
+    "requested_modalities": [
       "audio",
       "file",
       "image",
-      "text",
+      "text"
+    ],
+    "required_modalities": [
+      "audio",
+      "file",
+      "image",
+      "text"
+    ],
+    "excluded_modalities": [
       "video"
     ],
+    "request_config_accepted_modalities": [
+      "audio",
+      "file",
+      "image",
+      "text"
+    ],
+    "observed_artifact_modalities": [
+      "file",
+      "image",
+      "text"
+    ],
+    "accepted_modalities": [
+      "text"
+    ],
+    "modality_evidence": {
+      "audio": {
+        "artifact_observed": false,
+        "evidence_status": "request_config_accepted",
+        "grading_path": "request_configuration_only",
+        "input_support_status": "not_proven",
+        "request_accepted": true,
+        "requested": true
+      },
+      "file": {
+        "artifact_observed": true,
+        "evidence_status": "artifact_observed",
+        "grading_path": "generated_artifact",
+        "input_support_status": "not_proven",
+        "request_accepted": true,
+        "requested": true
+      },
+      "image": {
+        "artifact_observed": true,
+        "evidence_status": "artifact_observed",
+        "grading_path": "generated_artifact",
+        "input_support_status": "not_proven",
+        "request_accepted": true,
+        "requested": true
+      },
+      "text": {
+        "artifact_observed": true,
+        "evidence_status": "artifact_observed",
+        "grading_path": "native_text",
+        "input_support_status": "observed",
+        "request_accepted": true,
+        "requested": true
+      },
+      "video": {
+        "artifact_observed": false,
+        "evidence_status": "not_observed",
+        "grading_path": "not_observed",
+        "input_support_status": "unknown",
+        "request_accepted": false,
+        "requested": false
+      }
+    },
     "generation_options": {
       "generate_audio": true,
       "generate_files": true,
       "generate_images": true,
-      "generate_videos": true
+      "generate_simulations": false,
+      "generate_videos": false,
+      "scenario_count": 1
     },
-    "api_call_count": 2,
-    "ok_call_count": 1,
-    "error_call_count": 1,
+    "artifact_origin": "releasefoundry_generated_dataset",
+    "artifact_receipt_status": "partial",
+    "artifact_reference_count": 2,
+    "artifact_download_attempt_count": 2,
+    "artifact_download_verified_count": 2,
+    "artifact_reference_modalities": [
+      "image",
+      "file"
+    ],
+    "artifact_verified_modalities": [
+      "image",
+      "file"
+    ],
+    "artifact_missing_modalities": [
+      "audio"
+    ],
+    "artifact_modality_coverage_complete": false,
+    "artifact_receipts": [
+      {
+        "modality": "file",
+        "verification_status": "verified",
+        "sha256": "0227bba126ba2b01c810631565bf48db4f4773f882d99c3684869880116acd44",
+        "byte_size": 16676,
+        "response_mime": "application/pdf"
+      },
+      {
+        "modality": "image",
+        "verification_status": "verified",
+        "sha256": "945b4cbf99b9690196a3a7d36feef580ecf7873127f8ec7015d06df958f0b37d",
+        "byte_size": 1265233,
+        "response_mime": "image/png"
+      }
+    ],
+    "artifact_receipts_public_safe": true,
+    "request_status": "completed",
+    "api_call_count": 8,
+    "ok_call_count": 8,
+    "error_call_count": 0,
     "call_status_counts": {
-      "error": 1,
-      "ok": 1
+      "ok": 8
     },
     "call_names": [
-      "create_request",
-      "init"
+      "get_dataset",
+      "get_dataset_artifact_links",
+      "get_request",
+      "init",
+      "list_datasets",
+      "list_requests",
+      "list_requests",
+      "wait_for_request"
     ],
-    "quota_blocked": true,
-    "create_request_error_type": "ReleaseFoundryError",
-    "create_request_error_message": "[400] Usage limit exceeded for requests: 5/5 used, requested 1, 0 remaining",
+    "quota_blocked": false,
+    "create_request_error_type": "",
+    "create_request_error_message": "",
     "real_api_boundary_reached": true,
     "all_required_modalities_requested": true,
     "create_request_reached": false,
-    "wait_completed": false,
-    "dataset_id_present": false,
+    "request_reused": true,
+    "wait_completed": true,
+    "dataset_id_present": true,
+    "dataset_request_binding_verified": true,
+    "native_media_uploaded": false,
+    "media_upload_api_observed": false,
     "public_safe": true,
-    "ready_for_a2_multimodal_context": true,
+    "ready_for_a2_multimodal_context": false,
     "c3_grading_ready": false,
     "notes": [
-      "This is a redacted real ReleaseFoundry API multimodal smoke summary for image/audio/file/video request injection.",
-      "A quota-blocked create_request still proves the request payload reached the authenticated API gate after local SDK validation.",
+      "This is a redacted real ReleaseFoundry API smoke summary for the explicitly requested ReleaseFoundry-generated modalities.",
+      "The request status is copied from the terminal request detail when available; failure is not treated as quota evidence or grading success.",
+      "A reused request is selected only by its exact content-bound request name; generated artifacts do not prove caller media upload support.",
+      "Artifact receipts contain only modality, status, SHA-256, byte count, and response MIME; links, object keys, paths, and bytes are not projected.",
+      "Artifact modality coverage and receipt status are rebuilt from requested modalities and verified public receipts; contradictory claims fail closed.",
       "It is not reviewed ReleaseFoundry grading evidence and does not mark C3 ready."
+    ],
+    "invalid_semantic_fields": [
+      "artifact_reference_modalities",
+      "artifact_verified_modalities"
+    ]
+  },
+  "releasefoundry_native_media_surface": {
+    "available": true,
+    "path": "docs/evidence/a2_releasefoundry_native_media_surface.json",
+    "schema_version": "a2.releasefoundry_native_media_surface.v1",
+    "sdk_package_name": "releasefoundry",
+    "sdk_version": "0.3.1",
+    "sdk_artifact_sha256": "c20c36f7406b569c968e20a00b4a0a32fab02e22d7db51a62a61b14069087e87",
+    "static_audit_status": "completed",
+    "expected_surface_matches": true,
+    "surface_fingerprint_sha256": "9e91500eb8e32980046901aed7b62497c5c7b6599704a20020479dc112aba775",
+    "live_session_requested": false,
+    "live_session_attempted": false,
+    "live_session_reached": false,
+    "live_session_status": "not_requested",
+    "live_session_api_call_count": 0,
+    "mutation_attempt_count": 0,
+    "generated_artifact_capabilities": {
+      "image": "verified",
+      "audio": "verified",
+      "file": "verified",
+      "video": "provider_unverified"
+    },
+    "generated_artifact_evidence_count": 4,
+    "generated_artifact_evidence": [
+      {
+        "path": "docs/evidence/a2_multimodal_real_api_smoke.json",
+        "sha256": "53ec59570b232dc95a8234d08969dfb9b621a906c14ff5252361e425a1d12335",
+        "verified_modalities": [],
+        "content_hash_verified": true
+      },
+      {
+        "path": "docs/evidence/a2_multimodal_audio_real_api_smoke.json",
+        "sha256": "00c328b0cace92a0e7fa68056d908b95ac7838a26a3b975e630ee964c96d4593",
+        "verified_modalities": [
+          "audio"
+        ],
+        "content_hash_verified": true
+      },
+      {
+        "path": "docs/evidence/a2_multimodal_image_real_api_smoke.json",
+        "sha256": "7c2fa7e57c90863765eff248e8a5257d64b5a0b64ce208f8612fd92286f9acfb",
+        "verified_modalities": [
+          "image"
+        ],
+        "content_hash_verified": true
+      },
+      {
+        "path": "docs/evidence/a2_multimodal_file_real_api_smoke.json",
+        "sha256": "99f46a228101b1b08df13606d3363bff4bcb6d8ef5274830a9ce034a5495b113",
+        "verified_modalities": [
+          "file"
+        ],
+        "content_hash_verified": true
+      }
+    ],
+    "caller_native_submission": {
+      "image": "provider_surface_missing",
+      "audio": "provider_surface_missing",
+      "file": "provider_surface_missing",
+      "video": "provider_unverified"
+    },
+    "upload_method_observed": false,
+    "immutable_media_url_parameter_observed": false,
+    "undocumented_endpoint_probed": false,
+    "native_media_uploaded": false,
+    "caller_native_input_support_proven": false,
+    "surface_audit_verified": true,
+    "public_safe": true,
+    "c3_grading_ready": false,
+    "invalid_fields": [],
+    "notes": [
+      "The pinned offline releasefoundry 0.3.1 compatibility surface is hash-verified when surface_audit_verified is true.",
+      "No live API session is claimed by the static compatibility fixture.",
+      "Image, audio, and file verification refers only to ReleaseFoundry-generated artifacts, not caller-native upload or grading.",
+      "Video remains provider-unverified and cannot become verified through this receipt.",
+      "Any SDK surface drift, mutation, upload signal, malformed field, or private material fails closed for manual review."
+    ]
+  },
+  "multimodal_generated_artifact_capabilities": {
+    "artifact_origin": "releasefoundry_generated_dataset",
+    "aggregation_status": "verified",
+    "probe_count": 3,
+    "verified_probe_count": 3,
+    "independent_request_count": 3,
+    "required_verified_modalities": [
+      "image",
+      "audio",
+      "file"
+    ],
+    "verified_generated_artifact_modalities": [
+      "image",
+      "audio",
+      "file"
+    ],
+    "provider_unverified_modalities": [
+      "video"
+    ],
+    "all_expected_modalities_verified": true,
+    "native_media_uploaded": false,
+    "media_upload_api_observed": false,
+    "caller_native_input_support_proven": false,
+    "native_media_surface_path": "docs/evidence/a2_releasefoundry_native_media_surface.json",
+    "native_media_surface_binding_verified": true,
+    "public_safe": true,
+    "c3_grading_ready": false,
+    "probes": [
+      {
+        "path": "docs/evidence/a2_multimodal_image_real_api_smoke.json",
+        "request_content_sha256": "5d4078d6a3be5290798a7069a9c3f0190ff334f787bf52b24f042ac7975fd993",
+        "request_status": "completed",
+        "dataset_request_binding_verified": true,
+        "artifact_receipts": [
+          {
+            "modality": "image",
+            "verification_status": "verified",
+            "sha256": "d53dd8e17367a7d83fea45e972470157b67b5c002279f235348a436bf15ff60d",
+            "byte_size": 1617865,
+            "response_mime": "image/png"
+          }
+        ],
+        "verified_generated_artifact_modalities": [
+          "image"
+        ],
+        "valid_for_aggregation": true
+      },
+      {
+        "path": "docs/evidence/a2_multimodal_audio_real_api_smoke.json",
+        "request_content_sha256": "27ab16f34960d6597da4a878b1bd6653e3a5a29871f950fcce16e3eec93f16af",
+        "request_status": "completed",
+        "dataset_request_binding_verified": true,
+        "artifact_receipts": [
+          {
+            "modality": "audio",
+            "verification_status": "verified",
+            "sha256": "9c51ee4e38ca14e41c5202c15eb06c673ff587cd7a728bf251309b69c3fe3a48",
+            "byte_size": 383938,
+            "response_mime": "audio/mpeg"
+          }
+        ],
+        "verified_generated_artifact_modalities": [
+          "audio"
+        ],
+        "valid_for_aggregation": true
+      },
+      {
+        "path": "docs/evidence/a2_multimodal_file_real_api_smoke.json",
+        "request_content_sha256": "3b9fd8cbfc6592413b1c65fde5628e80bd78f32c111e30915b9cf9153fca4505",
+        "request_status": "completed",
+        "dataset_request_binding_verified": true,
+        "artifact_receipts": [
+          {
+            "modality": "file",
+            "verification_status": "verified",
+            "sha256": "241836a6b4ee880a9199f7a8896e94fcb90dc4a9d2940dd083b2104cf0e5efde",
+            "byte_size": 394,
+            "response_mime": "text/csv"
+          }
+        ],
+        "verified_generated_artifact_modalities": [
+          "file"
+        ],
+        "valid_for_aggregation": true
+      }
+    ],
+    "invalid_probe_fields": [],
+    "notes": [
+      "This projection combines three independent public-safe ReleaseFoundry request receipts without merging their request identities.",
+      "It proves only ReleaseFoundry-generated image, audio, and file artifact availability.",
+      "It does not prove caller-native media upload support, reviewed grading, Reward Model training, or C3 completion.",
+      "Video remains provider-unverified and is excluded from the default real-API smoke path."
     ]
   },
   "releasefoundry_public_merge_gate": {
@@ -1019,21 +1351,69 @@
     "current_public_observation_count": 0,
     "merged_public_observation_count": 0,
     "reviewed_public_observation_count": 0,
+    "terminal_scoring_verified_observation_count": 0,
+    "receipt_cohort_consistent": false,
+    "receipt_cohort_blockers": [
+      "verified_receipt_cohort_count_mismatch"
+    ],
+    "run_receipt_artifact_present": false,
+    "run_receipt_artifact_sha256": "",
+    "run_receipt_artifact_binding_valid": false,
+    "run_receipt_artifact_blockers": [
+      "run_receipt_artifact_missing"
+    ],
     "missing_public_observation_count": 6,
     "missing_reviewed_observation_count": 6,
+    "missing_terminal_scoring_receipt_count": 6,
     "required_public_observation_count": 6,
     "expected_reviewed_observation_count": 6,
     "required_review_fields": [
       "metadata.review_status",
+      "metadata.reviewer_receipt",
+      "metadata.reviewed_at_unix_ms",
       "evidence_ref"
+    ],
+    "required_terminal_scoring_fields": [
+      "metadata.terminal_scoring_receipt_schema_version",
+      "metadata.terminal_status",
+      "metadata.terminal_status_verified",
+      "metadata.timestamps_verified",
+      "metadata.response_evidence_verified",
+      "metadata.server_grading_signal_verified",
+      "metadata.terminal_scoring_verified",
+      "metadata.grading_signal_types",
+      "metadata.terminal_receipt_blockers",
+      "metadata.run_terminal_receipt_schema_version",
+      "metadata.run_terminal_receipt_sha256",
+      "metadata.run_expected_test_count",
+      "metadata.run_verified_test_count",
+      "metadata.run_receipt_complete",
+      "metadata.run_dataset_id_verified",
+      "metadata.run_result_terminal_verified",
+      "metadata.server_grading_lifecycle_verified",
+      "metadata.exact_test_set_verified",
+      "metadata.all_expected_tests_terminal_scoring_verified",
+      "metadata.observed_judge_version",
+      "metadata.judge_version_source",
+      "metadata.judge_version_verified",
+      "metadata.aggregate_marker_used_as_acceptance_authority",
+      "metadata.run_terminal_receipt_blockers",
+      "metadata.dataset_identity_receipt_schema_version",
+      "metadata.dataset_identity_verified",
+      "metadata.dataset_identity_receipt_sha256",
+      "metadata.dataset_identity_manifest_sha256",
+      "metadata.dataset_identity_content_sha256",
+      "metadata.dataset_identity_content_collection",
+      "metadata.dataset_identity_content_item_count",
+      "metadata.dataset_identity_blockers"
     ],
     "public_matrix_path": "fixtures/a2/calibration/a2_g3_calibration_observations.json",
     "reviewed_private_import_ref": "docs/evidence/private_refs/a2_releasefoundry_grading_import.review.json",
-    "blocking_reason": "Reviewed ReleaseFoundry grading observations with review_status=reviewed and evidence_ref must be imported, merged, and regenerated before C3 is met.",
+    "blocking_reason": "Reviewed ReleaseFoundry grading observations with review_status=reviewed, a canonical reviewer_receipt, a positive reviewed_at_unix_ms, and canonical private evidence_ref must be imported from one acceptance run bound to the fixed dataset identity, complete run lifecycle, exact test set, server-observed grader version, and independently verified per-test terminal scoring. The retained public run receipt must hash-bind every observation and match every run-level and per-test scoring field. Aggregate markers are not acceptance authority; merge and regenerate before C3 is met.",
     "required_commands": [
       "python scripts/a2_scan_releasefoundry_grading_evidence.py --input docs/evidence/private_refs/a2_releasefoundry_get_run.redacted.json --case-map fixtures/a2/calibration/releasefoundry_grading_batch_case_map.json",
-      "python scripts/a2_import_releasefoundry_grading.py --input docs/evidence/private_refs/a2_releasefoundry_get_run.redacted.json --case-map fixtures/a2/calibration/releasefoundry_grading_batch_case_map.json --evidence-ref docs/evidence/private_refs/a2_releasefoundry_get_run.redacted.json --review-status reviewed --output docs/evidence/private_refs/a2_releasefoundry_grading_import.review.json",
-      "python scripts/a2_merge_calibration_observations.py --incoming docs/evidence/private_refs/a2_releasefoundry_grading_import.review.json --source releasefoundry_grading --min-count 6 --output fixtures/a2/calibration/a2_g3_calibration_observations.json",
+      "python scripts/a2_import_releasefoundry_grading.py --input docs/evidence/private_refs/a2_releasefoundry_get_run.redacted.json --case-map fixtures/a2/calibration/releasefoundry_grading_batch_case_map.json --identity-file docs/evidence/private_refs/a2_releasefoundry_dataset_identity.private.json --identity-receipt docs/evidence/a2_releasefoundry_dataset_identity_receipt.json --evidence-ref docs/evidence/private_refs/a2_releasefoundry_get_run.redacted.json --review-status reviewed --reviewer-receipt \"$A2_REVIEWER_RECEIPT\" --reviewed-at-unix-ms \"$A2_REVIEWED_AT_UNIX_MS\" --require-reviewed --require-complete --output docs/evidence/private_refs/a2_releasefoundry_grading_import.review.json",
+      "python scripts/a2_merge_calibration_observations.py --incoming docs/evidence/private_refs/a2_releasefoundry_grading_import.review.json --source releasefoundry_grading --min-count 6 --require-reviewed --require-complete --output fixtures/a2/calibration/a2_g3_calibration_observations.json",
       "python scripts/a2_regenerate_fixtures.py --write"
     ]
   },
@@ -1052,6 +1432,8 @@
       "prompt_hash",
       "response_hash",
       "review_status",
+      "reviewer_receipt",
+      "reviewed_at_unix_ms",
       "sdk_language"
     ],
     "risk_assessment_status": "offline_reference_risk_register",
@@ -1070,6 +1452,8 @@
       "prompt_hash",
       "response_hash",
       "review_status",
+      "reviewer_receipt",
+      "reviewed_at_unix_ms",
       "sdk_language",
       "cost.prompt_tokens",
       "cost.completion_tokens",
@@ -1091,10 +1475,14 @@
     ],
     "private_input_ref": "docs/evidence/private_refs/a2_semantic_judge_review.redacted.json",
     "collection_packet_ref": "fixtures/a2/calibration/a2_semantic_judge_collection_packet.json",
+    "collection_packet_binding_valid": true,
+    "collection_packet_id": "a2_c4_semantic_judge_collection_packet",
+    "collection_packet_sha256": "sha256:ad52a1a12baaa96eaeda664530bb0d14c220d52d249a8ae6956fc224b6a3fb68",
+    "collection_packet_binding_blockers": [],
     "commands": [
       "python scripts/a2_build_semantic_judge_collection_packet.py --check",
-      "python scripts/a2_import_semantic_judge.py --input docs/evidence/private_refs/a2_semantic_judge_review.redacted.json --evidence-ref docs/evidence/private_refs/a2_semantic_judge_review.redacted.json --output docs/evidence/private_refs/a2_semantic_judge_import.review.json",
-      "python scripts/a2_merge_calibration_observations.py --incoming docs/evidence/private_refs/a2_semantic_judge_import.review.json --source llm_judge --min-count 6 --output fixtures/a2/calibration/a2_g3_calibration_observations.json",
+      "python scripts/a2_import_semantic_judge.py --input docs/evidence/private_refs/a2_semantic_judge_review.redacted.json --evidence-ref docs/evidence/private_refs/a2_semantic_judge_review.redacted.json --collection-packet fixtures/a2/calibration/a2_semantic_judge_collection_packet.json --require-reviewed --require-complete --output docs/evidence/private_refs/a2_semantic_judge_import.review.json",
+      "python scripts/a2_merge_calibration_observations.py --incoming docs/evidence/private_refs/a2_semantic_judge_import.review.json --source llm_judge --semantic-collection-packet fixtures/a2/calibration/a2_semantic_judge_collection_packet.json --min-count 6 --require-reviewed --require-complete --output fixtures/a2/calibration/a2_g3_calibration_observations.json",
       "python scripts/a2_regenerate_fixtures.py --write"
     ]
   },
@@ -1106,17 +1494,35 @@
     "current_public_observation_count": 6,
     "audited_public_observation_count": 0,
     "reviewed_live_observation_count": 0,
+    "case_level_reviewed_observation_count": 0,
+    "case_level_reviewed_case_ids": [],
+    "aggregate_available_count_matches_case_evidence": false,
+    "aggregate_reviewed_count_matches_case_evidence": true,
+    "collection_packet_binding_consistent": false,
+    "collection_packet_binding_blockers": [
+      "reviewed_semantic_observation_count_mismatch",
+      "semantic_collection_packet_sha256_cohort_mismatch"
+    ],
+    "collection_packet_id": "a2_c4_semantic_judge_collection_packet",
+    "collection_packet_sha256": "sha256:ad52a1a12baaa96eaeda664530bb0d14c220d52d249a8ae6956fc224b6a3fb68",
+    "collection_packet_dataset_id": "a2-g3-calibration",
+    "review_receipt_binding_consistent": false,
+    "review_receipt_binding_blockers": [
+      "semantic_review_receipt_artifact_missing"
+    ],
+    "review_receipt_sha256": "",
+    "review_receipt_artifact_present": false,
     "missing_audited_observation_count": 6,
     "expected_reviewed_observation_count": 6,
     "offline_reference_only": true,
     "live_model_evidence_available": false,
     "public_matrix_path": "fixtures/a2/calibration/a2_g3_calibration_observations.json",
     "reviewed_private_import_ref": "docs/evidence/private_refs/a2_semantic_judge_import.review.json",
-    "blocking_reason": "Audited semantic judge observations must replace offline references before C4 is met.",
+    "blocking_reason": "Audited semantic judge observations with canonical private evidence refs must replace offline references before C4 is met. Per-case evidence is acceptance authority; aggregate availability and reviewed-count markers must match it.",
     "required_commands": [
       "python scripts/a2_build_semantic_judge_collection_packet.py --check",
-      "python scripts/a2_import_semantic_judge.py --input docs/evidence/private_refs/a2_semantic_judge_review.redacted.json --evidence-ref docs/evidence/private_refs/a2_semantic_judge_review.redacted.json --output docs/evidence/private_refs/a2_semantic_judge_import.review.json",
-      "python scripts/a2_merge_calibration_observations.py --incoming docs/evidence/private_refs/a2_semantic_judge_import.review.json --source llm_judge --min-count 6 --output fixtures/a2/calibration/a2_g3_calibration_observations.json",
+      "python scripts/a2_import_semantic_judge.py --input docs/evidence/private_refs/a2_semantic_judge_review.redacted.json --evidence-ref docs/evidence/private_refs/a2_semantic_judge_review.redacted.json --collection-packet fixtures/a2/calibration/a2_semantic_judge_collection_packet.json --require-reviewed --require-complete --output docs/evidence/private_refs/a2_semantic_judge_import.review.json",
+      "python scripts/a2_merge_calibration_observations.py --incoming docs/evidence/private_refs/a2_semantic_judge_import.review.json --source llm_judge --semantic-collection-packet fixtures/a2/calibration/a2_semantic_judge_collection_packet.json --min-count 6 --require-reviewed --require-complete --output fixtures/a2/calibration/a2_g3_calibration_observations.json",
       "python scripts/a2_regenerate_fixtures.py --write"
     ]
   },
@@ -1144,5 +1550,6 @@
   "metadata": {
     "deterministic": true,
     "purpose": "Make C3/C4 evidence collection auditable without committing private payloads."
-  }
+  },
+  "artifact_hash": "sha256:6c8f1b3978c7b066ea658b2b4283b826bd3b74bb372bc57d2f8cfab5da178501"
 }

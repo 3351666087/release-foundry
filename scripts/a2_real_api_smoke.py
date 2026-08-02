@@ -1,10 +1,10 @@
 from __future__ import annotations
 
 import argparse
-import hashlib
 import importlib.util
 import json
 import os
+import re
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -12,7 +12,7 @@ from typing import Any, Callable
 
 
 ROOT = Path(__file__).resolve().parents[1]
-SDK_PATH = ROOT / "packages" / "sdk"
+WHEEL = ROOT / "docs" / "a1" / "_pypi_artifacts" / "releasefoundry-0.3.1-py3-none-any.whl"
 
 
 def main() -> int:
@@ -23,13 +23,13 @@ def main() -> int:
     parser.add_argument("--timeout", type=int, default=20)
     args = parser.parse_args()
 
-    if not os.environ.get("RELEASEFOUNDRY_API_KEY"):
-        raise SystemExit("RELEASEFOUNDRY_API_KEY is required; the script never reads key files directly.")
+    if not os.environ.get("RELEASEFOUNDRY_LABS_API_KEY"):
+        raise SystemExit("RELEASEFOUNDRY_LABS_API_KEY is required; the script never reads key files directly.")
 
     _ensure_releasefoundry_sdk_importable()
-    from releasefoundry import ReleaseFoundryClient  # type: ignore
+    from releasefoundry import ReleaseFoundryLabsClient  # type: ignore
 
-    client = ReleaseFoundryClient.from_env(timeout=args.timeout)
+    client = ReleaseFoundryLabsClient.from_env(timeout=args.timeout)
     calls: list[dict[str, Any]] = []
 
     session = _record_call(calls, "init", client.init)
@@ -43,7 +43,7 @@ def main() -> int:
         "schema_version": "a2.real_api_smoke.v1",
         "generated_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "sdk_source": _sdk_source(),
-        "base_url": os.environ.get("RELEASEFOUNDRY_BASE_URL", "https://api.releasefoundry.example/testing-platform-api"),
+        "base_url": os.environ.get("RELEASEFOUNDRY_LABS_BASE_URL", "https://api.releasefoundry.io/testing-platform-api"),
         "auth": _redacted_session(session),
         "api_call_count": len(calls),
         "calls": calls,
@@ -71,20 +71,17 @@ def main() -> int:
 def _ensure_releasefoundry_sdk_importable() -> None:
     if importlib.util.find_spec("releasefoundry") is not None:
         return
-    sys.path.insert(0, str(SDK_PATH))
-    if importlib.util.find_spec("releasefoundry") is None:
-        raise RuntimeError("releasefoundry is not installed and packages/sdk is unavailable.")
+    if WHEEL.exists():
+        sys.path.insert(0, str(WHEEL))
+        return
+    raise RuntimeError("releasefoundry is not installed and the local PyPI wheel artifact is missing.")
 
 
 def _sdk_source() -> str:
+    if WHEEL.exists() and str(WHEEL) in sys.path:
+        return "docs/a1/_pypi_artifacts/releasefoundry-0.3.1-py3-none-any.whl"
     spec = importlib.util.find_spec("releasefoundry")
-    if not spec or not spec.origin:
-        return "installed"
-    origin = Path(spec.origin).resolve()
-    try:
-        return origin.relative_to(ROOT).as_posix()
-    except ValueError:
-        return str(origin)
+    return str(spec.origin) if spec and spec.origin else "installed"
 
 
 def _record_call(calls: list[dict[str, Any]], name: str, fn: Callable[[], Any]) -> Any:
@@ -136,12 +133,11 @@ def _redacted_session(session: Any) -> dict[str, Any]:
         return {"session_reached": False}
     user = session.get("user") if isinstance(session.get("user"), dict) else {}
     tenant = session.get("tenant") if isinstance(session.get("tenant"), dict) else {}
-    email = str(user.get("email", ""))
     return {
         "session_reached": True,
         "status": str(session.get("status", "")),
         "user_id_present": user.get("id") is not None,
-        "user_email_sha256_12": hashlib.sha256(email.encode("utf-8")).hexdigest()[:12] if email else "",
+        "user_email_present": bool(user.get("email")),
         "tenant_id_present": tenant.get("id") is not None,
         "tenant_name_present": bool(tenant.get("tenant_name")),
         "note_count": len(session.get("notes", [])) if isinstance(session.get("notes"), list) else 0,
@@ -149,10 +145,43 @@ def _redacted_session(session: Any) -> dict[str, Any]:
 
 
 def _safe_error_message(message: str) -> str:
-    api_key = os.environ.get("RELEASEFOUNDRY_API_KEY", "")
-    if api_key:
-        message = message.replace(api_key, "[REDACTED_API_KEY]")
-    return message[:240]
+    return _redact_sensitive_text(message)[:240]
+
+
+def _redact_sensitive_text(message: str) -> str:
+    for secret in (os.environ.get("RELEASEFOUNDRY_LABS_API_KEY", ""), os.environ.get("RELEASEFOUNDRY_API_KEY", "")):
+        if secret:
+            message = message.replace(secret, "[REDACTED_API_KEY]")
+    message = re.sub(
+        r"https?://[^\s\"'<>]+",
+        lambda match: match.group(0).split("?", 1)[0] + "?[REDACTED_QUERY]"
+        if "?" in match.group(0)
+        else match.group(0),
+        message,
+    )
+    message = re.sub(
+        r"(?i)\bauthorization\s*[:=]\s*(?:bearer\s+)?[^\s,;]+",
+        "Authorization: [REDACTED]",
+        message,
+    )
+    message = re.sub(r"(?i)\bbearer\s+[^\s,;]+", "[REDACTED_AUTH]", message)
+    message = re.sub(
+        r"(?i)\b(?:cookie|set-cookie)\s*[:=]\s*[^,;\s]+",
+        "Cookie: [REDACTED]",
+        message,
+    )
+    message = re.sub(
+        r"(?i)\b(?:api[_-]?key|access[_-]?token|refresh[_-]?token|session(?:_id)?|token|signature|sig)"
+        r"\s*=\s*[^&;,\s]+",
+        "[REDACTED_SECRET]",
+        message,
+    )
+    message = re.sub(
+        r"\b[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}\b",
+        "[REDACTED_EMAIL]",
+        message,
+    )
+    return message
 
 
 if __name__ == "__main__":

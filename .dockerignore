@@ -1,0 +1,12 @@
+.git
+.github
+.demo-output
+.env
+.env.*
+**/__pycache__
+**/*.pyc
+**/node_modules
+apps/webapp/.next
+apps/webapp/out
+docs/screenshots
+dist

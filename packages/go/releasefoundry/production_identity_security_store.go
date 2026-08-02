@@ -18,6 +18,8 @@ import (
 
 var _ IdentitySecurityHTTPStore = (*ProductionIdentityStore)(nil)
 var _ IdentitySecurityTicketResolver = (*ProductionIdentityStore)(nil)
+var _ IdentitySecurityProcessorStateStore = (*ProductionIdentityStore)(nil)
+var _ IdentitySecurityTwoFactorMutationReplayStore = (*ProductionIdentityStore)(nil)
 
 type identitySecurityTicketProjection struct {
 	TicketID        string    `json:"ticket_id"`
@@ -25,6 +27,184 @@ type identitySecurityTicketProjection struct {
 	Operation       string    `json:"operation"`
 	StepUpReceiptID string    `json:"step_up_receipt_id"`
 	ExpiresAt       time.Time `json:"expires_at"`
+}
+
+type identitySecurityProcessorStateProjection struct {
+	TwoFactorStatus        string `json:"two_factor_status"`
+	TOTPSecretRef          string `json:"totp_secret_ref"`
+	TOTPSecretDigest       string `json:"totp_secret_digest"`
+	RecoveryBatchDigest    string `json:"recovery_batch_digest"`
+	RecoveryCodesRemaining int    `json:"recovery_codes_remaining"`
+}
+
+type identitySecurityTwoFactorMutationReplayProjection struct {
+	SecretRef                   string                                `json:"secret_ref"`
+	SecretDigest                string                                `json:"secret_digest"`
+	ExpectedRecoveryBatchDigest string                                `json:"expected_recovery_batch_digest"`
+	ExpectedRecoveryCodeCount   int                                   `json:"expected_recovery_code_count"`
+	RecoveryBatchDigest         string                                `json:"recovery_batch_digest"`
+	RecoveryCodeCount           int                                   `json:"recovery_code_count"`
+	Result                      IdentitySecurityHTTPMutationResultDTO `json:"result"`
+}
+
+// GetIdentitySecurityProcessorState returns the private database-side binding
+// needed by the trusted processor coordinator. This projection is never
+// exposed through HTTP or any SDK DTO.
+func (store *ProductionIdentityStore) GetIdentitySecurityProcessorState(
+	ctx context.Context,
+	accountID string,
+) (IdentitySecurityProcessorState, error) {
+	if store == nil || store.db == nil {
+		return IdentitySecurityProcessorState{}, ErrIdentitySecurityUnavailable
+	}
+	accountID = strings.TrimSpace(accountID)
+	if !validPostgresIdentityVerificationUUID(accountID) {
+		return IdentitySecurityProcessorState{}, ErrIdentitySecurityRejected
+	}
+	queryCtx, cancel := context.WithTimeout(ctx, store.sqlTimeout)
+	defer cancel()
+	tx, err := store.db.BeginTx(queryCtx, &sql.TxOptions{
+		Isolation: sql.LevelReadCommitted,
+		ReadOnly:  true,
+	})
+	if err != nil {
+		return IdentitySecurityProcessorState{},
+			identitySecurityDatabaseError(err)
+	}
+	committed := false
+	defer func() {
+		if !committed {
+			_ = tx.Rollback()
+		}
+	}()
+	if err = configureIdentitySecurityTransaction(
+		queryCtx,
+		tx,
+		store,
+		accountID,
+	); err != nil {
+		return IdentitySecurityProcessorState{},
+			identitySecurityDatabaseError(err)
+	}
+	var raw []byte
+	if err = tx.QueryRowContext(queryCtx, `
+SELECT a1_project_identity_security_processor_state($1::uuid)
+`, accountID).Scan(&raw); err != nil {
+		return IdentitySecurityProcessorState{},
+			identitySecurityDatabaseError(err)
+	}
+	var projection identitySecurityProcessorStateProjection
+	if len(raw) == 0 ||
+		decodeIdentitySecurityJSON(raw, &projection) != nil {
+		return IdentitySecurityProcessorState{},
+			ErrIdentitySecurityUnavailable
+	}
+	state := IdentitySecurityProcessorState{
+		TwoFactorStatus:        projection.TwoFactorStatus,
+		TOTPSecretRef:          projection.TOTPSecretRef,
+		TOTPSecretDigest:       projection.TOTPSecretDigest,
+		RecoveryBatchDigest:    projection.RecoveryBatchDigest,
+		RecoveryCodesRemaining: projection.RecoveryCodesRemaining,
+	}
+	if !validIdentitySecurityProcessorState(state) {
+		return IdentitySecurityProcessorState{},
+			ErrIdentitySecurityRejected
+	}
+	if err = tx.Commit(); err != nil {
+		return IdentitySecurityProcessorState{},
+			identitySecurityDatabaseError(err)
+	}
+	committed = true
+	return state, nil
+}
+
+// GetIdentitySecurityTwoFactorMutationReplay returns the private committed
+// SQL envelope needed to finish or replay the matching Vault transition after
+// a process crash. It never returns raw recovery codes or processor tokens.
+func (store *ProductionIdentityStore) GetIdentitySecurityTwoFactorMutationReplay(
+	ctx context.Context,
+	accountID string,
+	operation string,
+	idempotencyKey string,
+) (IdentitySecurityTwoFactorMutationReplay, bool, error) {
+	if store == nil || store.db == nil || ctx == nil {
+		return IdentitySecurityTwoFactorMutationReplay{}, false,
+			ErrIdentitySecurityUnavailable
+	}
+	accountID = strings.TrimSpace(accountID)
+	operation = strings.TrimSpace(operation)
+	idempotencyKey = strings.TrimSpace(idempotencyKey)
+	if !validPostgresIdentityVerificationUUID(accountID) ||
+		!validIdentitySecurityTwoFactorOperation(operation) ||
+		!validIdentitySecurityIdempotencyKey(idempotencyKey) {
+		return IdentitySecurityTwoFactorMutationReplay{}, false,
+			ErrIdentitySecurityRejected
+	}
+	queryCtx, cancel := context.WithTimeout(ctx, store.sqlTimeout)
+	defer cancel()
+	tx, err := store.db.BeginTx(queryCtx, &sql.TxOptions{
+		Isolation: sql.LevelReadCommitted,
+		ReadOnly:  true,
+	})
+	if err != nil {
+		return IdentitySecurityTwoFactorMutationReplay{}, false,
+			identitySecurityDatabaseError(err)
+	}
+	committed := false
+	defer func() {
+		if !committed {
+			_ = tx.Rollback()
+		}
+	}()
+	if err = configureIdentitySecurityTransaction(
+		queryCtx,
+		tx,
+		store,
+		accountID,
+	); err != nil {
+		return IdentitySecurityTwoFactorMutationReplay{}, false,
+			identitySecurityDatabaseError(err)
+	}
+	var raw []byte
+	if err = tx.QueryRowContext(queryCtx, `
+SELECT a1_project_identity_security_mutation_replay($1::uuid,$2,$3)
+`, accountID, operation, idempotencyKey).Scan(&raw); err != nil {
+		return IdentitySecurityTwoFactorMutationReplay{}, false,
+			identitySecurityDatabaseError(err)
+	}
+	if len(raw) == 0 ||
+		bytes.Equal(bytes.TrimSpace(raw), []byte("null")) {
+		if err = tx.Commit(); err != nil {
+			return IdentitySecurityTwoFactorMutationReplay{}, false,
+				identitySecurityDatabaseError(err)
+		}
+		committed = true
+		return IdentitySecurityTwoFactorMutationReplay{}, false, nil
+	}
+	var projection identitySecurityTwoFactorMutationReplayProjection
+	if decodeIdentitySecurityJSON(raw, &projection) != nil {
+		return IdentitySecurityTwoFactorMutationReplay{}, false,
+			ErrIdentitySecurityUnavailable
+	}
+	replay := IdentitySecurityTwoFactorMutationReplay{
+		SecretRef:                   projection.SecretRef,
+		SecretDigest:                projection.SecretDigest,
+		ExpectedRecoveryBatchDigest: projection.ExpectedRecoveryBatchDigest,
+		ExpectedRecoveryCodeCount:   projection.ExpectedRecoveryCodeCount,
+		RecoveryBatchDigest:         projection.RecoveryBatchDigest,
+		RecoveryCodeCount:           projection.RecoveryCodeCount,
+		Result:                      projection.Result,
+	}
+	if !validIdentitySecurityTwoFactorMutationReplay(operation, replay) {
+		return IdentitySecurityTwoFactorMutationReplay{}, false,
+			ErrIdentitySecurityUnavailable
+	}
+	if err = tx.Commit(); err != nil {
+		return IdentitySecurityTwoFactorMutationReplay{}, false,
+			identitySecurityDatabaseError(err)
+	}
+	committed = true
+	return replay, true, nil
 }
 
 // ResolveIdentitySecurityMutationTicket asks PostgreSQL for only the public
@@ -230,7 +410,9 @@ func validIdentitySecurityMutation(mutation IdentitySecurityMutation, now time.T
 
 func validIdentitySecurityTicketOperation(operation string) bool {
 	switch operation {
-	case "password_enroll", "password_change", "password_recovery", "mfa_enroll", "mfa_confirm", "credential_bind":
+	case "password_enroll", "password_change", "password_recovery",
+		"mfa_enroll", "mfa_confirm", "mfa_recovery_consume",
+		"mfa_recovery_rotate", "mfa_disable", "credential_bind":
 		return true
 	default:
 		return false
@@ -321,6 +503,20 @@ func validIdentitySecurityMutationResult(
 	case "mfa_confirm":
 		return result.TwoFactorStatus == "enabled" &&
 			result.ReauthenticationRequired && result.RecoveryCodesRemaining >= 6
+	case "mfa_recovery_consume":
+		return result.TwoFactorStatus == "enabled" &&
+			result.ReauthenticationRequired &&
+			result.RecoveryCodesRemaining >= 0 &&
+			result.RecoveryCodesRemaining <= 19
+	case "mfa_recovery_rotate":
+		return result.TwoFactorStatus == "enabled" &&
+			result.ReauthenticationRequired &&
+			result.RecoveryCodesRemaining >= 6 &&
+			result.RecoveryCodesRemaining <= 20
+	case "mfa_disable":
+		return result.TwoFactorStatus == "disabled" &&
+			result.ReauthenticationRequired &&
+			result.RecoveryCodesRemaining == 0
 	default:
 		return false
 	}

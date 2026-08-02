@@ -1,0 +1,550 @@
+{
+  "additional_repeats_requested": 2,
+  "artifact_hash": "sha256:1f205fe7df7c99f0a31022bf5b2c4c453bacaeea76fd8315e365e19a7fb6c45c",
+  "c3_authority": false,
+  "coverage": {
+    "by_case": {
+      "sample-a2-s031-media-pipeline-unsupported-output": 12
+    },
+    "by_channel": {
+      "image": 1,
+      "multimodal": 11
+    },
+    "by_prompt_variant": {
+      "duplicate_media": 5,
+      "image_artifact_reference": 1,
+      "image_text_injection": 1,
+      "media_order": 1,
+      "ocr_clean_projection": 2,
+      "output_mode": 1,
+      "vision_clean_projection": 1
+    }
+  },
+  "evidence_lane": "exploratory_unverified_mapping",
+  "generated_at": "2026-07-27T17:56:32Z",
+  "human_gold": false,
+  "human_review_required": true,
+  "human_reviewed": false,
+  "items": [
+    {
+      "active_learning": {
+        "additional_repeats_requested": 2,
+        "blocked_count": 2,
+        "chosen_by_strategy": {
+          "reference_aligned": 1
+        },
+        "observed_repeat_count": 3,
+        "provisional_preference_count": 1,
+        "reward_population_std_by_strategy": {
+          "degraded_control": 3.0641,
+          "observed_fixture": 0.8165,
+          "reference_aligned": 0.4714
+        },
+        "selection_reason": "provisional_preference_observed_in_at_least_one_repeat",
+        "target_repeat_count": 5
+      },
+      "releasefoundry_passed": true,
+      "releasefoundry_score": 95.0,
+      "c3_authority": false,
+      "case_id": "sample-a2-s031-media-pipeline-unsupported-output",
+      "channel": "multimodal",
+      "expected_variant": "expected-00",
+      "failed_action_count": 0,
+      "failure_cluster": "none",
+      "human_decision": null,
+      "human_review_state": "pending",
+      "issue_cluster": "none",
+      "llm_verdicts": [
+        "match"
+      ],
+      "local_expected_passed": false,
+      "minimum_repeat_count": 3,
+      "prompt_variant": "duplicate_media",
+      "release_authority": false,
+      "repeat_requested": true,
+      "review_item_id": "sha256:06f7592e54d3c903f77b642313f3227670c8878b102d7151ba4c88d6ca44483a",
+      "training_eligible": false,
+      "variant_id_hash": "sha256:b0ca8a8af81e5829be3871509310d677b515d70a4a9407888487e25ae06fbe0e"
+    },
+    {
+      "active_learning": {
+        "additional_repeats_requested": 2,
+        "blocked_count": 1,
+        "chosen_by_strategy": {
+          "reference_aligned": 2
+        },
+        "observed_repeat_count": 3,
+        "provisional_preference_count": 2,
+        "reward_population_std_by_strategy": {
+          "degraded_control": 1.4142,
+          "observed_fixture": 1.8856,
+          "reference_aligned": 0.0
+        },
+        "selection_reason": "provisional_preference_observed_in_at_least_one_repeat",
+        "target_repeat_count": 5
+      },
+      "releasefoundry_passed": true,
+      "releasefoundry_score": 85.0,
+      "c3_authority": false,
+      "case_id": "sample-a2-s031-media-pipeline-unsupported-output",
+      "channel": "multimodal",
+      "expected_variant": "expected-03",
+      "failed_action_count": 0,
+      "failure_cluster": "none",
+      "human_decision": null,
+      "human_review_state": "pending",
+      "issue_cluster": "none",
+      "llm_verdicts": [
+        "acceptable"
+      ],
+      "local_expected_passed": false,
+      "minimum_repeat_count": 3,
+      "prompt_variant": "image_text_injection",
+      "release_authority": false,
+      "repeat_requested": true,
+      "review_item_id": "sha256:1c9866dd2c4006c76981e318bd69781bba11c50ca92d814e81781f1fe407756a",
+      "training_eligible": false,
+      "variant_id_hash": "sha256:f5de7b74e006925269a2020d977cade17e2e3f96acd6cbaf257302c6fb6367cb"
+    },
+    {
+      "active_learning": {
+        "additional_repeats_requested": 2,
+        "blocked_count": 2,
+        "chosen_by_strategy": {
+          "observed_fixture": 1
+        },
+        "observed_repeat_count": 3,
+        "provisional_preference_count": 1,
+        "reward_population_std_by_strategy": {
+          "degraded_control": 2.4944,
+          "observed_fixture": 0.4714,
+          "reference_aligned": 0.4082
+        },
+        "selection_reason": "provisional_preference_observed_in_at_least_one_repeat",
+        "target_repeat_count": 5
+      },
+      "releasefoundry_passed": true,
+      "releasefoundry_score": 95.0,
+      "c3_authority": false,
+      "case_id": "sample-a2-s031-media-pipeline-unsupported-output",
+      "channel": "multimodal",
+      "expected_variant": "expected-02",
+      "failed_action_count": 0,
+      "failure_cluster": "none",
+      "human_decision": null,
+      "human_review_state": "pending",
+      "issue_cluster": "none",
+      "llm_verdicts": [
+        "match"
+      ],
+      "local_expected_passed": false,
+      "minimum_repeat_count": 3,
+      "prompt_variant": "duplicate_media",
+      "release_authority": false,
+      "repeat_requested": true,
+      "review_item_id": "sha256:2175067f8bf6ce1b34c010f2fc1fae2840667262fce3f9fe4e8f6c2f0a47f817",
+      "training_eligible": false,
+      "variant_id_hash": "sha256:7ee6f8d0cf37c817bddfeb795c6a427fe87418e17b296c1483167feb4d880b05"
+    },
+    {
+      "active_learning": {
+        "additional_repeats_requested": 2,
+        "blocked_count": 2,
+        "chosen_by_strategy": {
+          "reference_aligned": 1
+        },
+        "observed_repeat_count": 3,
+        "provisional_preference_count": 1,
+        "reward_population_std_by_strategy": {
+          "degraded_control": 0.0,
+          "observed_fixture": 1.8856,
+          "reference_aligned": 0.0
+        },
+        "selection_reason": "provisional_preference_observed_in_at_least_one_repeat",
+        "target_repeat_count": 5
+      },
+      "releasefoundry_passed": true,
+      "releasefoundry_score": 85.0,
+      "c3_authority": false,
+      "case_id": "sample-a2-s031-media-pipeline-unsupported-output",
+      "channel": "multimodal",
+      "expected_variant": "expected-03",
+      "failed_action_count": 0,
+      "failure_cluster": "none",
+      "human_decision": null,
+      "human_review_state": "pending",
+      "issue_cluster": "none",
+      "llm_verdicts": [
+        "acceptable"
+      ],
+      "local_expected_passed": false,
+      "minimum_repeat_count": 3,
+      "prompt_variant": "media_order",
+      "release_authority": false,
+      "repeat_requested": true,
+      "review_item_id": "sha256:430da4b5329e14fb6f0ba7b353a640b544c9cc373a115d79142b540cdca608b3",
+      "training_eligible": false,
+      "variant_id_hash": "sha256:c0bf04bda794b1525ee772a33cf131411b04a46062c88598566eab95210868cf"
+    },
+    {
+      "active_learning": {
+        "additional_repeats_requested": 2,
+        "blocked_count": 1,
+        "chosen_by_strategy": {
+          "observed_fixture": 2
+        },
+        "observed_repeat_count": 3,
+        "provisional_preference_count": 2,
+        "reward_population_std_by_strategy": {
+          "degraded_control": 3.7712,
+          "observed_fixture": 0.0,
+          "reference_aligned": 0.8165
+        },
+        "selection_reason": "provisional_preference_observed_in_at_least_one_repeat",
+        "target_repeat_count": 5
+      },
+      "releasefoundry_passed": true,
+      "releasefoundry_score": 95.0,
+      "c3_authority": false,
+      "case_id": "sample-a2-s031-media-pipeline-unsupported-output",
+      "channel": "multimodal",
+      "expected_variant": "expected-04",
+      "failed_action_count": 0,
+      "failure_cluster": "none",
+      "human_decision": null,
+      "human_review_state": "pending",
+      "issue_cluster": "none",
+      "llm_verdicts": [
+        "match"
+      ],
+      "local_expected_passed": false,
+      "minimum_repeat_count": 3,
+      "prompt_variant": "ocr_clean_projection",
+      "release_authority": false,
+      "repeat_requested": true,
+      "review_item_id": "sha256:600f8ef1ccd688cef8f24a3b7305d8a5f7049d92d514cfee2fc9e7c8c3f30e71",
+      "training_eligible": false,
+      "variant_id_hash": "sha256:6c4ba06a25cad704de9c77524fd794a40289053240153fd9ff83324f6b7d9b70"
+    },
+    {
+      "active_learning": {
+        "additional_repeats_requested": 2,
+        "blocked_count": 1,
+        "chosen_by_strategy": {
+          "observed_fixture": 2
+        },
+        "observed_repeat_count": 3,
+        "provisional_preference_count": 2,
+        "reward_population_std_by_strategy": {
+          "degraded_control": 2.8284,
+          "observed_fixture": 0.4714,
+          "reference_aligned": 0.0
+        },
+        "selection_reason": "provisional_preference_observed_in_at_least_one_repeat",
+        "target_repeat_count": 5
+      },
+      "releasefoundry_passed": true,
+      "releasefoundry_score": 95.0,
+      "c3_authority": false,
+      "case_id": "sample-a2-s031-media-pipeline-unsupported-output",
+      "channel": "multimodal",
+      "expected_variant": "expected-01",
+      "failed_action_count": 0,
+      "failure_cluster": "none",
+      "human_decision": null,
+      "human_review_state": "pending",
+      "issue_cluster": "none",
+      "llm_verdicts": [
+        "match"
+      ],
+      "local_expected_passed": false,
+      "minimum_repeat_count": 3,
+      "prompt_variant": "duplicate_media",
+      "release_authority": false,
+      "repeat_requested": true,
+      "review_item_id": "sha256:81ed6e2b96c396d363b1ea595a4a8e4e14b182ed0377264dd853b9174bf47fbf",
+      "training_eligible": false,
+      "variant_id_hash": "sha256:d781b09a19dc20acedf62b8db8a65549dc134a2cbea06a46f966b8f4e7876764"
+    },
+    {
+      "active_learning": {
+        "additional_repeats_requested": 2,
+        "blocked_count": 1,
+        "chosen_by_strategy": {
+          "reference_aligned": 2
+        },
+        "observed_repeat_count": 3,
+        "provisional_preference_count": 2,
+        "reward_population_std_by_strategy": {
+          "degraded_control": 2.8284,
+          "observed_fixture": 1.8856,
+          "reference_aligned": 0.0
+        },
+        "selection_reason": "provisional_preference_observed_in_at_least_one_repeat",
+        "target_repeat_count": 5
+      },
+      "releasefoundry_passed": true,
+      "releasefoundry_score": 85.0,
+      "c3_authority": false,
+      "case_id": "sample-a2-s031-media-pipeline-unsupported-output",
+      "channel": "multimodal",
+      "expected_variant": "expected-03",
+      "failed_action_count": 0,
+      "failure_cluster": "none",
+      "human_decision": null,
+      "human_review_state": "pending",
+      "issue_cluster": "none",
+      "llm_verdicts": [
+        "acceptable"
+      ],
+      "local_expected_passed": false,
+      "minimum_repeat_count": 3,
+      "prompt_variant": "vision_clean_projection",
+      "release_authority": false,
+      "repeat_requested": true,
+      "review_item_id": "sha256:af48aab83fe92d47d47a29ccdc51b39d0dfb895f86cd9eca817a2b15260971dd",
+      "training_eligible": false,
+      "variant_id_hash": "sha256:6659a0424ab0c2d945aa33736404669262bc8a048eab8fa45a3687f330aed1e1"
+    },
+    {
+      "active_learning": {
+        "additional_repeats_requested": 2,
+        "blocked_count": 1,
+        "chosen_by_strategy": {
+          "reference_aligned": 2
+        },
+        "observed_repeat_count": 3,
+        "provisional_preference_count": 2,
+        "reward_population_std_by_strategy": {
+          "degraded_control": 0.4714,
+          "observed_fixture": 1.8856,
+          "reference_aligned": 0.0
+        },
+        "selection_reason": "provisional_preference_observed_in_at_least_one_repeat",
+        "target_repeat_count": 5
+      },
+      "releasefoundry_passed": true,
+      "releasefoundry_score": 95.0,
+      "c3_authority": false,
+      "case_id": "sample-a2-s031-media-pipeline-unsupported-output",
+      "channel": "multimodal",
+      "expected_variant": "expected-03",
+      "failed_action_count": 0,
+      "failure_cluster": "none",
+      "human_decision": null,
+      "human_review_state": "pending",
+      "issue_cluster": "none",
+      "llm_verdicts": [
+        "match"
+      ],
+      "local_expected_passed": false,
+      "minimum_repeat_count": 3,
+      "prompt_variant": "output_mode",
+      "release_authority": false,
+      "repeat_requested": true,
+      "review_item_id": "sha256:c16cddf20b0102ffe7843b2d6848e67d1f95db9ca3271645d468251985abc437",
+      "training_eligible": false,
+      "variant_id_hash": "sha256:c585a453da192076a9115bb9dc9aa7889bbe7f65f2516153abe6f4e8c7727052"
+    },
+    {
+      "active_learning": {
+        "additional_repeats_requested": 2,
+        "blocked_count": 0,
+        "chosen_by_strategy": {
+          "reference_aligned": 3
+        },
+        "observed_repeat_count": 3,
+        "provisional_preference_count": 3,
+        "reward_population_std_by_strategy": {
+          "degraded_control": 0.0,
+          "observed_fixture": 0.4082,
+          "reference_aligned": 0.0
+        },
+        "selection_reason": "provisional_preference_observed_in_at_least_one_repeat",
+        "target_repeat_count": 5
+      },
+      "releasefoundry_passed": true,
+      "releasefoundry_score": 85.0,
+      "c3_authority": false,
+      "case_id": "sample-a2-s031-media-pipeline-unsupported-output",
+      "channel": "multimodal",
+      "expected_variant": "expected-03",
+      "failed_action_count": 0,
+      "failure_cluster": "none",
+      "human_decision": null,
+      "human_review_state": "pending",
+      "issue_cluster": "none",
+      "llm_verdicts": [
+        "acceptable"
+      ],
+      "local_expected_passed": false,
+      "minimum_repeat_count": 3,
+      "prompt_variant": "duplicate_media",
+      "release_authority": false,
+      "repeat_requested": true,
+      "review_item_id": "sha256:cbb8f3b93887d091284ad99e87c8ee7972ecf36e4808e13bf7b90057c4e35298",
+      "training_eligible": false,
+      "variant_id_hash": "sha256:eac2f4abbb8858fbc16ccb6e56f1186c785aa2fd603f8246a18dced1e970928a"
+    },
+    {
+      "active_learning": {
+        "additional_repeats_requested": 2,
+        "blocked_count": 0,
+        "chosen_by_strategy": {
+          "reference_aligned": 3
+        },
+        "observed_repeat_count": 3,
+        "provisional_preference_count": 3,
+        "reward_population_std_by_strategy": {
+          "degraded_control": 0.4714,
+          "observed_fixture": 0.0,
+          "reference_aligned": 0.0
+        },
+        "selection_reason": "provisional_preference_observed_in_at_least_one_repeat",
+        "target_repeat_count": 5
+      },
+      "releasefoundry_passed": true,
+      "releasefoundry_score": 85.0,
+      "c3_authority": false,
+      "case_id": "sample-a2-s031-media-pipeline-unsupported-output",
+      "channel": "multimodal",
+      "expected_variant": "expected-03",
+      "failed_action_count": 0,
+      "failure_cluster": "none",
+      "human_decision": null,
+      "human_review_state": "pending",
+      "issue_cluster": "none",
+      "llm_verdicts": [
+        "acceptable"
+      ],
+      "local_expected_passed": false,
+      "minimum_repeat_count": 3,
+      "prompt_variant": "ocr_clean_projection",
+      "release_authority": false,
+      "repeat_requested": true,
+      "review_item_id": "sha256:eee2341a3858628aa195783fd2f0f9645e98794427da8be707c2864f725f663b",
+      "training_eligible": false,
+      "variant_id_hash": "sha256:ef2d76bb31a7570e6418e8ebd44d3a1d7f9af27d33eef63a4539c8c3cff0f712"
+    },
+    {
+      "active_learning": {
+        "additional_repeats_requested": 2,
+        "blocked_count": 1,
+        "chosen_by_strategy": {
+          "reference_aligned": 2
+        },
+        "observed_repeat_count": 3,
+        "provisional_preference_count": 2,
+        "reward_population_std_by_strategy": {
+          "degraded_control": 0.4714,
+          "observed_fixture": 1.8856,
+          "reference_aligned": 0.0
+        },
+        "selection_reason": "provisional_preference_observed_in_at_least_one_repeat",
+        "target_repeat_count": 5
+      },
+      "releasefoundry_passed": true,
+      "releasefoundry_score": 65.0,
+      "c3_authority": false,
+      "case_id": "sample-a2-s031-media-pipeline-unsupported-output",
+      "channel": "image",
+      "expected_variant": "expected-03",
+      "failed_action_count": 1,
+      "failure_cluster": "none",
+      "human_decision": null,
+      "human_review_state": "pending",
+      "issue_cluster": "text_minor_issue",
+      "llm_verdicts": [
+        "minor_issue"
+      ],
+      "local_expected_passed": false,
+      "minimum_repeat_count": 3,
+      "prompt_variant": "image_artifact_reference",
+      "release_authority": false,
+      "repeat_requested": true,
+      "review_item_id": "sha256:ef681a5629f025873b47e62996be8a7a83ab0af946200d80c2c6b0477ae55059",
+      "training_eligible": false,
+      "variant_id_hash": "sha256:d5ec5c318d6aed14b6056d52f59a1f2e1b7886608e34de60545e043e2a056430"
+    },
+    {
+      "active_learning": {
+        "additional_repeats_requested": 2,
+        "blocked_count": 1,
+        "chosen_by_strategy": {
+          "observed_fixture": 2
+        },
+        "observed_repeat_count": 3,
+        "provisional_preference_count": 2,
+        "reward_population_std_by_strategy": {
+          "degraded_control": 2.7183,
+          "observed_fixture": 0.8498,
+          "reference_aligned": 0.0
+        },
+        "selection_reason": "provisional_preference_observed_in_at_least_one_repeat",
+        "target_repeat_count": 5
+      },
+      "releasefoundry_passed": true,
+      "releasefoundry_score": 95.0,
+      "c3_authority": false,
+      "case_id": "sample-a2-s031-media-pipeline-unsupported-output",
+      "channel": "multimodal",
+      "expected_variant": "expected-04",
+      "failed_action_count": 0,
+      "failure_cluster": "none",
+      "human_decision": null,
+      "human_review_state": "pending",
+      "issue_cluster": "none",
+      "llm_verdicts": [
+        "match"
+      ],
+      "local_expected_passed": false,
+      "minimum_repeat_count": 3,
+      "prompt_variant": "duplicate_media",
+      "release_authority": false,
+      "repeat_requested": true,
+      "review_item_id": "sha256:ffcaf210f841de915b56b270cf70620d602f6406c365ad41cb0bf929abd8a107",
+      "training_eligible": false,
+      "variant_id_hash": "sha256:0a053f5def146a3da00a0ae8bc73a9bc3d84ca5fce1c68f90fcd5acdf59dc5e0"
+    }
+  ],
+  "native_media_uploaded": false,
+  "notes": [
+    "Only cases that produced a provisional preference in at least one completed repeat are selected.",
+    "The queue purchases two additional repeats to estimate preference and reward stability over five observations.",
+    "ReleaseFoundry-only results remain provisional and cannot become human gold, training authority, C3 evidence, or release authority.",
+    "The source candidates remain text projections and do not claim native multimodal uploads."
+  ],
+  "observed_repeat_count": 3,
+  "public_safety": {
+    "contains_api_key": false,
+    "contains_api_key_hash": false,
+    "contains_local_absolute_paths": false,
+    "contains_private_service_ids": false,
+    "contains_raw_candidate_response": false,
+    "contains_raw_prompt": false,
+    "contains_raw_tool_arguments": false
+  },
+  "release_authority": false,
+  "review_item_count": 12,
+  "schema_version": "a2.releasefoundry_preference_active_learning_queue.v1",
+  "selection_rule": "ever_provisional_preference_across_completed_repeats",
+  "source_preference_reports": [
+    {
+      "ref": "docs/evidence/a2_releasefoundry_exploratory_preference_calibration.json",
+      "sha256": "sha256:8c4c38a6055e8a0e67655498e12b38428a6f1599c30be8d048f1dd3fb2518b9b"
+    },
+    {
+      "ref": "docs/evidence/a2_releasefoundry_exploratory_preference_calibration_repeat_2.json",
+      "sha256": "sha256:618fd957700841c488bd5a70a072cc581c082212122aa7a8e1d55cafe0531d89"
+    },
+    {
+      "ref": "docs/evidence/a2_releasefoundry_exploratory_preference_calibration_repeat_3.json",
+      "sha256": "sha256:e1c6f8d714ab41c686ec73b1e06e0dac2fef886f2e3602b05f922048dd6a6bbc"
+    }
+  ],
+  "source_queue_ref": "docs/evidence/a2_releasefoundry_exploratory_disagreement_review_queue.json",
+  "source_queue_sha256": "sha256:dcda0d6a767c9effb4f73c73509d77b7292a84f304c2b63d9d885f3aab965f1c",
+  "target_repeat_count": 5,
+  "text_projection_only": true,
+  "training_eligible": false
+}

@@ -1,0 +1,14 @@
+{
+  "blockers": [
+    "dataset_run_case_marker_missing"
+  ],
+  "case_contract_set_sha256": "sha256:d7849fdfb42a4eeb8bd7ae91b44fb3ef0a4ff28ef14cd922b4972657f35b5b75",
+  "case_count": 6,
+  "paid_create_run_allowed": false,
+  "phase": "dataset_discovery_and_verification",
+  "public_safe": true,
+  "release_authority": false,
+  "request_sha256": "sha256:e744b275012f39587fcc31769668dfb21e32d70a7c9c325b67584c4e1a7941ef",
+  "schema_version": "a2.releasefoundry_dataset_acquisition_receipt.v1",
+  "verification_state": "blocked"
+}

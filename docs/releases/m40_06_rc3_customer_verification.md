@@ -9,11 +9,11 @@ Customer Agent Release 已经重新绑定到同一个 rc.3 候选：
 | Candidate | `a3-golden-agent@0.2.0-rc.3` |
 | Run | `a3-golden-20260720-003` |
 | Evidence version | `0.2.0-rc.3` |
-| Release package commit | `ba805e7e087b0e4b8c79a0dd6fbcdc6f923aee01` |
+| Release package commit | `665fa6487a76702f286a3c67f187627bb242b27b` |
 | A1 candidate source | `1d292047e991995fdf52f0545ffff410ee19a171` |
-| A2 authority | `d3529c356e49ce8502c050f0dad44020031ee0dd` |
-| A3 delivery implementation | `a0b427257c5cd80fbe3394b4a406fa21f50bae37` |
-| A2 Decision Ledger head | `sha256:bc608df9825ea316b374797ef76b4921bff4f6cee1943600d0297783e6be6303` |
+| A2 authority | `e21ebcb1b09b2a709f5381e02f89933477453d82` |
+| A3 delivery implementation | `e21ebcb1b09b2a709f5381e02f89933477453d82` |
+| A2 Decision Ledger head | `sha256:93343a7920b06dc0f232aee7b3eb82b793010ca8c2061043682b4e7ebc088797` |
 | A2 grades | `sha256:ffeba9ab8d7a2ccfb26ca8e135448cc9a2e6c8ead5b49837f77e5e73606a5304` |
 
 验证结果：

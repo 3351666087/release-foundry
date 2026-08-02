@@ -5,6 +5,7 @@ import Link from "next/link";
 import { ArrowLeft, ArrowRight, Search } from "lucide-react";
 
 import { useI18n } from "@/lib/i18n";
+import { failureClassLabel } from "@/lib/evidence-labels";
 import { DataBoundary, DataTable, EmptyState, MetricStrip, PageHeader, Section, StatusBadge } from "../ui";
 
 export function RunsPage() {
@@ -63,8 +64,8 @@ export function RunsPage() {
                     <td><strong>{item.title}</strong><small>{item.family} / {item.scenarioId}</small></td>
                     <td><StatusBadge value={item.passed ? "passed" : "failed"} /></td>
                     <td><b className="score-value">{item.score}</b></td>
-                    <td>{item.failureClass}</td>
-                    <td><Link className="row-action" href={{ pathname: "/case", query: { case_id: item.caseId } }} aria-label={`${zh ? "查看" : "Open"} ${item.caseId}`}><ArrowRight size={16} /></Link></td>
+                    <td><span className="failure-label" title={item.failureClass}>{failureClassLabel(item.failureClass, zh)}</span></td>
+                    <td><Link className="row-action" href={{ pathname: "/case", query: { case_id: item.caseId, source: model.source } }} aria-label={`${zh ? "查看" : "Open"} ${item.caseId}`}><ArrowRight size={16} /></Link></td>
                   </tr>
                 ))}
               </DataTable>

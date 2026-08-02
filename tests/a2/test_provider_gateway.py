@@ -72,6 +72,35 @@ class A2ProviderGatewayTests(unittest.TestCase):
         self.assertFalse(first["raw_request_included"])
         self.assertFalse(first["raw_response_included"])
 
+    def test_idempotency_key_contract_is_enforced_before_provider_call(self):
+        for value in (None, "", "   ", 123, True, [], {}, "a" * 257):
+            with self.subTest(value=value):
+                with self.assertRaisesRegex(ValueError, "idempotency_key"):
+                    self.gateway.invoke(
+                        tenant_id="tenant-a",
+                        snapshot=snapshot(),
+                        provider_id="unit-provider",
+                        model_id="unit-model",
+                        parts=[{"modality": "text", "text": "grade this"}],
+                        idempotency_key=value,
+                    )
+        self.assertEqual(self.fake.calls, 0)
+        self.assertEqual(self.audits, [])
+
+    def test_idempotency_key_length_boundaries_are_accepted(self):
+        for value in ("a", "a" * 256):
+            with self.subTest(length=len(value)):
+                result = self.gateway.invoke(
+                    tenant_id="tenant-a",
+                    snapshot=snapshot(),
+                    provider_id="unit-provider",
+                    model_id="unit-model",
+                    parts=[{"modality": "text", "text": "grade this"}],
+                    idempotency_key=value,
+                )
+                self.assertEqual(result["status"], "completed")
+        self.assertEqual(self.fake.calls, 2)
+
     def test_ollama_empty_public_content_rejects_private_thinking_output(self):
         class Response:
             def __enter__(self):

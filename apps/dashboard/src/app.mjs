@@ -3481,10 +3481,36 @@ function setupSectionNavigation() {
   let navigationLockUntil = 0;
 
   const setActiveLink = (id) => {
+    const targetHref = `#${id}`;
+    const canonicalChild = document.querySelector(`.nav-subitem[href="${targetHref}"]`);
     for (const link of navLinks) {
-      link.classList.toggle("active", link.getAttribute("href") === `#${id}`);
+      const matchesTarget = link.getAttribute("href") === targetHref;
+      const active = matchesTarget && (!link.classList.contains("nav-subitem") || link === canonicalChild);
+      link.classList.toggle("active", active);
+      if (active) {
+        link.setAttribute("aria-current", "location");
+      } else {
+        link.removeAttribute("aria-current");
+      }
     }
     syncExpandedNavigation(id);
+
+    const activeChild = navLinks.find((link) => link.classList.contains("nav-subitem") && link.getAttribute("href") === targetHref);
+    const activeLink = activeChild || navLinks.find((link) => link.getAttribute("href") === targetHref);
+    const context = document.querySelector("#navigation-context");
+    if (context && activeLink) {
+      const group = activeLink.dataset.navGroupLabel || activeLink.dataset.navLabel || "Overview";
+      const label = activeLink.dataset.navLabel || activeLink.textContent?.trim() || "Current section";
+      const detail = activeLink.dataset.navDetail || (activeChild ? "Evidence surface" : "Product area");
+      const groupNode = document.querySelector("#navigation-context-group");
+      const currentNode = document.querySelector("#navigation-context-current");
+      const detailNode = document.querySelector("#navigation-context-detail");
+      if (groupNode) groupNode.textContent = group;
+      if (currentNode) currentNode.textContent = label;
+      if (detailNode) detailNode.textContent = detail;
+      context.dataset.section = id;
+    }
+    document.body.dataset.activeSection = id;
   };
 
   const focusSection = (section) => {
@@ -3524,6 +3550,8 @@ function setupSectionNavigation() {
   const initialHash = window.location.hash.slice(1);
   if (initialHash && sections.some((section) => section.id === initialHash)) {
     setActiveLink(initialHash);
+  } else if (sections[0]?.id) {
+    setActiveLink(sections[0].id);
   }
 
   window.addEventListener("hashchange", () => {
@@ -3537,9 +3565,15 @@ function setupSectionNavigation() {
 
 function syncExpandedNavigation(id) {
   const targetHref = `#${id}`;
+  let currentGroupFound = false;
   for (const group of document.querySelectorAll(".nav-group")) {
     const containsTarget = Boolean(group.querySelector(`a[href="${targetHref}"]`));
-    group.classList.toggle("expanded", containsTarget);
+    const isCurrentGroup = containsTarget && !currentGroupFound;
+    if (isCurrentGroup) currentGroupFound = true;
+    group.classList.toggle("expanded", isCurrentGroup);
+    group.classList.toggle("has-active-child", isCurrentGroup && Boolean(group.querySelector(`.nav-subitem[href="${targetHref}"]`)));
+    const parent = group.querySelector(".nav-parent");
+    if (parent) parent.classList.toggle("group-active", isCurrentGroup && !parent.classList.contains("active"));
   }
 }
 

@@ -1,9 +1,9 @@
 {
   "schema_version": "a3.audit_bundle_index.v1",
-  "generated_at": "2026-07-20T14:39:32.963Z",
+  "generated_at": "2026-08-02T16:27:53.916Z",
   "source": "m40-05-rc3-local-candidate-binding",
   "command_shape": "releasefoundry gate --json",
-  "bundle_id": "a3-bundle-0-2-0-rc-3-a3-golden-20260720-003-60c1e04d61b0",
+  "bundle_id": "a3-bundle-0-2-0-rc-3-a3-golden-20260720-003-3de1d402fa46",
   "bundle_index_file": "fixtures/a3/golden-path/rc3/audit-bundle-index.json",
   "bundle_index_self_hash": "excluded_to_avoid_self_reference",
   "root_hash_algorithm": "sha256",
@@ -24,13 +24,13 @@
     "a2_integrity_verified": true,
     "a2_upstream_decision": "block",
     "a2_release_ready": false,
-    "a2_decision_ledger_head_hash": "sha256:bc608df9825ea316b374797ef76b4921bff4f6cee1943600d0297783e6be6303",
-    "a2_decision_record_id": "sha256:bb82c4c6fb858082a37922743ee114a19861c7317528cd354847c672630dcd2c",
+    "a2_decision_ledger_head_hash": "sha256:93343a7920b06dc0f232aee7b3eb82b793010ca8c2061043682b4e7ebc088797",
+    "a2_decision_record_id": "sha256:9941af3da9be5bfdb5de6d6164448b481cc3563675b0d5a088684846e63fba54",
     "candidate_id": "a3-golden-agent@0.2.0-rc.3",
     "candidate_binding_state": "exact",
     "candidate_binding_verified": true,
     "a2_grades_hash": "sha256:ffeba9ab8d7a2ccfb26ca8e135448cc9a2e6c8ead5b49837f77e5e73606a5304",
-    "a3_implementation_commit": "a0b427257c5cd80fbe3394b4a406fa21f50bae37",
+    "a3_implementation_commit": "e21ebcb1b09b2a709f5381e02f89933477453d82",
     "a3_recomputed_a2_decision": false,
     "failed_checks": [
       "a2_release_authority"
@@ -82,7 +82,7 @@
       "bundle_role": "authority_record",
       "content_type": "application/json",
       "required": true,
-      "sha256": "835d7a2184c6ed697d1c94940e07369ac88ef6b941ef5c196d8d6920f7715fb5",
+      "sha256": "7ae07d7bf4d8f80b612567c0023b66b89594b7538e254d4a6ab8dda3cad5ace9",
       "byte_size": 1410,
       "created_by": "A2 trusted release authority reader",
       "origin": "a2_authoritative_evidence",
@@ -94,7 +94,7 @@
       "bundle_role": "authority_record",
       "content_type": "application/json",
       "required": true,
-      "sha256": "9fd305038728b4f8e1797c343ed7cd2cf899157a0e8875f5214e1edb093f7270",
+      "sha256": "802ad43ee3c90a80019b9beec05635c73e0caf460d31ca3ab23ad458803b1302",
       "byte_size": 22164,
       "created_by": "A2 trusted release authority reader",
       "origin": "a2_authoritative_evidence",
@@ -106,7 +106,7 @@
       "bundle_role": "custody_record",
       "content_type": "application/json",
       "required": true,
-      "sha256": "029ba279fe2cef9442d7406949fa659501bc9e59961909561bc8b12d3f04ffec",
+      "sha256": "beda3f3c1dc919ca4e21f25c235d111744322430f42ff67c41c84feda41c1ab2",
       "byte_size": 1831,
       "created_by": "releasefoundry gate output writer",
       "origin": "a3_candidate_binding",
@@ -118,7 +118,7 @@
       "bundle_role": "custody_record",
       "content_type": "application/json",
       "required": true,
-      "sha256": "ca7faa1ad582d626ee930d1d5a2e20bdd5b15209f002951e86e1dc6240e7f386",
+      "sha256": "148d8778aaf0149cbd53f6a1cdefacfc540cffb41950a57042a79608f8fee2a9",
       "byte_size": 1287,
       "created_by": "releasefoundry gate output writer",
       "origin": "a3_candidate_binding",
@@ -130,7 +130,7 @@
       "bundle_role": "custody_record",
       "content_type": "application/json",
       "required": false,
-      "sha256": "8d9ef622c33fcafdbb7e1f3c9319d8bbf1a9d36d00dc5a8dbe0fe7079dcd4091",
+      "sha256": "9d3c5d869e79e855686d0f69f13348f10564e16bee151928d7058655d9c79a1c",
       "byte_size": 4098,
       "created_by": "releasefoundry gate generated artifact manifest",
       "redaction_status": "redacted_or_safe_for_audit"
@@ -141,7 +141,7 @@
       "bundle_role": "deployment_record",
       "content_type": "application/json",
       "required": true,
-      "sha256": "4dc9d1316a2c3ad3e1d979a7b730659f2f077dbb65f14b4a2d1098a88b2be64c",
+      "sha256": "3fb32b88cac1219f1ea794347948fd776965d2e7e28453bc7d2bb038c1262265",
       "byte_size": 1980,
       "created_by": "A3 deployment acceptance probe reader",
       "origin": "deployment_acceptance_input",
@@ -164,7 +164,7 @@
       "bundle_role": "generated_output",
       "content_type": "application/json",
       "required": true,
-      "sha256": "472f0675e079319959ff5201c2a0d6e29797556afffa3d40a567521a55575332",
+      "sha256": "40e575ea37df9d7e92510da1a18db701a17084e5a30b8f7f2e40ab65f9d0e0fe",
       "byte_size": 22014,
       "created_by": "releasefoundry gate output writer",
       "redaction_status": "redacted_or_safe_for_audit"
@@ -246,8 +246,8 @@
     {
       "schema_version": "a3.custody_event.v1",
       "event_id": "001-gate_built",
-      "bundle_id": "a3-bundle-0-2-0-rc-3-a3-golden-20260720-003-60c1e04d61b0",
-      "occurred_at": "2026-07-20T14:39:32.963Z",
+      "bundle_id": "a3-bundle-0-2-0-rc-3-a3-golden-20260720-003-3de1d402fa46",
+      "occurred_at": "2026-08-02T16:27:53.916Z",
       "actor": "local-a3-gate-cli",
       "previous_event_hash": null,
       "action": "gate_built",
@@ -257,15 +257,15 @@
         "grades"
       ],
       "note": "Release gate payload generated from source inputs.",
-      "event_hash": "64e11cd307721f551f4197f55de64ec0d337344c5b8931255f271c1bdbe012e8"
+      "event_hash": "796a4d7a5bf581247a38a6301f81ac3ae78f3709c48f5418de7f6d1255fbeb42"
     },
     {
       "schema_version": "a3.custody_event.v1",
       "event_id": "002-input_artifacts_hashed",
-      "bundle_id": "a3-bundle-0-2-0-rc-3-a3-golden-20260720-003-60c1e04d61b0",
-      "occurred_at": "2026-07-20T14:39:32.963Z",
+      "bundle_id": "a3-bundle-0-2-0-rc-3-a3-golden-20260720-003-3de1d402fa46",
+      "occurred_at": "2026-08-02T16:27:53.916Z",
       "actor": "local-a3-gate-cli",
-      "previous_event_hash": "64e11cd307721f551f4197f55de64ec0d337344c5b8931255f271c1bdbe012e8",
+      "previous_event_hash": "796a4d7a5bf581247a38a6301f81ac3ae78f3709c48f5418de7f6d1255fbeb42",
       "action": "input_artifacts_hashed",
       "status": "completed",
       "artifact_ids": [
@@ -275,15 +275,15 @@
         "thresholds"
       ],
       "note": "Source inputs hashed for audit manifest.",
-      "event_hash": "cf42d1ee78584c290f6c1839f171fa3e8ea22079300131916db36af9f06b3e29"
+      "event_hash": "c5c5e6ece82d02003cdcdda2c61778ff020b45010493118efa579ac6b79d1e45"
     },
     {
       "schema_version": "a3.custody_event.v1",
       "event_id": "003-generated_artifacts_hashed",
-      "bundle_id": "a3-bundle-0-2-0-rc-3-a3-golden-20260720-003-60c1e04d61b0",
-      "occurred_at": "2026-07-20T14:39:32.963Z",
+      "bundle_id": "a3-bundle-0-2-0-rc-3-a3-golden-20260720-003-3de1d402fa46",
+      "occurred_at": "2026-08-02T16:27:53.916Z",
       "actor": "local-a3-gate-cli",
-      "previous_event_hash": "cf42d1ee78584c290f6c1839f171fa3e8ea22079300131916db36af9f06b3e29",
+      "previous_event_hash": "c5c5e6ece82d02003cdcdda2c61778ff020b45010493118efa579ac6b79d1e45",
       "action": "generated_artifacts_hashed",
       "status": "completed",
       "artifact_ids": [
@@ -296,15 +296,15 @@
         "pr_comment_markdown"
       ],
       "note": "Generated report/check/comment artifacts hashed.",
-      "event_hash": "7f001de801f8593ecb1dd4ac31048e4e37a35d9c370ec372f50c5b8b1d0e3316"
+      "event_hash": "bf6cc59ecaec746058fcf39e0e3a836a346148931bb6f0d71a00ee736c085806"
     },
     {
       "schema_version": "a3.custody_event.v1",
       "event_id": "004-a2_authority_hashed",
-      "bundle_id": "a3-bundle-0-2-0-rc-3-a3-golden-20260720-003-60c1e04d61b0",
-      "occurred_at": "2026-07-20T14:39:32.963Z",
+      "bundle_id": "a3-bundle-0-2-0-rc-3-a3-golden-20260720-003-3de1d402fa46",
+      "occurred_at": "2026-08-02T16:27:53.916Z",
       "actor": "local-a3-gate-cli",
-      "previous_event_hash": "7f001de801f8593ecb1dd4ac31048e4e37a35d9c370ec372f50c5b8b1d0e3316",
+      "previous_event_hash": "bf6cc59ecaec746058fcf39e0e3a836a346148931bb6f0d71a00ee736c085806",
       "action": "a2_authority_hashed",
       "status": "completed",
       "artifact_ids": [
@@ -312,37 +312,37 @@
         "a2_trusted_spine"
       ],
       "note": "A2 trusted release authority evidence hashed without recomputing its decision.",
-      "event_hash": "c1865db33a04d845ab369ce3571271a7a1e31d8c6def42999a39d9e22afe0011"
+      "event_hash": "7d174b152505de22bccd297c52837a3b94e5cbf90d68876b286e784f4c23feda"
     },
     {
       "schema_version": "a3.custody_event.v1",
       "event_id": "005-deployment_probe_hashed",
-      "bundle_id": "a3-bundle-0-2-0-rc-3-a3-golden-20260720-003-60c1e04d61b0",
-      "occurred_at": "2026-07-20T14:39:32.963Z",
+      "bundle_id": "a3-bundle-0-2-0-rc-3-a3-golden-20260720-003-3de1d402fa46",
+      "occurred_at": "2026-08-02T16:27:53.916Z",
       "actor": "local-a3-gate-cli",
-      "previous_event_hash": "c1865db33a04d845ab369ce3571271a7a1e31d8c6def42999a39d9e22afe0011",
+      "previous_event_hash": "7d174b152505de22bccd297c52837a3b94e5cbf90d68876b286e784f4c23feda",
       "action": "deployment_probe_hashed",
       "status": "completed",
       "artifact_ids": [
         "deployment_probe"
       ],
       "note": "Deployment acceptance probe evidence hashed.",
-      "event_hash": "111d726f6d5935032027e23423d7813eb1650a03fa1df464b4024d9933d19cf7"
+      "event_hash": "9ca843a833db8c4c4e4f81b85e77d5e6230b1c56f8e7e5cfda984d09e7106757"
     },
     {
       "schema_version": "a3.custody_event.v1",
       "event_id": "006-bundle_index_written",
-      "bundle_id": "a3-bundle-0-2-0-rc-3-a3-golden-20260720-003-60c1e04d61b0",
-      "occurred_at": "2026-07-20T14:39:32.963Z",
+      "bundle_id": "a3-bundle-0-2-0-rc-3-a3-golden-20260720-003-3de1d402fa46",
+      "occurred_at": "2026-08-02T16:27:53.916Z",
       "actor": "local-a3-gate-cli",
-      "previous_event_hash": "111d726f6d5935032027e23423d7813eb1650a03fa1df464b4024d9933d19cf7",
+      "previous_event_hash": "9ca843a833db8c4c4e4f81b85e77d5e6230b1c56f8e7e5cfda984d09e7106757",
       "action": "bundle_index_written",
       "status": "completed",
       "artifact_ids": [
         "audit_bundle_index"
       ],
       "note": "Audit bundle index written to fixtures/a3/golden-path/rc3/audit-bundle-index.json.",
-      "event_hash": "e29ba1aeed396ded05b16ebb236b181abc651292739d7b9a50a37576c4d75faa"
+      "event_hash": "0e3cda1ab9ed0b1254b80fe573bbcccd82563b77e585f447f6be597c0dee49b7"
     }
   ],
   "retention": {
@@ -359,5 +359,5 @@
     "dry_run_compatible": true,
     "redaction_policy": "No API keys, cookies, tokens, emails, or live signed media URLs are allowed in CLI output."
   },
-  "bundle_root_hash": "576f45dd557cd5e58346610b9f5cd3cfd1c751792833af02f1aad1a54221202d"
+  "bundle_root_hash": "b8e4742a1bc7c4509ff131520f1b1fb02274dc0b56a61738c5fb2a6338165cba"
 }

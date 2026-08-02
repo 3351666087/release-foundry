@@ -17,8 +17,8 @@ from services.judge.bundle_evaluation import evaluate_a1_bundle
 from services.judge.evaluation_trust_policy import evaluation_trust_policy_hash
 from services.judge.sql_store import initialize_sql_store
 from tests.a2.test_release_decision_orchestrator import (
-    KEY, NOW, GroundedRecordingAdapter, gateway, image_pipeline_and_evidence, request,
-    signed_quality_proof,
+    KEY, NOW, GroundedRecordingAdapter, gateway, grounded_gateway,
+    grounded_request, image_pipeline_and_evidence, request, signed_quality_proof,
 )
 from services.judge.provider_gateway import ProviderDefinition, ProviderGateway
 from services.judge.provider_runtime import validate_semantic_judge_output
@@ -42,7 +42,14 @@ class BundleEvaluationTests(unittest.TestCase):
     def test_authenticated_bundle_reaches_real_gateway_and_committed_pass(self):
         connection = self.connection()
         try:
-            result = evaluate_a1_bundle(request(), gateway=gateway(), key_resolver=lambda _: KEY, now_unix_ms=NOW, persistence_connection=connection)
+            candidate = grounded_request()
+            result = evaluate_a1_bundle(
+                candidate,
+                gateway=grounded_gateway(candidate),
+                key_resolver=lambda _: KEY,
+                now_unix_ms=NOW,
+                persistence_connection=connection,
+            )
             self.assertEqual(result["decision"], "PASS")
             self.assertTrue(result["evidence_complete"])
             self.assertTrue(result["provider_called"])
@@ -110,9 +117,22 @@ class BundleEvaluationTests(unittest.TestCase):
     def test_same_version_and_idempotency_key_replays_committed_decision(self):
         connection = self.connection()
         try:
-            first = evaluate_a1_bundle(request(), gateway=gateway(), key_resolver=lambda _: KEY, now_unix_ms=NOW, persistence_connection=connection)
+            candidate = grounded_request()
+            first = evaluate_a1_bundle(
+                candidate,
+                gateway=grounded_gateway(candidate),
+                key_resolver=lambda _: KEY,
+                now_unix_ms=NOW,
+                persistence_connection=connection,
+            )
             second_gateway = gateway(failure="must-not-call")
-            second = evaluate_a1_bundle(request(), gateway=second_gateway, key_resolver=lambda _: KEY, now_unix_ms=NOW, persistence_connection=connection)
+            second = evaluate_a1_bundle(
+                candidate,
+                gateway=second_gateway,
+                key_resolver=lambda _: KEY,
+                now_unix_ms=NOW,
+                persistence_connection=connection,
+            )
             self.assertEqual(second["decision"], "PASS")
             self.assertTrue(second["reproducibility"]["idempotent_replay"])
             self.assertEqual(second_gateway.adapters["fake"].calls, 0)
@@ -427,6 +447,10 @@ class BundleEvaluationTests(unittest.TestCase):
         self.assertIn('credential_env or "DASHSCOPE_API_KEY"', source)
 
     def test_cli_exit_codes_pass_block_and_incomplete_through_http_protocol(self):
+        citation = grounded_request()["derived_evidence_records"][0]["blocks"][0][
+            "citation_id"
+        ]
+
         class Handler(BaseHTTPRequestHandler):
             status = 200
 
@@ -440,7 +464,7 @@ class BundleEvaluationTests(unittest.TestCase):
                         "score": 0.97,
                         "reason": "stub judge accepted evidence",
                         "failure_classes": [],
-                        "evidence_refs": ["snapshot"],
+                        "evidence_refs": [citation],
                         "abstained": False,
                     })}}],
                     "usage": {"prompt_tokens": 4, "completion_tokens": 3},
@@ -477,7 +501,7 @@ class BundleEvaluationTests(unittest.TestCase):
     def run_complete_cli(self, base_url, *, tamper_bundle=False):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            candidate = request()
+            candidate = grounded_request()
             candidate["provider_id"] = "local-judge"
             candidate["model_id"] = "test-model"
             candidate["evaluation_quality_proof"] = signed_quality_proof(candidate)
@@ -510,6 +534,14 @@ class BundleEvaluationTests(unittest.TestCase):
             )
 
     def run_complete_cli_with_policy(self, policy, *, repetitions=1):
+        candidate = grounded_request()
+        candidate["provider_id"] = "local-judge"
+        candidate["model_id"] = "test-model"
+        candidate["evaluation_quality_proof"] = signed_quality_proof(candidate)
+        citation = candidate["derived_evidence_records"][0]["blocks"][0][
+            "citation_id"
+        ]
+
         class Handler(BaseHTTPRequestHandler):
             calls = 0
 
@@ -519,7 +551,7 @@ class BundleEvaluationTests(unittest.TestCase):
                 self.rfile.read(length)
                 content = json.dumps({
                     "passed": True, "score": 0.97, "reason": "policy reached judge",
-                    "failure_classes": [], "evidence_refs": ["snapshot"], "abstained": False,
+                    "failure_classes": [], "evidence_refs": [citation], "abstained": False,
                 })
                 body = json.dumps({
                     "id": "stub-request",
@@ -541,10 +573,6 @@ class BundleEvaluationTests(unittest.TestCase):
         try:
             with tempfile.TemporaryDirectory() as directory:
                 root = Path(directory)
-                candidate = request()
-                candidate["provider_id"] = "local-judge"
-                candidate["model_id"] = "test-model"
-                candidate["evaluation_quality_proof"] = signed_quality_proof(candidate)
                 proof = candidate.pop("evaluation_quality_proof")
                 policies = policy if isinstance(policy, list) else [policy] * repetitions
                 for name, value in (

@@ -16,6 +16,7 @@ import { ApiReferencePage } from "./pages/api-reference-page";
 import { TeamPage } from "./pages/team-page";
 import { BillingPage } from "./pages/billing-page";
 import { TrustPage } from "./pages/trust-page";
+import { IdentityProvider } from "./identity-provider";
 
 const pages = {
   overview: OverviewPage,
@@ -36,12 +37,14 @@ export function ProductApp({ route }: { route: ProductRoute }) {
     <I18nProvider>
       <DashboardProvider>
         {route === "login" ? <LoginPage /> : (
-          <AppShell route={route}>
-            {(() => {
-              const Page = pages[route];
-              return <Page />;
-            })()}
-          </AppShell>
+          <IdentityProvider>
+            <AppShell route={route}>
+              {(() => {
+                const Page = pages[route];
+                return <Page />;
+              })()}
+            </AppShell>
+          </IdentityProvider>
         )}
       </DashboardProvider>
     </I18nProvider>

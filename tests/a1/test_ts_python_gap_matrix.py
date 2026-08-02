@@ -51,6 +51,7 @@ def test_ts_python_gap_matrix_is_generated_public_safe_and_current():
         "Python/TypeScript identity delivery protocol",
         "Python/TypeScript unified identity contract",
         "Python/TypeScript session lifecycle contract",
+        "Go-compatible Python/TypeScript tenancy lifecycle routes",
     }
     assert by_area["CLI commands"]["status"] in {"parity", "typescript_leads"}
     assert by_area["media text/audio/file/image/video parity"]["status"] == "parity"
@@ -61,7 +62,16 @@ def test_ts_python_gap_matrix_is_generated_public_safe_and_current():
     assert "SaaSIngestionClient" in symbols["shared_export_names"]
     assert "CloudApiService" in symbols["typescript_only_export_names"]
     assert "capability_matrix" not in symbols["typescript_effective_export_names"]
-    assert symbols["python_only_export_names"] == []
+    assert symbols["python_only_export_names"] == [
+        "RunBuilder",
+        "TestBuilder",
+        "build_event_envelope",
+        "build_trace_ingestion_sender",
+        "canonical_event_spool_json",
+        "deterministic_sample",
+        "sha256_event_spool_json",
+        "validate_event_envelope",
+    ]
 
     cli = matrix["generated_contract"]["cli"]
     assert "bootstrap" in cli["python_commands"]["releasefoundry.saas_cli"]
@@ -97,6 +107,23 @@ def test_ts_python_gap_matrix_is_generated_public_safe_and_current():
     assert identity_client["missing_typescript_routes"] == []
     assert all(identity_client["security_contract"].values())
 
+    tenancy = matrix["generated_contract"]["tenancy_lifecycle"]
+    assert tenancy["matching_fields"] == ["routes", "schema_version"]
+    assert tenancy["requirements"] == {
+        "exact_route_count": True,
+        "operation_method_path_parity": True,
+        "python_root_exported": True,
+        "schema_version_matches": True,
+        "typescript_barrel_exported": True,
+    }
+    assert tenancy["python"]["schema_version"] == "releasefoundry.tenancy.v1"
+    assert tenancy["typescript"]["schema_version"] == "releasefoundry.tenancy.v1"
+    assert len(tenancy["python"]["routes"]) == 14
+    assert tenancy["python"]["routes"] == tenancy["typescript"]["routes"]
+    assert by_area[
+        "Go-compatible Python/TypeScript tenancy lifecycle routes"
+    ]["status"] == "parity"
+
     identity = matrix["generated_contract"]["unified_identity"]
     assert identity["differing_fields"] == []
     assert identity["matching_fields"] == [
@@ -104,6 +131,8 @@ def test_ts_python_gap_matrix_is_generated_public_safe_and_current():
         "credential_statuses",
         "forbidden_key_suffixes",
         "forbidden_public_keys",
+        "identity_security_http_schema_version",
+        "identity_security_service_schema_version",
         "invariants",
         "membership_roles",
         "membership_statuses",
@@ -140,7 +169,27 @@ def test_ts_python_gap_matrix_is_generated_public_safe_and_current():
         "wechat",
     ]
     assert len(identity["python"]["stable_error_codes"]) == 28
-    assert len(identity["python"]["routes"]) == 12
+    assert len(identity["python"]["routes"]) == 18
+    assert {
+        route["operation"]
+        for route in identity["python"]["routes"]
+        if route["operation"]
+        in {
+            "security_posture",
+            "password_enroll_begin",
+            "password_change_begin",
+            "password_recovery_begin",
+            "two_factor_enroll_begin",
+            "two_factor_enroll_confirm",
+        }
+    } == {
+        "security_posture",
+        "password_enroll_begin",
+        "password_change_begin",
+        "password_recovery_begin",
+        "two_factor_enroll_begin",
+        "two_factor_enroll_confirm",
+    }
     assert len(identity["python"]["verification_public_surface"]) == 10
     assert identity["python"]["verification"]["digest_only_envelopes"] is True
     assert identity["typescript"]["verification"]["atomic_receipt_consumption"] is True

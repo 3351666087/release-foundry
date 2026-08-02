@@ -6,8 +6,11 @@
     "schema_version",
     "queue_id",
     "source_case_book",
+    "source_case_book_hash",
     "source_incident_candidates",
+    "source_incident_candidates_hash",
     "source_regression_replay",
+    "source_regression_replay_hash",
     "target_mature_replay_case_count",
     "current_replay_case_count",
     "missing_replay_case_count",
@@ -19,14 +22,18 @@
     "promotion_items",
     "next_actions",
     "evidence_refs",
-    "metadata"
+    "metadata",
+    "artifact_hash"
   ],
   "properties": {
     "schema_version": { "const": "a2.regression_promotion_queue.v1" },
     "queue_id": { "type": "string" },
     "source_case_book": { "type": "string" },
+    "source_case_book_hash": { "$ref": "#/$defs/sha256_ref" },
     "source_incident_candidates": { "type": "string" },
+    "source_incident_candidates_hash": { "$ref": "#/$defs/sha256_ref" },
     "source_regression_replay": { "type": "string" },
+    "source_regression_replay_hash": { "$ref": "#/$defs/sha256_ref" },
     "target_mature_replay_case_count": { "type": "integer", "minimum": 0 },
     "current_replay_case_count": { "type": "integer", "minimum": 0 },
     "missing_replay_case_count": { "type": "integer", "minimum": 0 },
@@ -41,9 +48,14 @@
     },
     "next_actions": { "$ref": "#/$defs/string_array" },
     "evidence_refs": { "$ref": "#/$defs/string_array" },
-    "metadata": { "type": "object" }
+    "metadata": { "type": "object" },
+    "artifact_hash": { "$ref": "#/$defs/sha256_ref" }
   },
   "$defs": {
+    "sha256_ref": {
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$"
+    },
     "string_array": {
       "type": "array",
       "items": { "type": "string" }
@@ -78,6 +90,8 @@
       "type": "object",
       "required": [
         "promotion_id",
+        "source_incident_candidates_hash",
+        "candidate_hash",
         "queue_status",
         "case_id",
         "scenario_id",
@@ -100,6 +114,8 @@
       ],
       "properties": {
         "promotion_id": { "type": "string" },
+        "source_incident_candidates_hash": { "$ref": "#/$defs/sha256_ref" },
+        "candidate_hash": { "$ref": "#/$defs/sha256_ref" },
         "queue_status": { "type": "string" },
         "case_id": { "type": "string" },
         "scenario_id": { "type": "string" },

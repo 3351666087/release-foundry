@@ -3,17 +3,17 @@
     "decision_record_required": true,
     "delivery_generated": false,
     "display_decision": "block",
-    "display_provenance_hash": "sha256:bc608df9825ea316b374797ef76b4921bff4f6cee1943600d0297783e6be6303",
+    "display_provenance_hash": "sha256:93343a7920b06dc0f232aee7b3eb82b793010ca8c2061043682b4e7ebc088797",
     "may_override_decision": false,
     "may_recompute_grade": false,
     "release_ready": false,
     "review_queue_status": "blocked"
   },
-  "bundle_hash": "sha256:e1b8066c9346d10e8dc0c1155ee83afa67efbbcfc546c38328ae8b2c0e5dd317",
+  "bundle_hash": "sha256:b1cbc58868a5450b140668d0729b5b46a7882470c05f3e172a1e1c086d122b40",
   "candidate_binding": {
     "a1_evidence_bundle_hash": "sha256:3240e097cc4e793520d9bbb0b2a600081a5440c751bf842cbe3b8cc9e495cd9f",
     "a1_source_commit": "1d292047e991995fdf52f0545ffff410ee19a171",
-    "a2_authority_commit": "d3529c356e49ce8502c050f0dad44020031ee0dd",
+    "a2_authority_commit": "e21ebcb1b09b2a709f5381e02f89933477453d82",
     "candidate_id": "a3-golden-agent@0.2.0-rc.3",
     "evidence_release_version": "0.2.0-rc.3",
     "run_id": "a3-golden-20260720-003"
@@ -22,8 +22,8 @@
     "created_at": "2026-07-20T13:00:22Z",
     "environment_id": "staging",
     "genesis_hash": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
-    "head_hash": "sha256:bc608df9825ea316b374797ef76b4921bff4f6cee1943600d0297783e6be6303",
-    "ledger_hash": "sha256:39e0b5d2e60932f8de272611e750334864eb235be41df12710e8b70aa2feb0d8",
+    "head_hash": "sha256:93343a7920b06dc0f232aee7b3eb82b793010ca8c2061043682b4e7ebc088797",
+    "ledger_hash": "sha256:a6506f2f703a469bb4396c34ffe9a4dd840ebb2c63d810702811a8d0cdfd88eb",
     "ledger_id": "a2-a3-golden-20260720-003-ledger",
     "metadata": {
       "append_only": true,
@@ -77,7 +77,7 @@
           "deterministic:a2-local-judges"
         ],
         "organization_id": "org_local_demo",
-        "policy_hash": "sha256:528e8f36186c909375f75a216418450cbf8d56f1cf5d565a962425651724ca57",
+        "policy_hash": "sha256:b8e70e393e2968158dcf90845b0c47b4dc6ff44e2424de8b78b1107f14feeca3",
         "policy_version": "a2.candidate_release_policy.v1",
         "previous_record_hash": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
         "project_id": "releasefoundry_plus_plus_golden_path",
@@ -89,9 +89,9 @@
           "providers": []
         },
         "public_safe": true,
-        "record_hash": "sha256:1fbed2e2c488aa6eea7556a598539e1cadee0c2b16e1eaf5a1ac1e81f16be4f0",
-        "record_id": "sha256:be99554c4af9df680a890f5ad81b0d1e29dc15a7c47e5315d458f2fdd5efcf07",
-        "release_gate_hash": "sha256:9302c196c986d68a99459bd03f5fee22044c36a7df762b5e2bea9b478c1c52c1",
+        "record_hash": "sha256:b169a3dcd0415b362c56f5296fef1e7caa092123cfc8881b3822b24332a8ea78",
+        "record_id": "sha256:08d37eacf6b68c513ee0334124459c13603be912a7700ec5a523c73d986673a2",
+        "release_gate_hash": "sha256:d99a332a439d19678c2f77841a87257c82326ddc319a6a2f75b51181f2463a71",
         "review_required": false,
         "run_id": "a3-golden-20260720-003",
         "scenario_id": "A2-S001",
@@ -141,9 +141,9 @@
           "deterministic:a2-local-judges"
         ],
         "organization_id": "org_local_demo",
-        "policy_hash": "sha256:528e8f36186c909375f75a216418450cbf8d56f1cf5d565a962425651724ca57",
+        "policy_hash": "sha256:b8e70e393e2968158dcf90845b0c47b4dc6ff44e2424de8b78b1107f14feeca3",
         "policy_version": "a2.candidate_release_policy.v1",
-        "previous_record_hash": "sha256:1fbed2e2c488aa6eea7556a598539e1cadee0c2b16e1eaf5a1ac1e81f16be4f0",
+        "previous_record_hash": "sha256:b169a3dcd0415b362c56f5296fef1e7caa092123cfc8881b3822b24332a8ea78",
         "project_id": "releasefoundry_plus_plus_golden_path",
         "provider_provenance_hashes": [],
         "provider_summary": {
@@ -153,9 +153,9 @@
           "providers": []
         },
         "public_safe": true,
-        "record_hash": "sha256:b7f865ecfa71556d63d80c949878c453dae2ef81ddf88151cc04155b2fc192c7",
-        "record_id": "sha256:b6762fe25fbb3f47408f67349b55f4ba8053ce94e65835669c023d15de89a5d4",
-        "release_gate_hash": "sha256:9302c196c986d68a99459bd03f5fee22044c36a7df762b5e2bea9b478c1c52c1",
+        "record_hash": "sha256:2672759115ac94df89f3fd8cb14412ca655fee2660d55ffaaedcd8618559b83e",
+        "record_id": "sha256:04c68744ad66bbd95936f624016f9fc3397996ec53b74dc7fd9df145cc8c8f77",
+        "release_gate_hash": "sha256:d99a332a439d19678c2f77841a87257c82326ddc319a6a2f75b51181f2463a71",
         "review_required": false,
         "run_id": "a3-golden-20260720-003",
         "scenario_id": "A2-S004",
@@ -205,9 +205,9 @@
           "deterministic:a2-local-judges"
         ],
         "organization_id": "org_local_demo",
-        "policy_hash": "sha256:528e8f36186c909375f75a216418450cbf8d56f1cf5d565a962425651724ca57",
+        "policy_hash": "sha256:b8e70e393e2968158dcf90845b0c47b4dc6ff44e2424de8b78b1107f14feeca3",
         "policy_version": "a2.candidate_release_policy.v1",
-        "previous_record_hash": "sha256:b7f865ecfa71556d63d80c949878c453dae2ef81ddf88151cc04155b2fc192c7",
+        "previous_record_hash": "sha256:2672759115ac94df89f3fd8cb14412ca655fee2660d55ffaaedcd8618559b83e",
         "project_id": "releasefoundry_plus_plus_golden_path",
         "provider_provenance_hashes": [],
         "provider_summary": {
@@ -217,9 +217,9 @@
           "providers": []
         },
         "public_safe": true,
-        "record_hash": "sha256:bc608df9825ea316b374797ef76b4921bff4f6cee1943600d0297783e6be6303",
-        "record_id": "sha256:bb82c4c6fb858082a37922743ee114a19861c7317528cd354847c672630dcd2c",
-        "release_gate_hash": "sha256:9302c196c986d68a99459bd03f5fee22044c36a7df762b5e2bea9b478c1c52c1",
+        "record_hash": "sha256:93343a7920b06dc0f232aee7b3eb82b793010ca8c2061043682b4e7ebc088797",
+        "record_id": "sha256:9941af3da9be5bfdb5de6d6164448b481cc3563675b0d5a088684846e63fba54",
+        "release_gate_hash": "sha256:d99a332a439d19678c2f77841a87257c82326ddc319a6a2f75b51181f2463a71",
         "review_required": false,
         "run_id": "a3-golden-20260720-003",
         "scenario_id": "A2-S031",
@@ -473,7 +473,7 @@
       "a3_consumed_grades_hash_mismatch",
       "a3_rc3_delivery_not_generated"
     ],
-    "hash": "sha256:27f7d8ffe15823a1233365c06b5265f60d9e8b2a8b117f229487b9f9c0c5795e",
+    "hash": "sha256:61488e3e115b69890717ee7673747e45ff86e6f118edb3afbdf36f0a1d00023d",
     "path": "fixtures/a3/golden-path/rc3/a2_shared_candidate_identity.json"
   },
   "source_evidence": {
@@ -506,7 +506,7 @@
       "path": "docs/evidence/a2_postgresql_persistence_qualification_round53.json"
     },
     "a2_release_gate": {
-      "hash": "sha256:8891a1c7a0fe1732d906a39d81c32578766a4239ff349574c2c987b94455643e",
+      "hash": "sha256:3d640daf9ff9211d0d30f4aefaae75c08da9602cced10ae0723c73a2e457327d",
       "path": "fixtures/a2/results/a2_release_gate_report.json"
     },
     "a2_review_collection": {

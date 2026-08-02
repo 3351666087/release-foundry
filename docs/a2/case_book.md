@@ -2,7 +2,9 @@
 
 This case book is the reviewer-facing companion to `fixtures/a2/results/a2_case_book.json`.
 
-It records calibration disagreements that should remain visible until reviewed ReleaseFoundry grading or audited live LLM evidence resolves the boundary.
+It records calibration disagreements and explicitly approved public-safe incident
+regressions. Both remain visible until reviewed ReleaseFoundry grading or audited live LLM
+evidence resolves the boundary.
 
 ## C5 Maturity Gate
 
@@ -23,7 +25,40 @@ Production incidents can enter the case-book review queue through `fixtures/a2/r
 
 The current public-safe candidate is `prod-inc-2026-07-support-status-retry`, mapped to `sample-a2-s041-poor-retry-recovery` / `A2-S041`. It is replayable through `fixtures/a2/runs/a2_s041_poor_retry_recovery.json` and preserves local `primary_failure_class=poor_failure_recovery`.
 
-This candidate is not counted as a mature C5 replay case yet. It still needs A2 owner review plus reviewed ReleaseFoundry grading or audited semantic evidence before it can be promoted from `candidate` into the case-book regression set.
+This candidate is not counted as a mature C5 replay case yet. It is not promoted
+automatically. The owner must submit an auditable decision through
+`services.judge.casebook.promote_incident_candidates_to_case_book(...)`:
+
+```python
+promoted = promote_incident_candidates_to_case_book(
+    case_book_report,
+    incident_candidates_report,
+    [{
+        "case_id": "sample-a2-s041-poor-retry-recovery",
+        "decision": "approved",
+        "reviewer_receipt": "sha256:<64 lowercase hex>",
+        "reviewed_at_unix_ms": 1784700000000,
+        "source_incident_candidates_hash": incident_candidates_report["artifact_hash"],
+        "candidate_hash": stable_hash(
+            incident_candidates_report["candidates"][0]
+        ),
+        "evidence_refs": [
+            "docs/evidence/private_refs/a2_case_book_owner_review.redacted.json",
+        ],
+    }],
+)
+```
+
+This approval only makes the candidate eligible for deterministic replay. It does
+not count as reviewed ReleaseFoundry or audited live semantic evidence, so the C5 maturity
+gate must remain `seed` until those external evidence rows are present.
+
+The owner decision is bound to both the complete candidate-report artifact and
+the exact selected candidate content. The resulting `metadata.promotion_audit`
+records those hashes and the decision outcome. Invalid reviewer receipts, stale
+or mismatched hashes, duplicate decisions, unknown candidate ids, unsafe
+candidates, and missing replay fixtures fail closed rather than silently
+promoting or passing.
 
 ## Regression: sample-a2-s010-wrong-arguments
 

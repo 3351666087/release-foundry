@@ -17,6 +17,7 @@ import { CloudQueueWorker } from "releasefoundry/cloud-queue";
 import { buildCommercialControlPlaneKit } from "releasefoundry/commercial";
 import { datasetSourceToCases } from "releasefoundry/dataset-adapter";
 import { identityDeliveryProtocolContractManifest } from "releasefoundry/delivery-protocol";
+import { DurableEventSpool } from "releasefoundry/event-spool";
 import { buildPrivateEvidenceIndex } from "releasefoundry/evidence";
 import { GitHubOAuthHttpClient } from "releasefoundry/github-oauth";
 import { IdentityClient } from "releasefoundry/identity-client";
@@ -47,6 +48,7 @@ export const typedDistributionImports: readonly unknown[] = [
   buildCommercialControlPlaneKit,
   datasetSourceToCases,
   identityDeliveryProtocolContractManifest,
+  DurableEventSpool,
   buildPrivateEvidenceIndex,
   GitHubOAuthHttpClient,
   IdentityClient,

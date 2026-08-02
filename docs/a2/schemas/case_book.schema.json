@@ -6,26 +6,79 @@
     "schema_version",
     "case_book_id",
     "source_matrix",
+    "source_matrix_hash",
     "dataset_id",
     "regression_case_count",
+    "external_evidence_receipt_bindings",
     "regression_cases",
-    "metadata"
+    "metadata",
+    "artifact_hash"
   ],
   "properties": {
     "schema_version": { "const": "a2.case_book.v1" },
     "case_book_id": { "type": "string" },
     "source_matrix": { "type": "string" },
+    "source_matrix_hash": {
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$"
+    },
     "dataset_id": { "type": "string" },
     "regression_case_count": { "type": "integer", "minimum": 0 },
+    "external_evidence_receipt_bindings": {
+      "type": "object",
+      "required": ["releasefoundry_grading", "semantic_or_llm_judge"],
+      "properties": {
+        "releasefoundry_grading": { "$ref": "#/$defs/receipt_binding" },
+        "semantic_or_llm_judge": { "$ref": "#/$defs/receipt_binding" }
+      },
+      "additionalProperties": false
+    },
     "candidate_pool": { "type": "object" },
     "maturity_gate": { "type": "object" },
     "regression_cases": {
       "type": "array",
       "items": { "$ref": "#/$defs/regression_case" }
     },
-    "metadata": { "type": "object" }
+    "metadata": { "type": "object" },
+    "artifact_hash": {
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$"
+    }
   },
   "$defs": {
+    "receipt_binding": {
+      "type": "object",
+      "required": [
+        "valid",
+        "artifact_present",
+        "artifact_sha256",
+        "expected_case_count",
+        "observation_count",
+        "blockers",
+        "source_summary_hashes"
+      ],
+      "properties": {
+        "valid": { "type": "boolean" },
+        "artifact_present": { "type": "boolean" },
+        "artifact_sha256": {
+          "type": "string",
+          "pattern": "^(|sha256:[a-f0-9]{64})$"
+        },
+        "expected_case_count": { "type": "integer", "minimum": 0 },
+        "observation_count": { "type": "integer", "minimum": 0 },
+        "receipt_test_count": { "type": "integer", "minimum": 0 },
+        "receipt_case_count": { "type": "integer", "minimum": 0 },
+        "blockers": { "$ref": "#/$defs/string_array" },
+        "source_summary_hashes": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string",
+            "pattern": "^sha256:[a-f0-9]{64}$"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
     "string_array": {
       "type": "array",
       "items": { "type": "string" }

@@ -4,9 +4,10 @@ from __future__ import annotations
 
 import json
 import re
-from pathlib import Path
+from pathlib import Path, PurePosixPath, PureWindowsPath
 from typing import Any
 
+from .result_persistence import stable_hash
 from .runner import DEFAULT_SCENARIO_PACK, grade_run, load_scenario_pack
 from .schemas import CANONICAL_FAILURE_CLASSES, canonical_primary_failure_class
 
@@ -35,12 +36,14 @@ FORBIDDEN_TEXT_PATTERNS: dict[str, re.Pattern[str]] = {
     "email_address": re.compile(r"[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}"),
 }
 PUBLIC_FIXTURE_PREFIXES = ("fixtures/a2/runs/",)
+PUBLIC_FIXTURE_ROOT = (ROOT / "fixtures/a2/runs").resolve()
 PUBLIC_EVIDENCE_PREFIXES = (
     "docs/evidence/private_refs/",
     "docs/evidence/",
     "fixtures/",
     "packages/scenarios/",
 )
+_SHA256_REF = re.compile(r"^sha256:[a-f0-9]{64}$")
 
 
 def build_incident_regression_candidate_report(
@@ -70,9 +73,10 @@ def build_incident_regression_candidate_report(
     ready_candidates = [
         candidate
         for candidate in candidates
-        if candidate.get("public_safe") and candidate.get("ready_for_case_book_review")
+        if candidate.get("public_safe") is True
+        and candidate.get("ready_for_case_book_review") is True
     ]
-    return {
+    report = {
         "schema_version": "a2.incident_regression_candidates.v1",
         "report_id": DEFAULT_REPORT_ID,
         "source_incident_count": len(incidents),
@@ -93,6 +97,44 @@ def build_incident_regression_candidate_report(
             "candidate_policy": "Candidates require case-book owner review and reviewed external evidence before C5 maturity.",
         },
     }
+    return seal_incident_regression_candidate_report(report)
+
+
+def seal_incident_regression_candidate_report(
+    report: dict[str, Any],
+) -> dict[str, Any]:
+    """Bind a candidate report to its exact public content."""
+    if not isinstance(report, dict):
+        raise TypeError("incident candidate report must be an object")
+    core = {
+        key: value
+        for key, value in report.items()
+        if key != "artifact_hash"
+    }
+    return {**core, "artifact_hash": stable_hash(core)}
+
+
+def verify_incident_regression_candidate_report(
+    report: dict[str, Any],
+) -> str:
+    """Verify and return the candidate report content hash."""
+    if not isinstance(report, dict):
+        raise TypeError("incident candidate report must be an object")
+    artifact_hash = report.get("artifact_hash")
+    if not isinstance(artifact_hash, str) or not _SHA256_REF.fullmatch(artifact_hash):
+        raise ValueError(
+            "incident candidate report artifact_hash must be a canonical sha256 reference"
+        )
+    core = {
+        key: value
+        for key, value in report.items()
+        if key != "artifact_hash"
+    }
+    if stable_hash(core) != artifact_hash:
+        raise ValueError(
+            "incident candidate report artifact_hash does not match report content"
+        )
+    return artifact_hash
 
 
 def _candidate_from_incident(
@@ -107,7 +149,7 @@ def _candidate_from_incident(
     if not isinstance(failed_case, dict):
         return None
 
-    fixture_ref = str(failed_case.get("fixture_ref", "")).strip()
+    fixture_ref = _public_fixture_ref(failed_case.get("fixture_ref", ""))
     fixture = _load_fixture(fixture_ref) if fixture_ref else {}
     scenario_id = str(failed_case.get("scenario_id") or fixture.get("scenario_id", "")).strip()
     case_id = str(failed_case.get("case_id") or fixture.get("case_id", "")).strip()
@@ -122,7 +164,7 @@ def _candidate_from_incident(
     }
     scenario = scenarios_by_id.get(scenario_id, {})
     evidence_refs = _evidence_refs(incident, fixture_ref, source_ref)
-    replayable_fixture = bool(fixture and fixture_ref.startswith(PUBLIC_FIXTURE_PREFIXES))
+    replayable_fixture = bool(fixture and fixture_ref)
     ready = bool(incident_safety["safe"] and replayable_fixture and failure_class != "none")
     incident_id = str(incident.get("incident_id", "")).strip()
     return {
@@ -130,6 +172,7 @@ def _candidate_from_incident(
         "case_id": case_id,
         "scenario_id": scenario_id,
         "fixture_ref": fixture_ref,
+        "fixture_sha256": stable_hash(fixture) if fixture else "",
         "status": "candidate",
         "severity": str(incident.get("severity", "high")),
         "source": "production_incident",
@@ -165,10 +208,15 @@ def _load_incident_summary(
 
 
 def _incident_items(payload: dict[str, Any]) -> list[dict[str, Any]]:
-    incidents = payload.get("incidents")
-    if isinstance(incidents, list):
-        return [incident for incident in incidents if isinstance(incident, dict)]
-    return [payload]
+    if "incidents" not in payload:
+        return [payload]
+    incidents = payload["incidents"]
+    if not isinstance(incidents, list):
+        raise ValueError("incidents must be a list")
+    for index, incident in enumerate(incidents):
+        if not isinstance(incident, dict):
+            raise ValueError(f"incidents[{index}] must be an object")
+    return incidents
 
 
 def _source_incident_summary(
@@ -252,7 +300,7 @@ def _private_field_names(value: Any) -> set[str]:
 
 def _fixture_refs_are_public(value: Any) -> bool:
     refs = _values_for_key(value, "fixture_ref")
-    return all(str(ref).startswith(PUBLIC_FIXTURE_PREFIXES) for ref in refs if str(ref).strip())
+    return all(_public_fixture_ref(ref) for ref in refs if str(ref).strip())
 
 
 def _evidence_refs_are_reference_only(value: Any) -> bool:
@@ -264,7 +312,7 @@ def _evidence_refs_are_reference_only(value: Any) -> bool:
         else:
             flat_refs.append(str(ref))
     return all(
-        any(ref.startswith(prefix) for prefix in PUBLIC_EVIDENCE_PREFIXES)
+        bool(_public_evidence_ref(ref))
         for ref in flat_refs
         if ref.strip()
     )
@@ -284,10 +332,53 @@ def _values_for_key(value: Any, target_key: str) -> list[Any]:
 
 
 def _load_fixture(fixture_ref: str) -> dict[str, Any]:
-    path = _resolve_path(fixture_ref)
-    if not path.exists():
+    path = (ROOT / Path(*PurePosixPath(fixture_ref).parts)).resolve()
+    if not path.is_file():
         return {}
-    return json.loads(path.read_text(encoding="utf-8"))
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {}
+    return payload if isinstance(payload, dict) else {}
+
+
+def _public_fixture_ref(value: Any) -> str:
+    normalized = _safe_repository_ref(value)
+    if not normalized or not normalized.startswith(PUBLIC_FIXTURE_PREFIXES):
+        return ""
+    if PurePosixPath(normalized).suffix.lower() != ".json":
+        return ""
+    target = (ROOT / Path(*PurePosixPath(normalized).parts)).resolve()
+    try:
+        target.relative_to(PUBLIC_FIXTURE_ROOT)
+    except ValueError:
+        return ""
+    return normalized
+
+
+def _public_evidence_ref(value: Any) -> str:
+    normalized = _safe_repository_ref(value)
+    if not normalized:
+        return ""
+    if any(normalized.startswith(prefix) for prefix in PUBLIC_EVIDENCE_PREFIXES):
+        return normalized
+    return ""
+
+
+def _safe_repository_ref(value: Any) -> str:
+    if not isinstance(value, str) or not value.strip():
+        return ""
+    raw_ref = value.strip()
+    windows_path = PureWindowsPath(raw_ref)
+    normalized_ref = PurePosixPath(raw_ref.replace("\\", "/"))
+    if (
+        normalized_ref.is_absolute()
+        or windows_path.is_absolute()
+        or bool(windows_path.drive)
+        or ".." in normalized_ref.parts
+    ):
+        return ""
+    return normalized_ref.as_posix()
 
 
 def _grade_fixture(fixture: dict[str, Any], *, pack_path: str | Path) -> dict[str, Any]:
@@ -380,11 +471,19 @@ def _reviewer_note(
 
 
 def _evidence_refs(incident: dict[str, Any], fixture_ref: str, source_ref: str) -> list[str]:
-    refs = [fixture_ref, source_ref]
-    refs.extend(str(ref) for ref in incident.get("evidence_refs", []) if str(ref).strip())
+    refs = [fixture_ref]
+    if source_ref == "inline":
+        refs.append(source_ref)
+    else:
+        refs.append(_public_evidence_ref(source_ref))
+    refs.extend(
+        safe_ref
+        for ref in incident.get("evidence_refs", [])
+        if (safe_ref := _public_evidence_ref(ref))
+    )
     redaction = incident.get("redaction", {})
     if isinstance(redaction, dict) and str(redaction.get("private_evidence_ref", "")).strip():
-        refs.append(str(redaction["private_evidence_ref"]))
+        refs.append(_public_evidence_ref(redaction["private_evidence_ref"]))
     return sorted({ref for ref in refs if ref})
 
 
@@ -418,4 +517,4 @@ def _display_path(path: str | Path) -> str:
     try:
         return target.relative_to(ROOT).as_posix()
     except ValueError:
-        return Path(path).as_posix()
+        return "external_incident_summary"

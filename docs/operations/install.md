@@ -12,6 +12,8 @@
 1. Extract the Product Release ZIP, then extract the nested `artifacts/releasefoundry-product-<version>-runtime.zip` into an empty runtime directory.
 2. Copy the included `infra/docker/self-host.env.example` to a private location.
 3. Replace placeholders with environment-specific secrets or secret-manager references.
+   The three local Compose secrets may instead be exported in the invoking shell;
+   the installers accept either source and never write inherited values to disk.
 4. Validate without starting services:
 
    ```bash

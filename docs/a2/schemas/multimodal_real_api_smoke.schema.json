@@ -10,8 +10,18 @@
     "auth",
     "private_ref",
     "private_ref_sha256_12",
+    "requested_modalities",
+    "request_config_accepted_modalities",
+    "observed_artifact_modalities",
     "accepted_modalities",
+    "modality_evidence",
     "generation_options",
+    "artifact_receipt_status",
+    "artifact_reference_count",
+    "artifact_download_attempt_count",
+    "artifact_download_verified_count",
+    "artifact_receipts",
+    "artifact_receipts_public_safe",
     "api_call_count",
     "calls",
     "request_id_present",
@@ -38,7 +48,7 @@
         "session_reached",
         "status",
         "user_id_present",
-        "user_email_sha256_12",
+        "user_email_present",
         "tenant_id_present",
         "tenant_name_present",
         "note_count"
@@ -47,7 +57,7 @@
         "session_reached": { "type": "boolean" },
         "status": { "type": "string" },
         "user_id_present": { "type": "boolean" },
-        "user_email_sha256_12": { "type": "string" },
+        "user_email_present": { "type": "boolean" },
         "tenant_id_present": { "type": "boolean" },
         "tenant_name_present": { "type": "boolean" },
         "note_count": { "type": "integer", "minimum": 0 }
@@ -56,9 +66,50 @@
     },
     "private_ref": { "type": "string" },
     "private_ref_sha256_12": { "type": "string" },
-    "accepted_modalities": {
+    "request_content_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "required_modalities": {
       "type": "array",
       "items": { "enum": ["text", "image", "audio", "file", "video"] }
+    },
+    "excluded_modalities": {
+      "type": "array",
+      "items": { "enum": ["image", "audio", "file", "video"] }
+    },
+    "provider_limitations": {
+      "type": "object",
+      "additionalProperties": { "type": "string" }
+    },
+    "requested_modalities": {
+      "type": "array",
+      "items": { "enum": ["text", "image", "audio", "file", "video"] }
+    },
+    "request_config_accepted_modalities": {
+      "type": "array",
+      "items": { "enum": ["text", "image", "audio", "file", "video"] }
+    },
+    "observed_artifact_modalities": {
+      "type": "array",
+      "items": { "enum": ["text", "image", "audio", "file", "video"] }
+    },
+    "accepted_modalities": {
+      "type": "array",
+      "description": "Modalities with observed native input support. Request acceptance alone is insufficient.",
+      "items": { "enum": ["text", "image", "audio", "file", "video"] }
+    },
+    "modality_evidence": {
+      "type": "object",
+      "required": ["text", "image", "audio", "file", "video"],
+      "properties": {
+        "text": { "$ref": "#/$defs/modality_evidence" },
+        "image": { "$ref": "#/$defs/modality_evidence" },
+        "audio": { "$ref": "#/$defs/modality_evidence" },
+        "file": { "$ref": "#/$defs/modality_evidence" },
+        "video": { "$ref": "#/$defs/modality_evidence" }
+      },
+      "additionalProperties": false
     },
     "generation_options": {
       "type": "object",
@@ -71,16 +122,94 @@
       },
       "additionalProperties": true
     },
+    "artifact_origin": {
+      "enum": ["releasefoundry_generated_dataset"]
+    },
+    "artifact_receipt_status": {
+      "enum": [
+        "dataset_unavailable",
+        "download_disabled",
+        "request_not_completed",
+        "request_failed",
+        "dataset_binding_failed",
+        "signed_dataset_fetch_failed",
+        "signed_dataset_binding_failed",
+        "no_signed_artifact_urls",
+        "verified",
+        "partial",
+        "failed"
+      ]
+    },
+    "artifact_reference_count": { "type": "integer", "minimum": 0 },
+    "artifact_download_attempt_count": { "type": "integer", "minimum": 0 },
+    "artifact_download_verified_count": { "type": "integer", "minimum": 0 },
+    "artifact_reference_modalities": {
+      "type": "array",
+      "items": { "enum": ["image", "audio", "file", "video"] },
+      "uniqueItems": true
+    },
+    "artifact_verified_modalities": {
+      "type": "array",
+      "items": { "enum": ["image", "audio", "file", "video"] },
+      "uniqueItems": true
+    },
+    "artifact_missing_modalities": {
+      "type": "array",
+      "items": { "enum": ["image", "audio", "file", "video"] },
+      "uniqueItems": true
+    },
+    "artifact_modality_coverage_complete": { "type": "boolean" },
+    "artifact_receipts": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/artifact_receipt" }
+    },
+    "artifact_receipts_public_safe": { "const": true },
+    "native_media_uploaded": { "type": "boolean" },
+    "media_upload_api_observed": { "type": "boolean" },
     "api_call_count": { "type": "integer", "minimum": 0 },
     "calls": {
       "type": "array",
       "items": { "$ref": "#/$defs/call" }
     },
+    "mutation_guard_status": {
+      "enum": [
+        "blocked_request_inventory_unavailable",
+        "reused_exact_request",
+        "created_once",
+        "create_request_failed_once"
+      ]
+    },
+    "create_request_attempt_count": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 1
+    },
+    "create_request_retry_count": {
+      "const": 0
+    },
+    "request_inventory_page_count": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "request_inventory_complete": {
+      "const": true
+    },
+    "request_inventory_exact_match_count": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 1
+    },
+    "request_reused": { "type": "boolean" },
     "request_id_present": { "type": "boolean" },
     "request_id_sha256_12": { "type": "string" },
     "request_status": { "type": "string" },
     "dataset_id_present": { "type": "boolean" },
     "dataset_id_sha256_12": { "type": "string" },
+    "dataset_content_sha256": {
+      "type": "string",
+      "pattern": "^$|^[0-9a-f]{64}$"
+    },
+    "dataset_request_binding_verified": { "type": "boolean" },
     "dataset_summary": { "type": "object" },
     "all_required_modalities_requested": { "type": "boolean" },
     "create_request_reached": { "type": "boolean" },
@@ -93,6 +222,30 @@
     }
   },
   "$defs": {
+    "modality_evidence": {
+      "type": "object",
+      "required": [
+        "requested",
+        "request_accepted",
+        "artifact_observed",
+        "grading_path",
+        "input_support_status",
+        "evidence_status"
+      ],
+      "properties": {
+        "requested": { "type": "boolean" },
+        "request_accepted": { "type": "boolean" },
+        "artifact_observed": { "type": "boolean" },
+        "grading_path": {
+          "enum": ["native_text", "generated_artifact", "request_configuration_only", "not_observed"]
+        },
+        "input_support_status": { "enum": ["observed", "not_proven", "unknown"] },
+        "evidence_status": {
+          "enum": ["artifact_observed", "request_config_accepted", "not_observed"]
+        }
+      },
+      "additionalProperties": false
+    },
     "call": {
       "type": "object",
       "required": ["name", "status"],
@@ -100,11 +253,13 @@
         "name": {
           "enum": [
             "init",
+            "list_requests",
             "create_request",
             "wait_for_request",
             "get_request",
             "list_datasets",
-            "get_dataset"
+            "get_dataset",
+            "get_dataset_artifact_links"
           ]
         },
         "status": { "enum": ["ok", "error"] },
@@ -113,6 +268,43 @@
         "error_message": { "type": "string" }
       },
       "additionalProperties": true
+    },
+    "artifact_receipt": {
+      "type": "object",
+      "required": [
+        "modality",
+        "verification_status",
+        "sha256",
+        "byte_size",
+        "response_mime"
+      ],
+      "properties": {
+        "modality": {
+          "enum": ["image", "audio", "video", "file"]
+        },
+        "verification_status": {
+          "enum": [
+            "verified",
+            "download_failed",
+            "invalid_url",
+            "invalid_redirect",
+            "size_limit_exceeded",
+            "empty_body"
+          ]
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^$|^[0-9a-f]{64}$"
+        },
+        "byte_size": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "response_mime": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
     }
   },
   "additionalProperties": true

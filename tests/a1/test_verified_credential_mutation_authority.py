@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import os
 import re
+import shutil
 import subprocess
 import uuid
 from pathlib import Path
@@ -20,8 +21,11 @@ SQL = (
 
 
 def _docker(*args: str, input_text: str | None = None, check: bool = True):
+    docker = shutil.which("docker")
+    if docker is None:
+        pytest.skip("Docker CLI is unavailable for live PostgreSQL tests")
     return subprocess.run(
-        ["docker", *args],
+        [docker, *args],
         input=input_text,
         text=True,
         capture_output=True,

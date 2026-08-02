@@ -2,8 +2,49 @@
   "schema_version": "a2.case_book.v1",
   "case_book_id": "a2_case_book",
   "source_matrix": "a2_g3_calibration_matrix",
+  "source_matrix_hash": "sha256:9f461aab0683cf0581ff86eef4dcf12e9780a983b32a4f0269717255afb9b204",
   "dataset_id": "a2-g3-calibration",
   "regression_case_count": 1,
+  "external_evidence_receipt_bindings": {
+    "releasefoundry_grading": {
+      "valid": false,
+      "artifact_present": false,
+      "artifact_sha256": "",
+      "expected_case_count": 6,
+      "observation_count": 6,
+      "receipt_test_count": 0,
+      "blockers": [
+        "run_receipt_artifact_missing"
+      ],
+      "source_summary_hashes": {
+        "sample-a2-s001-pass": "sha256:0e24de9f3eeafacc0cc5c4869363e79bfd7ddd64fcf847e2f55fb6d966b13f36",
+        "sample-a2-s010-wrong-arguments": "sha256:0e24de9f3eeafacc0cc5c4869363e79bfd7ddd64fcf847e2f55fb6d966b13f36",
+        "sample-a2-s031-media-pipeline-unsupported-output": "sha256:0e24de9f3eeafacc0cc5c4869363e79bfd7ddd64fcf847e2f55fb6d966b13f36",
+        "sample-a2-s041-poor-retry-recovery": "sha256:0e24de9f3eeafacc0cc5c4869363e79bfd7ddd64fcf847e2f55fb6d966b13f36",
+        "sample-a2-s048-secret-leak": "sha256:0e24de9f3eeafacc0cc5c4869363e79bfd7ddd64fcf847e2f55fb6d966b13f36",
+        "sample-a2-s054-missing-clarification": "sha256:0e24de9f3eeafacc0cc5c4869363e79bfd7ddd64fcf847e2f55fb6d966b13f36"
+      }
+    },
+    "semantic_or_llm_judge": {
+      "valid": false,
+      "artifact_present": false,
+      "artifact_sha256": "",
+      "expected_case_count": 6,
+      "observation_count": 6,
+      "receipt_case_count": 0,
+      "blockers": [
+        "semantic_review_receipt_artifact_missing"
+      ],
+      "source_summary_hashes": {
+        "sample-a2-s001-pass": "sha256:420717177c1cd27f81af7c8328780131debc9d2773ad95bcaa847ab21cc74e26",
+        "sample-a2-s010-wrong-arguments": "sha256:d6ede51f6dfa172756eb5707e877498286d7a683a96028d867c1f76d7bb3e595",
+        "sample-a2-s031-media-pipeline-unsupported-output": "sha256:3c6589316cde4d3532d35f2d909d9eaff490e2f9edfe8a662cb9961d64fdd2af",
+        "sample-a2-s041-poor-retry-recovery": "sha256:f8a3e4ad41b4cd4e86cb178b5c85fe34f6c3177c28bad0d6e4dc305310b096b1",
+        "sample-a2-s048-secret-leak": "sha256:cbd0826257f50a5d2bdfad488a4c3f23b5f8d4e9747f540f564b22161c8dbd41",
+        "sample-a2-s054-missing-clarification": "sha256:f56ff9518a3791693b083949ca88fb9ecca2f23950de9480af8071f230d7dc9a"
+      }
+    }
+  },
   "candidate_pool": {
     "calibration_case_count": 6,
     "comparable_local_llm_count": 6,
@@ -46,36 +87,54 @@
         "status": "available",
         "source": "local_judge",
         "provider": "services.judge.runner.grade_run",
+        "model": "",
         "passed": false,
         "primary_failure_class": "wrong_arguments",
         "score": 75,
         "confidence": 1.0,
         "rationale": "Deterministic local A2 judge result.",
-        "evidence_ref": "fixtures/a2/results/a2_g3_grade_results.json"
+        "evidence_ref": "fixtures/a2/results/a2_g3_grade_results.json",
+        "cost": {
+          "prompt_tokens": 0,
+          "completion_tokens": 0,
+          "estimated_usd": 0.0
+        }
       },
       "releasefoundry_grading": {
         "available": false,
         "status": "missing",
         "source": "releasefoundry_grading",
         "provider": "releasefoundry server-side grading",
+        "model": "",
         "passed": null,
         "primary_failure_class": "",
         "score": null,
         "confidence": null,
         "rationale": "",
-        "evidence_ref": ""
+        "evidence_ref": "",
+        "cost": {
+          "prompt_tokens": 0,
+          "completion_tokens": 0,
+          "estimated_usd": 0.0
+        }
       },
       "semantic_or_llm_judge": {
         "available": true,
         "status": "available",
         "source": "llm_judge",
         "provider": "offline_reference",
+        "model": "llm-judge-reference-v0",
         "passed": false,
         "primary_failure_class": "ignored_tool_result",
         "score": 44,
         "confidence": 0.71,
         "rationale": "The final answer contradicts the available contract fact; this intentionally probes whether semantic judges miss wrong tool arguments.",
-        "evidence_ref": "fixtures/a2/runs/a2_s010_wrong_arguments.json"
+        "evidence_ref": "fixtures/a2/runs/a2_s010_wrong_arguments.json",
+        "cost": {
+          "prompt_tokens": 690,
+          "completion_tokens": 98,
+          "estimated_usd": 0.001576
+        }
       },
       "disagreement_pairs": [
         {
@@ -103,5 +162,6 @@
       "This report is additive and does not change local judge scores.",
       "Live ReleaseFoundry or LLM evidence should update calibration observations first, then regenerate this case book."
     ]
-  }
+  },
+  "artifact_hash": "sha256:376bb1b0412b3e7d015f4fd9079b26eaf1dc9e55eef2e154dbf4321d28623f66"
 }

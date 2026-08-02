@@ -38,7 +38,7 @@ func TestIdentityRuntimeDefaultsToPostgresAndFailsClosedWithoutDSN(t *testing.T)
 	}
 }
 
-func TestProductionIdentityRuntimeUsesPostgresAsSoleIdentityAuthority(t *testing.T) {
+func TestProductionIdentityRuntimeUsesDedicatedPostgresDSNAsSoleIdentityAuthority(t *testing.T) {
 	db, mock, err := sqlmock.New(sqlmock.MonitorPingsOption(true))
 	if err != nil {
 		t.Fatal(err)
@@ -58,7 +58,8 @@ func TestProductionIdentityRuntimeUsesPostgresAsSoleIdentityAuthority(t *testing
 		sqlmock.NewRows([]string{"ready"}).AddRow(true),
 	)
 	runtime, err := newIdentityRuntimeFromEnv(context.Background(), lookup(map[string]string{
-		"RELEASEFOUNDRY_POSTGRES_DSN":                              "postgres://production-authority.invalid/releasefoundry",
+		"RELEASEFOUNDRY_IDENTITY_POSTGRES_DSN":                     "postgres://production-authority.invalid/releasefoundry",
+		"RELEASEFOUNDRY_POSTGRES_DSN":                              "postgres://control-plane-owner-must-not-be-used.invalid/releasefoundry",
 		"RELEASEFOUNDRY_IDENTITY_SESSION_HMAC_ACTIVE_VERSION":      "v1",
 		"RELEASEFOUNDRY_IDENTITY_SESSION_HMAC_KEY":                 strings.Repeat("S", 40),
 		"RELEASEFOUNDRY_IDENTITY_SESSION_HMAC_LEGACY_VERSION":      "v1",
@@ -177,12 +178,19 @@ func TestIdentityRuntimeVerificationUsesMemorySenderUnlessSMTPExplicitlyEnabled(
 func TestIdentityRuntimeVerificationSMTPRequiresCompleteConfiguration(t *testing.T) {
 	base := map[string]string{
 		"RELEASEFOUNDRY_IDENTITY_VERIFICATION_SMTP_ENABLED": "true",
-		"RELEASEFOUNDRY_SMTP_HOST":      "host-value-must-not-leak.example.test",
-		"RELEASEFOUNDRY_SMTP_PORT":      "2465",
-		"RELEASEFOUNDRY_SMTP_FROM":      "from-value-must-not-leak@example.test",
-		"RELEASEFOUNDRY_SMTP_AUTH_CODE": "auth-value-must-not-leak",
+		"RELEASEFOUNDRY_SMTP_HOST":                         "host-value-must-not-leak.example.test",
+		"RELEASEFOUNDRY_SMTP_PORT":                         "2465",
+		"RELEASEFOUNDRY_SMTP_FROM":                         "from-value-must-not-leak@example.test",
+		"RELEASEFOUNDRY_SMTP_AUTH_CODE":                    "auth-value-must-not-leak",
+		"RELEASEFOUNDRY_IDENTITY_VERIFICATION_BROWSER_URL": "https://app.example.test/login/verify",
 	}
-	for _, missing := range []string{"RELEASEFOUNDRY_SMTP_HOST", "RELEASEFOUNDRY_SMTP_PORT", "RELEASEFOUNDRY_SMTP_FROM", "RELEASEFOUNDRY_SMTP_AUTH_CODE"} {
+	for _, missing := range []string{
+		"RELEASEFOUNDRY_SMTP_HOST",
+		"RELEASEFOUNDRY_SMTP_PORT",
+		"RELEASEFOUNDRY_SMTP_FROM",
+		"RELEASEFOUNDRY_SMTP_AUTH_CODE",
+		"RELEASEFOUNDRY_IDENTITY_VERIFICATION_BROWSER_URL",
+	} {
 		values := cloneStrings(base)
 		delete(values, missing)
 		_, err := developmentIdentityVerificationSenderFromEnv(lookup(values))
@@ -200,10 +208,11 @@ func TestIdentityRuntimeVerificationSMTPRejectsInvalidPortWithoutLeakingValue(t 
 	const invalidPort = "invalid-port-secret"
 	_, err := developmentIdentityVerificationSenderFromEnv(lookup(map[string]string{
 		"RELEASEFOUNDRY_IDENTITY_VERIFICATION_SMTP_ENABLED": "true",
-		"RELEASEFOUNDRY_SMTP_HOST":      "smtp.example.test",
-		"RELEASEFOUNDRY_SMTP_PORT":      invalidPort,
-		"RELEASEFOUNDRY_SMTP_FROM":      "verify@example.test",
-		"RELEASEFOUNDRY_SMTP_AUTH_CODE": "auth-code-secret",
+		"RELEASEFOUNDRY_SMTP_HOST":                         "smtp.example.test",
+		"RELEASEFOUNDRY_SMTP_PORT":                         invalidPort,
+		"RELEASEFOUNDRY_SMTP_FROM":                         "verify@example.test",
+		"RELEASEFOUNDRY_SMTP_AUTH_CODE":                    "auth-code-secret",
+		"RELEASEFOUNDRY_IDENTITY_VERIFICATION_BROWSER_URL": "https://app.example.test/login/verify",
 	}))
 	if err == nil || !strings.Contains(err.Error(), "RELEASEFOUNDRY_SMTP_PORT") {
 		t.Fatalf("expected invalid SMTP port error, got %v", err)
@@ -217,10 +226,11 @@ func TestIdentityRuntimeVerificationSMTPRejectsInvalidPortWithoutLeakingValue(t 
 func TestIdentityRuntimeVerificationSMTPRedactsInvalidSenderConfiguration(t *testing.T) {
 	base := map[string]string{
 		"RELEASEFOUNDRY_IDENTITY_VERIFICATION_SMTP_ENABLED": "true",
-		"RELEASEFOUNDRY_SMTP_HOST":      "smtp.example.test",
-		"RELEASEFOUNDRY_SMTP_PORT":      "465",
-		"RELEASEFOUNDRY_SMTP_FROM":      "verify@example.test",
-		"RELEASEFOUNDRY_SMTP_AUTH_CODE": "auth-code-secret",
+		"RELEASEFOUNDRY_SMTP_HOST":                         "smtp.example.test",
+		"RELEASEFOUNDRY_SMTP_PORT":                         "465",
+		"RELEASEFOUNDRY_SMTP_FROM":                         "verify@example.test",
+		"RELEASEFOUNDRY_SMTP_AUTH_CODE":                    "auth-code-secret",
+		"RELEASEFOUNDRY_IDENTITY_VERIFICATION_BROWSER_URL": "https://app.example.test/login/verify",
 	}
 	for name, mutate := range map[string]func(map[string]string){
 		"host": func(values map[string]string) {
@@ -231,6 +241,9 @@ func TestIdentityRuntimeVerificationSMTPRedactsInvalidSenderConfiguration(t *tes
 		},
 		"auth": func(values map[string]string) {
 			values["RELEASEFOUNDRY_SMTP_AUTH_CODE"] = "auth-value-must-not-leak\r\nunsafe"
+		},
+		"browser URL": func(values map[string]string) {
+			values["RELEASEFOUNDRY_IDENTITY_VERIFICATION_BROWSER_URL"] = "https://app.example.test/login?unsafe=1"
 		},
 	} {
 		t.Run(name, func(t *testing.T) {
@@ -258,6 +271,7 @@ func TestIdentityRuntimeVerificationSMTPWiresConfiguredSender(t *testing.T) {
 		"RELEASEFOUNDRY_SMTP_PORT":                            "465",
 		"RELEASEFOUNDRY_SMTP_FROM":                            "verify@example.test",
 		"RELEASEFOUNDRY_SMTP_AUTH_CODE":                       "development-auth-code",
+		"RELEASEFOUNDRY_IDENTITY_VERIFICATION_BROWSER_URL":    "https://app.example.test/login/verify",
 	}
 	runtime, err := newIdentityRuntimeFromEnv(context.Background(), lookup(base))
 	if err != nil {
@@ -825,6 +839,7 @@ func TestProductionIdentitySessionCookieTransportUsesExplicitProxyTrustOnly(t *t
 		"RELEASEFOUNDRY_IDENTITY_SESSION_COOKIE_MAX_AGE_SECONDS":     "3600",
 		"RELEASEFOUNDRY_IDENTITY_REFRESH_COOKIE_MAX_AGE_SECONDS":     "7200",
 		"RELEASEFOUNDRY_IDENTITY_SESSION_COOKIE_TRUSTED_PROXY_CIDRS": "10.0.0.0/8,2001:db8:1234::/48",
+		"RELEASEFOUNDRY_IDENTITY_VERIFICATION_HMAC_KEY":              "runtime-browser-intent-key-at-least-32-bytes",
 		"RELEASEFOUNDRY_IDENTITY_VERIFICATION_SMTP_ENABLED":          "true",
 		"RELEASEFOUNDRY_SMTP_AUTH_CODE":                              "ignored-production-smtp-secret",
 	}))
@@ -847,21 +862,61 @@ func TestProductionIdentitySessionCookieTransportUsesExplicitProxyTrustOnly(t *t
 	if err := transport.ValidateIdentitySessionRequest(trusted); err != nil {
 		t.Fatalf("trusted proxy HTTPS rejected: %v", err)
 	}
+
+	intentTransport, ok := transport.(releasefoundry.IdentityBrowserVerificationIntentTransport)
+	if !ok {
+		t.Fatal("production session transport omitted browser verification intents")
+	}
+	intentRequest := httptest.NewRequest(
+		http.MethodPost,
+		"https://api.example.test/v1/identity/registration/email/begin",
+		nil,
+	)
+	intentRequest.Header.Set("Origin", "https://api.example.test")
+	intentRequest.Header.Set("Sec-Fetch-Site", "same-origin")
+	intentResponse := httptest.NewRecorder()
+	intentReceipt, err := intentTransport.IssueIdentityBrowserVerificationIntent(
+		intentResponse,
+		intentRequest,
+		releasefoundry.IdentityBrowserVerificationIntentIssue{
+			ChallengeID: "challenge-runtime-browser-test",
+			Purpose:     releasefoundry.IdentityVerificationRegistration,
+			TenantID:    "tenant-runtime-test",
+			ProjectID:   "project-runtime-test",
+			Identifier:  "runtime@example.test",
+			ExpiresAt:   time.Now().UTC().Add(10 * time.Minute),
+		},
+	)
+	if err != nil || intentReceipt.IntentID == "" {
+		t.Fatalf("production runtime did not configure browser intent encryption: %v", err)
+	}
+	intentCookies := intentResponse.Result().Cookies()
+	if len(intentCookies) != 1 ||
+		intentCookies[0].Name != releasefoundry.IdentityBrowserVerificationIntentCookieName ||
+		!intentCookies[0].Secure ||
+		!intentCookies[0].HttpOnly {
+		t.Fatalf("production browser intent cookie is incomplete: %#v", intentCookies)
+	}
 }
 
 func TestProductionIdentitySessionCookieTransportRejectsInvalidEnvWithoutEcho(t *testing.T) {
 	for _, values := range []map[string]string{
+		{},
 		{
 			"RELEASEFOUNDRY_IDENTITY_SESSION_COOKIE_MAX_AGE_SECONDS": "invalid-max-age-secret",
+			"RELEASEFOUNDRY_IDENTITY_VERIFICATION_HMAC_KEY":          "runtime-browser-intent-key-at-least-32-bytes",
 		},
 		{
 			"RELEASEFOUNDRY_IDENTITY_REFRESH_COOKIE_MAX_AGE_SECONDS": "invalid-refresh-max-age-secret",
+			"RELEASEFOUNDRY_IDENTITY_VERIFICATION_HMAC_KEY":          "runtime-browser-intent-key-at-least-32-bytes",
 		},
 		{
 			"RELEASEFOUNDRY_IDENTITY_SESSION_COOKIE_TRUSTED_PROXY_CIDRS": "invalid-cidr-secret",
+			"RELEASEFOUNDRY_IDENTITY_VERIFICATION_HMAC_KEY":              "runtime-browser-intent-key-at-least-32-bytes",
 		},
 		{
 			"RELEASEFOUNDRY_IDENTITY_SESSION_COOKIE_TRUSTED_PROXY_CIDRS": "10.0.0.1/8,10.0.0.0/8",
+			"RELEASEFOUNDRY_IDENTITY_VERIFICATION_HMAC_KEY":              "runtime-browser-intent-key-at-least-32-bytes",
 		},
 	} {
 		_, err := productionIdentitySessionReceiptTransportFromEnv(lookup(values))

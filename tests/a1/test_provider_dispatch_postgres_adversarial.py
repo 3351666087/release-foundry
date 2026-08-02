@@ -1,8 +1,11 @@
 from __future__ import annotations
 
 import re
+import shutil
 import subprocess
 from pathlib import Path
+
+import pytest
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -37,9 +40,12 @@ def _method_body(source: str, method: str) -> str:
 
 
 def _run_go_provider_dispatch_tests() -> subprocess.CompletedProcess[str]:
+    go = shutil.which("go")
+    if go is None:
+        pytest.skip("Go is unavailable for the provider-dispatch regression suite")
     return subprocess.run(
         [
-            "go",
+            go,
             "test",
             "./...",
             "-run",

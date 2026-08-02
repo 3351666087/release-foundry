@@ -15,7 +15,8 @@
     "private_evidence_policy",
     "recommended_commands",
     "cases",
-    "metadata"
+    "metadata",
+    "artifact_hash"
   ],
   "properties": {
     "schema_version": { "const": "a2.semantic_judge_collection_packet.v1" },
@@ -36,7 +37,11 @@
       "type": "array",
       "items": { "$ref": "#/$defs/collection_case" }
     },
-    "metadata": { "type": "object" }
+    "metadata": { "type": "object" },
+    "artifact_hash": {
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$"
+    }
   },
   "$defs": {
     "boolean_map": {
@@ -61,6 +66,7 @@
         "sdk_input_path",
         "prompt_template_id",
         "prompt_input_fields",
+        "prompt_material_sha256",
         "prompt_material_sha256_12",
         "prompt_public_summary",
         "expected",
@@ -83,7 +89,14 @@
         "sdk_input_path": { "type": "string" },
         "prompt_template_id": { "type": "string" },
         "prompt_input_fields": { "$ref": "#/$defs/string_array" },
-        "prompt_material_sha256_12": { "type": "string" },
+        "prompt_material_sha256": {
+          "type": "string",
+          "pattern": "^sha256:[a-f0-9]{64}$"
+        },
+        "prompt_material_sha256_12": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{12}$"
+        },
         "prompt_public_summary": { "$ref": "#/$defs/prompt_public_summary" },
         "expected": { "type": "object" },
         "local_judge": { "type": "object" },

@@ -28,7 +28,8 @@ var postgresIdentityVerificationUUIDPattern = regexp.MustCompile(
 )
 
 // PostgresIdentityVerificationStore is scoped to one organization/project.
-// It uses only the SECURITY DEFINER functions installed by migration 012;
+// It uses only the SECURITY DEFINER functions installed by migrations
+// 012-025;
 // the runtime role does not need and must not receive direct table access.
 type PostgresIdentityVerificationStore struct {
 	db               *sql.DB
@@ -237,7 +238,7 @@ SELECT challenge_id::text, accepted, retry_after_seconds
 `,
 		store.organizationID,
 		store.projectID,
-		store.principalID,
+		store.challengePrincipalID(challenge),
 		string(challenge.Channel),
 		postgresIdentityVerificationPurpose(challenge.Purpose),
 		challenge.IdentifierDigest,
@@ -407,7 +408,9 @@ func (coordinator *PostgresIdentityVerificationTransactionCoordinator) CompleteI
 	ctx context.Context,
 	command IdentityVerificationCompletionCommand,
 ) (IdentityVerificationResultDTO, error) {
-	if command.Purpose == IdentityVerificationLogin || command.Purpose == IdentityVerificationRecovery {
+	if command.Purpose == IdentityVerificationRegistration ||
+		command.Purpose == IdentityVerificationLogin ||
+		command.Purpose == IdentityVerificationRecovery {
 		return IdentityVerificationResultDTO{}, IdentityVerificationError{
 			Code:    "session_issuance_required",
 			Message: "trusted identity session issuance is required",
@@ -421,10 +424,12 @@ func (coordinator *PostgresIdentityVerificationTransactionCoordinator) CompleteI
 	ctx context.Context,
 	command IdentityVerificationCompletionCommand,
 ) (IdentityVerificationResultDTO, IdentitySessionIssuanceReceipt, error) {
-	if command.Purpose != IdentityVerificationLogin && command.Purpose != IdentityVerificationRecovery {
+	if command.Purpose != IdentityVerificationRegistration &&
+		command.Purpose != IdentityVerificationLogin &&
+		command.Purpose != IdentityVerificationRecovery {
 		return IdentityVerificationResultDTO{}, IdentitySessionIssuanceReceipt{}, IdentityVerificationError{
 			Code:    "session_issuance_not_applicable",
-			Message: "session issuance requires login or recovery verification",
+			Message: "session issuance requires registration, login, or recovery verification",
 		}
 	}
 	return coordinator.completeIdentityVerification(ctx, command, true)
@@ -529,7 +534,7 @@ func (coordinator *PostgresIdentityVerificationTransactionCoordinator) completeI
 	requestParts := []string{
 		"completion-request", command.ChallengeID, command.CandidateCodeDigest,
 		command.IdentifierDigest, string(command.Channel), string(command.Purpose),
-		command.AccountID,
+		command.AccountID, command.DisplayName,
 	}
 	if issueSession {
 		idempotencyParts = append(
@@ -549,7 +554,7 @@ func (coordinator *PostgresIdentityVerificationTransactionCoordinator) completeI
 	}
 	idempotencyDigest := store.digest(idempotencyParts...)
 	requestDigest := store.digest(requestParts...)
-	resultID, err := coordinator.applyIdentityMutationTx(
+	mutationResult, err := coordinator.applyIdentityMutationTx(
 		operationCtx, tx, command, receipt, receiptDigest,
 		idempotencyDigest, requestDigest, mutationEventDigest, metadata,
 		sessionToken.digest, refreshToken.digest,
@@ -561,10 +566,6 @@ func (coordinator *PostgresIdentityVerificationTransactionCoordinator) completeI
 		return IdentityVerificationResultDTO{}, IdentitySessionIssuanceReceipt{}, identityVerificationStoreUnavailable()
 	}
 
-	accountID := command.AccountID
-	if accountID == "" {
-		accountID = receipt.PrincipalID
-	}
 	result := IdentityVerificationResultDTO{
 		SchemaVersion: IdentityVerificationSchemaVersion,
 		ChallengeID:   command.ChallengeID,
@@ -573,29 +574,29 @@ func (coordinator *PostgresIdentityVerificationTransactionCoordinator) completeI
 		TenantID:      command.TenantID,
 		Account: IdentityAccountDTO{
 			SchemaVersion: UnifiedIdentitySchemaVersion,
-			AccountID:     accountID,
-			PrimaryID:     accountID,
+			AccountID:     mutationResult.PrincipalID,
+			PrimaryID:     mutationResult.PrincipalID,
+			DisplayName:   command.DisplayName,
 			Status:        "active",
 		},
 		Credential: IdentityCredentialDTO{
 			SchemaVersion: UnifiedIdentitySchemaVersion,
+			CredentialID:  mutationResult.CredentialID,
 			Kind:          command.CredentialKind,
 			Provider:      IdentityProviderLocal,
 			Verified:      true,
 			CanLogin:      true,
 			LinkedAt:      command.VerifiedAt,
 		},
-		Created:    command.Purpose == IdentityVerificationBinding,
+		Created: command.Purpose == IdentityVerificationRegistration ||
+			command.Purpose == IdentityVerificationBinding,
 		VerifiedAt: command.VerifiedAt,
-	}
-	if command.Purpose == IdentityVerificationBinding {
-		result.Credential.CredentialID = resultID
 	}
 	if !issueSession {
 		return result, IdentitySessionIssuanceReceipt{}, nil
 	}
 	issuance := newIdentitySessionIssuanceReceiptWithRefresh(
-		resultID,
+		mutationResult.SessionID,
 		sessionToken.keyVersion,
 		refreshToken.keyVersion,
 		command.SessionExpiresAt.UTC(),
@@ -681,6 +682,13 @@ SELECT outcome_code,
 	return receipt, nil
 }
 
+type postgresIdentityVerificationMutationResult struct {
+	SessionID    string
+	PrincipalID  string
+	CredentialID string
+	ResultID     string
+}
+
 func (coordinator *PostgresIdentityVerificationTransactionCoordinator) applyIdentityMutationTx(
 	ctx context.Context,
 	tx *sql.Tx,
@@ -693,15 +701,15 @@ func (coordinator *PostgresIdentityVerificationTransactionCoordinator) applyIden
 	metadata []byte,
 	sessionDigest string,
 	refreshDigest string,
-) (string, error) {
+) (postgresIdentityVerificationMutationResult, error) {
 	store := coordinator.store
-	var resultID string
+	var result postgresIdentityVerificationMutationResult
 	switch command.Purpose {
 	case IdentityVerificationBinding:
 		if !validPostgresIdentityVerificationDigest(command.SessionDigest) ||
 			!validPostgresIdentityVerificationDigest(command.MutationTicketID) ||
 			!validPostgresIdentityVerificationDigest(command.StepUpReceiptID) {
-			return "", invalidPostgresIdentityVerificationProof()
+			return postgresIdentityVerificationMutationResult{}, invalidPostgresIdentityVerificationProof()
 		}
 		err := tx.QueryRowContext(ctx, `
 SELECT a1_bind_verified_identity_credential_authorized(
@@ -712,45 +720,70 @@ SELECT a1_bind_verified_identity_credential_authorized(
 			command.AccountID, command.SessionDigest, command.MutationTicketID,
 			command.StepUpReceiptID, idempotencyDigest, requestDigest,
 			eventDigest, string(metadata),
-		).Scan(&resultID)
+		).Scan(&result.ResultID)
 		if err != nil {
-			return "", mapPostgresIdentityVerificationMutationError(err)
+			return postgresIdentityVerificationMutationResult{}, mapPostgresIdentityVerificationMutationError(err)
 		}
-	case IdentityVerificationLogin, IdentityVerificationRecovery:
+		result.PrincipalID = command.AccountID
+		result.CredentialID = result.ResultID
+	case IdentityVerificationRegistration, IdentityVerificationLogin, IdentityVerificationRecovery:
 		if !validPostgresIdentityVerificationDigest(sessionDigest) ||
 			!validPostgresIdentityVerificationDigest(refreshDigest) ||
 			sessionDigest == refreshDigest {
-			return "", invalidPostgresIdentityVerificationProof()
+			return postgresIdentityVerificationMutationResult{}, invalidPostgresIdentityVerificationProof()
 		}
 		rotationDigest, err := store.uniqueDigest("rotation-family", command.ChallengeID)
 		if err != nil {
-			return "", identityVerificationStoreUnavailable()
+			return postgresIdentityVerificationMutationResult{}, identityVerificationStoreUnavailable()
 		}
-		functionName := "a1_login_with_verified_identity_with_refresh"
-		if command.Purpose == IdentityVerificationRecovery {
-			functionName = "a1_recover_verified_identity_with_refresh"
+		functionName := "a1_login_with_verified_identity_with_refresh_result"
+		if command.Purpose == IdentityVerificationRegistration {
+			functionName = "a1_register_with_verified_identity_with_refresh"
+		} else if command.Purpose == IdentityVerificationRecovery {
+			functionName = "a1_recover_verified_identity_with_refresh_result"
 		}
 		query := fmt.Sprintf(`
-SELECT %s(
+SELECT session_id::text, principal_id::text, credential_id::text
+  FROM %s(
   $1::uuid, $2::uuid, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12::jsonb
-)::text
 `, functionName)
-		err = tx.QueryRowContext(ctx, query,
+		args := []any{
 			store.organizationID, store.projectID, receiptDigest,
 			sessionDigest, refreshDigest, rotationDigest,
 			command.SessionExpiresAt.UTC(), command.RefreshExpiresAt.UTC(),
-			idempotencyDigest, requestDigest, eventDigest, string(metadata),
-		).Scan(&resultID)
-		if err != nil {
-			return "", mapPostgresIdentityVerificationMutationError(err)
+			idempotencyDigest, requestDigest, eventDigest,
 		}
+		if command.Purpose == IdentityVerificationRegistration {
+			query = fmt.Sprintf(`
+SELECT session_id::text, principal_id::text, credential_id::text
+  FROM %s(
+  $1::uuid, $2::uuid, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13::jsonb
+)
+`, functionName)
+			args = append(args, command.DisplayName, string(metadata))
+		} else {
+			query += ")\n"
+			args = append(args, string(metadata))
+		}
+		err = tx.QueryRowContext(ctx, query, args...).Scan(
+			&result.SessionID, &result.PrincipalID, &result.CredentialID,
+		)
+		if err != nil {
+			return postgresIdentityVerificationMutationResult{}, mapPostgresIdentityVerificationMutationError(err)
+		}
+		result.ResultID = result.SessionID
 	default:
-		return "", invalidPostgresIdentityVerificationProof()
+		return postgresIdentityVerificationMutationResult{}, invalidPostgresIdentityVerificationProof()
 	}
-	if !validPostgresIdentityVerificationUUID(resultID) {
-		return "", identityVerificationStoreUnavailable()
+	if !validPostgresIdentityVerificationUUID(result.PrincipalID) ||
+		!validPostgresIdentityVerificationUUID(result.CredentialID) ||
+		(command.Purpose != IdentityVerificationBinding &&
+			!validPostgresIdentityVerificationUUID(result.SessionID)) ||
+		(command.Purpose == IdentityVerificationBinding &&
+			!validPostgresIdentityVerificationUUID(result.ResultID)) {
+		return postgresIdentityVerificationMutationResult{}, identityVerificationStoreUnavailable()
 	}
-	return resultID, nil
+	return result, nil
 }
 
 func validatePostgresIdentityVerificationCompletion(
@@ -781,8 +814,25 @@ func validatePostgresIdentityVerificationCompletion(
 				Message: "production credential binding requires trusted recent authentication and step-up authorization",
 			}
 		}
-	} else if command.Purpose != IdentityVerificationLogin &&
-		command.Purpose != IdentityVerificationRecovery {
+	} else if command.Purpose == IdentityVerificationRegistration {
+		if command.Channel != IdentityVerificationEmail ||
+			command.CredentialKind != IdentityCredentialEmail ||
+			command.AccountID != "" {
+			return invalidPostgresIdentityVerificationProof()
+		}
+	} else if command.Purpose == IdentityVerificationLogin {
+		if command.AccountID != "" &&
+			!validPostgresIdentityVerificationUUID(command.AccountID) {
+			return invalidPostgresIdentityVerificationProof()
+		}
+	} else if command.Purpose == IdentityVerificationRecovery {
+		if !validPostgresIdentityVerificationUUID(command.AccountID) {
+			return IdentityVerificationError{
+				Code:    "account_binding_required",
+				Message: "production recovery verification requires an existing account_id",
+			}
+		}
+	} else {
 		return invalidPostgresIdentityVerificationProof()
 	}
 	if command.SessionExpiresAt.IsZero() || !command.SessionExpiresAt.After(command.VerifiedAt) ||
@@ -834,7 +884,20 @@ func (store *PostgresIdentityVerificationStore) validateChallenge(
 		(challenge.AccountID != "" && challenge.AccountID != store.principalID) {
 		return invalidPostgresIdentityVerificationChallenge()
 	}
-	if challenge.Purpose != IdentityVerificationLogin && store.principalID == "" {
+	switch challenge.Purpose {
+	case IdentityVerificationRegistration:
+		if challenge.Channel != IdentityVerificationEmail || challenge.AccountID != "" {
+			return invalidPostgresIdentityVerificationChallenge()
+		}
+	case IdentityVerificationLogin:
+		if challenge.AccountID != "" && store.principalID == "" {
+			return invalidPostgresIdentityVerificationChallenge()
+		}
+	case IdentityVerificationBinding, IdentityVerificationRecovery:
+		if challenge.AccountID == "" || store.principalID == "" {
+			return invalidPostgresIdentityVerificationChallenge()
+		}
+	default:
 		return invalidPostgresIdentityVerificationChallenge()
 	}
 	ttl := challenge.ExpiresAt.Sub(challenge.CreatedAt)
@@ -864,7 +927,7 @@ func validatePostgresIdentityVerificationChallengeShape(
 		return invalidPostgresIdentityVerificationChallenge()
 	}
 	switch challenge.Purpose {
-	case IdentityVerificationBinding, IdentityVerificationLogin, IdentityVerificationRecovery:
+	case IdentityVerificationRegistration, IdentityVerificationBinding, IdentityVerificationLogin, IdentityVerificationRecovery:
 	default:
 		return invalidPostgresIdentityVerificationChallenge()
 	}
@@ -904,11 +967,21 @@ func (store *PostgresIdentityVerificationStore) requestContextDigest(
 		"request-context",
 		store.organizationID,
 		store.projectID,
-		store.principalID,
+		store.challengePrincipalID(challenge),
 		string(challenge.Channel),
 		postgresIdentityVerificationPurpose(challenge.Purpose),
 		challenge.IdentifierDigest,
 	)
+}
+
+func (store *PostgresIdentityVerificationStore) challengePrincipalID(
+	challenge IdentityVerificationChallenge,
+) string {
+	if challenge.Purpose == IdentityVerificationRegistration ||
+		(challenge.Purpose == IdentityVerificationLogin && challenge.AccountID == "") {
+		return ""
+	}
+	return store.principalID
 }
 
 func (store *PostgresIdentityVerificationStore) uniqueDigest(
@@ -933,6 +1006,8 @@ func (store *PostgresIdentityVerificationStore) digest(parts ...string) string {
 
 func postgresIdentityVerificationPurpose(purpose IdentityVerificationPurpose) string {
 	switch purpose {
+	case IdentityVerificationRegistration:
+		return "registration"
 	case IdentityVerificationBinding:
 		return "credential_binding"
 	case IdentityVerificationRecovery:
@@ -946,6 +1021,8 @@ func identityVerificationPurposeFromPostgres(
 	purpose string,
 ) (IdentityVerificationPurpose, error) {
 	switch purpose {
+	case "registration":
+		return IdentityVerificationRegistration, nil
 	case "credential_binding":
 		return IdentityVerificationBinding, nil
 	case "login":
