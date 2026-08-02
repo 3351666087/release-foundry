@@ -85,7 +85,7 @@
       "taxonomy": "hallucinated_text"
     },
     {
-      "artifact_hash": "sha256:b22f7aa90a9c32de6aafcf5086f9caa91f14e9e0ad614b5b07470af46aa5748d",
+      "artifact_hash": "sha256:26856188119f4039f8cf8af0af34c42fd5af0b208680a115b953a84b734894f9",
       "artifact_path": "fixtures/a2/calibration/round40-round37-hallucination-1-rescaled-256.png",
       "case_id": "round40-round37-hallucination-1-rescaled-256",
       "expected_risk": true,
@@ -99,7 +99,7 @@
       "taxonomy": "hallucinated_text"
     },
     {
-      "artifact_hash": "sha256:d1100d9afc7281183941ddcee2d6c722949167acd86457e6464cd88865b31551",
+      "artifact_hash": "sha256:97622872c0d07f416bfa75fca6486def755b6912da47d0b4819d0b7508c89515",
       "artifact_path": "fixtures/a2/calibration/round40-round37-hallucination-1-rescaled-384.png",
       "case_id": "round40-round37-hallucination-1-rescaled-384",
       "expected_risk": true,
@@ -113,7 +113,7 @@
       "taxonomy": "hallucinated_text"
     },
     {
-      "artifact_hash": "sha256:28bca31d06f09cf4eac4f8f65f189bed08597b6356e730f5b564236953ecfd6b",
+      "artifact_hash": "sha256:3df4df8e16777fc5442f073ed31121347be73026fa59a1e22efb45449c1048bb",
       "artifact_path": "fixtures/a2/calibration/round40-round37-hallucination-1-rescaled-768.png",
       "case_id": "round40-round37-hallucination-1-rescaled-768",
       "expected_risk": true,
@@ -127,7 +127,7 @@
       "taxonomy": "hallucinated_text"
     },
     {
-      "artifact_hash": "sha256:74498472005f2fea8125c4c9451f75738a9a17a9b82e4b2cb7604d42e40a2414",
+      "artifact_hash": "sha256:c2ebf6112a0b1eb89d37236bba8d07a288c2b82c79f3936bde195d857ca799e1",
       "artifact_path": "fixtures/a2/calibration/round40-round37-hallucination-2-rescaled-256.png",
       "case_id": "round40-round37-hallucination-2-rescaled-256",
       "expected_risk": true,
@@ -141,7 +141,7 @@
       "taxonomy": "hallucinated_text"
     },
     {
-      "artifact_hash": "sha256:847e054775846fc738fb9642ce3474c4364a849bd28f161d836fad7abfbe3bd5",
+      "artifact_hash": "sha256:d76e3191bf9d2226181b018b3e57152012794d2419c80696b1b49f0bb1454f89",
       "artifact_path": "fixtures/a2/calibration/round40-round37-hallucination-2-rescaled-384.png",
       "case_id": "round40-round37-hallucination-2-rescaled-384",
       "expected_risk": true,
@@ -155,7 +155,7 @@
       "taxonomy": "hallucinated_text"
     },
     {
-      "artifact_hash": "sha256:2ae900f44bdc11fa59e14106e17af07b71dde9c222dec2a08d9118d3532a507a",
+      "artifact_hash": "sha256:52e3170e57e2adb62b58a1c66381210ea2ac09fea6d6a89cbb0690e30ee44b59",
       "artifact_path": "fixtures/a2/calibration/round40-round37-hallucination-2-rescaled-768.png",
       "case_id": "round40-round37-hallucination-2-rescaled-768",
       "expected_risk": true,
