@@ -1,4 +1,4 @@
 pytest==9.0.3
 jsonschema==4.23.0
 cryptography==48.0.1
-Pillow==12.3.0
+Pillow==13.0.0
